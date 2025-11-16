@@ -1,0 +1,20 @@
+FROM node:20-alpine
+
+RUN npm install -g pnpm@8
+
+WORKDIR /app
+
+COPY package.json pnpm-workspace.yaml ./
+COPY packages/verifier-service/package.json ./packages/verifier-service/
+
+RUN pnpm install --frozen-lockfile
+
+COPY packages/verifier-service ./packages/verifier-service
+COPY tsconfig.json ./
+
+RUN pnpm --filter verifier-service build
+
+EXPOSE 8081
+
+CMD ["node", "packages/verifier-service/dist/server.js"]
+

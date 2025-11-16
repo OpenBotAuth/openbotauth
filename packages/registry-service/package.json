@@ -1,0 +1,37 @@
+{
+  "name": "@openbotauth/registry-service",
+  "version": "0.1.0",
+  "description": "Registry service for OpenBotAuth - JWKS hosting and agent management",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch --env-file=../../.env src/server.ts",
+    "start": "node --env-file=../../.env dist/server.js",
+    "clean": "rm -rf dist",
+    "test": "vitest"
+  },
+  "keywords": [
+    "jwks",
+    "registry",
+    "agent-management"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "@types/pg": "^8.15.6",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "@openbotauth/github-connector": "workspace:*",
+    "@openbotauth/registry-signer": "workspace:*",
+    "dotenv": "^17.2.3",
+    "express": "^4.19.2",
+    "pg": "^8.12.0"
+  }
+}

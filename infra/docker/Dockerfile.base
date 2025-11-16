@@ -1,0 +1,25 @@
+FROM node:20-alpine AS base
+
+# Install pnpm
+RUN npm install -g pnpm@8
+
+WORKDIR /app
+
+# Copy workspace files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY tsconfig.json ./
+
+# Copy all package.json files for dependency resolution
+COPY packages/*/package.json ./packages/
+COPY apps/*/package.json ./apps/ 2>/dev/null || true
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY packages/ ./packages/
+COPY apps/ ./apps/ 2>/dev/null || true
+
+# Build all packages
+RUN pnpm build
+

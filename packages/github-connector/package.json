@@ -1,0 +1,36 @@
+{
+  "name": "@openbotauth/github-connector",
+  "version": "0.1.0",
+  "description": "GitHub OAuth connector for OpenBotAuth (Neon-backed)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest"
+  },
+  "keywords": [
+    "github",
+    "oauth",
+    "authentication"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/pg": "^8.15.6",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "pg": "^8.12.0"
+  }
+}

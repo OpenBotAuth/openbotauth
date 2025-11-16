@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  registry:
+    build:
+      context: ../../
+      dockerfile: infra/docker/Dockerfile.registry
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=development
+      - PORT=8080
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GITHUB_CALLBACK_URL=${GITHUB_CALLBACK_URL}
+      - SESSION_SECRET=${SESSION_SECRET}
+    depends_on:
+      - redis
+    volumes:
+      - ../../packages/registry-service:/app/packages/registry-service
+      - ../../packages/registry-signer:/app/packages/registry-signer
+      - ../../packages/github-connector:/app/packages/github-connector
+
+  verifier:
+    build:
+      context: ../../
+      dockerfile: infra/docker/Dockerfile.verifier
+    ports:
+      - "8081:8081"
+    environment:
+      - NODE_ENV=development
+      - PORT=8081
+      - REDIS_URL=redis://redis:6379
+      - OB_TRUSTED_DIRECTORIES=${OB_TRUSTED_DIRECTORIES:-registry:8080}
+      - OB_MAX_SKEW_SEC=${OB_MAX_SKEW_SEC:-300}
+      - OB_NONCE_TTL_SEC=${OB_NONCE_TTL_SEC:-600}
+      - OB_REQUIRE_TAG=${OB_REQUIRE_TAG:-web-bot-auth}
+    depends_on:
+      redis:
+        condition: service_healthy
+      registry:
+        condition: service_started
+    volumes:
+      - ../../packages/verifier-service:/app/packages/verifier-service
+
+  mcp:
+    build:
+      context: ../../
+      dockerfile: infra/docker/Dockerfile.mcp
+    ports:
+      - "8082:8082"
+    environment:
+      - NODE_ENV=development
+      - PORT=8082
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - MCP_BEARER_TOKEN=${MCP_BEARER_TOKEN:-dev-token}
+    depends_on:
+      - redis
+      - registry
+    volumes:
+      - ../../packages/mcp-server:/app/packages/mcp-server
+
+  a2a:
+    build:
+      context: ../../
+      dockerfile: infra/docker/Dockerfile.a2a
+    ports:
+      - "8083:8083"
+    environment:
+      - NODE_ENV=development
+      - PORT=8083
+    volumes:
+      - ../../packages/a2a-card:/app/packages/a2a-card
+
+  wordpress:
+    image: wordpress:latest
+    ports:
+      - "8000:80"
+    environment:
+      - WORDPRESS_DB_HOST=db
+      - WORDPRESS_DB_USER=wordpress
+      - WORDPRESS_DB_PASSWORD=wordpress
+      - WORDPRESS_DB_NAME=wordpress
+    volumes:
+      - wp-data:/var/www/html
+      - ../../plugins/wordpress-openbotauth:/var/www/html/wp-content/plugins/openbotauth
+      - ./nginx/wordpress.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - db
+      - verifier
+
+  db:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=wordpress
+      - MYSQL_USER=wordpress
+      - MYSQL_PASSWORD=wordpress
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:
+  wp-data:
+  db-data:
+

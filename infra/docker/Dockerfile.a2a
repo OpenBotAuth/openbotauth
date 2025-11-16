@@ -1,0 +1,20 @@
+FROM node:20-alpine
+
+RUN npm install -g pnpm@8
+
+WORKDIR /app
+
+COPY package.json pnpm-workspace.yaml ./
+COPY packages/a2a-card/package.json ./packages/a2a-card/
+
+RUN pnpm install --frozen-lockfile
+
+COPY packages/a2a-card ./packages/a2a-card
+COPY tsconfig.json ./
+
+RUN pnpm --filter a2a-card build
+
+EXPOSE 8083
+
+CMD ["node", "packages/a2a-card/dist/server.js"]
+

@@ -1,0 +1,20 @@
+FROM node:20-alpine
+
+RUN npm install -g pnpm@8
+
+WORKDIR /app
+
+COPY package.json pnpm-workspace.yaml ./
+COPY packages/mcp-server/package.json ./packages/mcp-server/
+
+RUN pnpm install --frozen-lockfile
+
+COPY packages/mcp-server ./packages/mcp-server
+COPY tsconfig.json ./
+
+RUN pnpm --filter mcp-server build
+
+EXPOSE 8082
+
+CMD ["node", "packages/mcp-server/dist/server.js"]
+

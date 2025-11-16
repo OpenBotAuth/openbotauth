@@ -1,0 +1,35 @@
+{
+  "name": "openbotauth",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenBotAuth - Minimal Defensible Surface for Agent Identity over HTTP",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter \"./packages/*\" --parallel dev",
+    "build": "pnpm --filter \"./packages/*\" build",
+    "lint": "eslint .",
+    "test": "vitest",
+    "clean": "pnpm --filter \"./packages/*\" --parallel clean"
+  },
+  "keywords": [
+    "bot-auth",
+    "rfc9421",
+    "jwks",
+    "http-signatures"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@typescript-eslint/eslint-plugin": "^7.13.0",
+    "@typescript-eslint/parser": "^7.13.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
+
