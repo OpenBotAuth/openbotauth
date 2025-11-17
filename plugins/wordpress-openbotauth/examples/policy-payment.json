@@ -1,0 +1,9 @@
+{
+  "default": {
+    "effect": "allow",
+    "price_cents": 500,
+    "currency": "USD",
+    "teaser_words": 100
+  }
+}
+

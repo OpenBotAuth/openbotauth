@@ -1,0 +1,19 @@
+{
+  "default": {
+    "effect": "teaser",
+    "teaser_words": 150,
+    "whitelist": [
+      "http://localhost:8080/jwks/premium-bot.json",
+      "https://trusted-ai.org/jwks/*"
+    ],
+    "blacklist": [
+      "http://badbot.com/*",
+      "http://scraper.example.com/*"
+    ],
+    "rate_limit": {
+      "max_requests": 100,
+      "window_seconds": 3600
+    }
+  }
+}
+

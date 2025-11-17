@@ -1,0 +1,10 @@
+{
+  "default": {
+    "effect": "deny",
+    "whitelist": [
+      "http://localhost:8080/jwks/trusted-bot.json",
+      "https://research.university.edu/jwks/*"
+    ]
+  }
+}
+

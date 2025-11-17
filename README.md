@@ -101,19 +101,55 @@ Provides:
 
 ### WordPress Plugin
 
+**[📖 Full Documentation →](plugins/wordpress-openbotauth/README.md)**
+
 Implements:
-- YAML-based policy engine
+- RFC 9421 signature verification
+- Granular policy engine (allow/deny/teaser)
 - 402 payment flow
 - Content teaser/gating
-- Receipt verification
-- Bot analytics
+- Rate limiting per agent
+- Whitelist/blacklist support
+- Per-post policy overrides
+- Admin UI for policy management
+- Bot analytics ready
+
+**Quick Install:**
+```bash
+cp -r plugins/wordpress-openbotauth /path/to/wordpress/wp-content/plugins/
+# Activate in WordPress Admin → Plugins
+# Configure in Settings → OpenBotAuth
+```
+
+See [plugins/wordpress-openbotauth/README.md](plugins/wordpress-openbotauth/README.md) for detailed setup, configuration, and examples.
 
 ### MCP Server
 
-Exposes tools for:
-- `policy.apply` - Policy evaluation
-- `payments.create_intent` - Payment intent creation
-- `meter.ingest` - Activity metering
+**[📖 Full Documentation →](packages/mcp-server/README.md)**
+
+Exposes tools for AI agents (Claude, etc.):
+- `policy_apply` - Evaluate access policies
+- `payments_create_intent` - Create payment intents
+- `meter_ingest` - Track usage events
+
+**Quick Setup:**
+```bash
+cd packages/mcp-server
+pnpm install && pnpm build
+
+# Add to Claude Desktop config
+# See packages/mcp-server/README.md for details
+```
+
+**Features:**
+- ✅ Policy evaluation (whitelist/blacklist/rate limits)
+- 💰 Payment intent creation
+- 📊 Usage metering and analytics
+- 🤖 Claude Desktop integration
+- 🔄 Real-time counters (Redis)
+- 📈 Historical data (PostgreSQL)
+
+See [packages/mcp-server/README.md](packages/mcp-server/README.md) for Claude Desktop integration and usage examples.
 
 ### Bot CLI
 

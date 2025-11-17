@@ -1,0 +1,10 @@
+{
+  "default": {
+    "effect": "allow",
+    "rate_limit": {
+      "max_requests": 100,
+      "window_seconds": 3600
+    }
+  }
+}
+

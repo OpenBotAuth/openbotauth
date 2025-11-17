@@ -1,0 +1,23 @@
+# WordPress
+*.log
+.htaccess
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+/tmp/
+/tests/tmp/
+
+# Build
+/vendor/
+composer.lock
+

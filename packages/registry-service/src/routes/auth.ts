@@ -107,9 +107,9 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
     });
     res.setHeader('Set-Cookie', cookie);
 
-    // For now, redirect to a success page on the API
-    // TODO: Redirect to frontend when UI is migrated
-    res.redirect('/auth/success');
+    // Redirect to portal
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(frontendUrl);
   } catch (error) {
     console.error('OAuth callback error:', error);
     res.status(500).json({ error: 'Authentication failed' });

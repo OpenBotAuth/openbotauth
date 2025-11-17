@@ -64,6 +64,29 @@ export function publicKeyToJWK(
 }
 
 /**
+ * Extract raw Ed25519 public key from SPKI format
+ * SPKI format is 44 bytes: 12 bytes header + 32 bytes raw key
+ */
+function extractRawEd25519PublicKey(spkiBase64: string): string {
+  const buffer = Buffer.from(spkiBase64, 'base64');
+  
+  // Ed25519 SPKI format: 12 bytes header + 32 bytes raw key
+  if (buffer.length === 44) {
+    // Extract last 32 bytes (the raw public key)
+    const rawKey = buffer.slice(12);
+    return base64ToBase64Url(rawKey.toString('base64'));
+  }
+  
+  // If it's already 32 bytes, it's the raw key
+  if (buffer.length === 32) {
+    return base64ToBase64Url(spkiBase64);
+  }
+  
+  // Otherwise, just convert to base64url as-is
+  return base64ToBase64Url(spkiBase64);
+}
+
+/**
  * Convert a base64-encoded public key to JWK format
  * (Used when reading from database)
  */
@@ -72,13 +95,14 @@ export function base64PublicKeyToJWK(
   kid: string,
   createdAt?: Date
 ): JWK {
-  const base64url = base64ToBase64Url(publicKeyBase64);
+  // Extract raw Ed25519 key from SPKI format
+  const rawKeyBase64Url = extractRawEd25519PublicKey(publicKeyBase64);
   
   const jwk: JWK = {
     kty: 'OKP',
     crv: 'Ed25519',
     kid,
-    x: base64url,
+    x: rawKeyBase64Url,
     use: 'sig',
   };
 

@@ -1,0 +1,38 @@
+{
+  "name": "@openbotauth/verifier-service",
+  "version": "0.1.0",
+  "description": "RFC 9421 HTTP signature verification service for OpenBotAuth",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch --env-file=../../.env src/server.ts",
+    "start": "node --env-file=../../.env dist/server.js",
+    "clean": "rm -rf dist",
+    "test": "vitest"
+  },
+  "keywords": [
+    "rfc9421",
+    "http-signatures",
+    "verification",
+    "jwks"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "@types/redis": "^4.0.11",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "@openbotauth/registry-signer": "workspace:*",
+    "dotenv": "^17.2.3",
+    "express": "^4.19.2",
+    "redis": "^4.6.13"
+  }
+}
+
