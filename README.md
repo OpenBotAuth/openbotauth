@@ -1,4 +1,6 @@
-# OpenBotAuth — Social Identities for Agents over HTTP 
+![generated-image-2-2](https://github.com/user-attachments/assets/eeda5efb-43e2-488b-9cd7-19ca67e2f4f0)
+
+## OpenBotAuth — Social Identities for Agents over HTTP 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org/)
