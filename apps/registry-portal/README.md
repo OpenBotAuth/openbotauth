@@ -56,7 +56,7 @@ The Vite dev server proxies API requests to avoid CORS issues:
 ### Install Dependencies
 
 ```bash
-cd /Users/hammadtariq/go/src/github.com/hammadtq/openbotauth
+cd /path/to/openbotauth
 pnpm install
 ```
 

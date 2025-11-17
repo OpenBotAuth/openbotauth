@@ -103,7 +103,7 @@ class Admin {
                 </p>
                 <p>
                     <?php _e('Control bot access with granular policies, teasers, and 402 payment flows.', 'openbotauth'); ?>
-                    <a href="https://github.com/hammadtq/openbotauth" target="_blank"><?php _e('Documentation', 'openbotauth'); ?></a>
+                    <a href="https://github.com/OpenBotAuth/openbotauth" target="_blank"><?php _e('Documentation', 'openbotauth'); ?></a>
                 </p>
             </div>
             

@@ -35,7 +35,7 @@ The **OpenBotAuth WordPress Plugin** enables content owners to control how AI ag
 - 🎯 **Whitelist/blacklist** specific bots
 - 📊 **Track** which bots access your content
 
-This plugin is part of the [OpenBotAuth project](https://github.com/hammadtq/openbotauth), which provides a complete infrastructure for agent identity and access control.
+This plugin is part of the [OpenBotAuth project](https://github.com/OpenBotAuth/openbotauth), which provides a complete infrastructure for agent identity and access control.
 
 ---
 
@@ -583,7 +583,7 @@ Contributions are welcome! Please see the [main project README](../../README.md)
 
 ```bash
 # Clone the repo
-git clone https://github.com/hammadtq/openbotauth.git
+git clone https://github.com/OpenBotAuth/openbotauth.git
 cd openbotauth/plugins/wordpress-openbotauth
 
 # Symlink to WordPress
@@ -614,7 +614,7 @@ MIT License - see [LICENSE](../../LICENSE) for details
 
 ## 🔗 Links
 
-- **Main Project**: [github.com/hammadtq/openbotauth](https://github.com/hammadtq/openbotauth)
+- **Main Project**: [github.com/OpenBotAuth/openbotauth](https://github.com/OpenBotAuth/openbotauth)
 - **Documentation**: [Main README](../../README.md)
 - **Registry Service**: [packages/registry-service](../../packages/registry-service)
 - **Verifier Service**: [packages/verifier-service](../../packages/verifier-service)
@@ -625,8 +625,8 @@ MIT License - see [LICENSE](../../LICENSE) for details
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/hammadtq/openbotauth/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/hammadtq/openbotauth/discussions)
+- **Issues**: [GitHub Issues](https://github.com/OpenBotAuth/openbotauth/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/OpenBotAuth/openbotauth/discussions)
 
 ---
 

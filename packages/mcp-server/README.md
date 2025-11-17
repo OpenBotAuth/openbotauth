@@ -505,7 +505,7 @@ node examples/test-client.js
 
 ## 🔗 Links
 
-- **Main Project**: [github.com/hammadtq/openbotauth](https://github.com/hammadtq/openbotauth)
+- **Main Project**: [github.com/OpenBotAuth/openbotauth](https://github.com/OpenBotAuth/openbotauth)
 - **MCP SDK**: [@modelcontextprotocol/sdk](https://www.npmjs.com/package/@modelcontextprotocol/sdk)
 - **Claude Desktop**: [claude.ai/desktop](https://claude.ai/desktop)
 

@@ -9,6 +9,7 @@ import 'dotenv/config';
 import express from 'express';
 import { Pool } from 'pg';
 import { Database, GitHubOAuth } from '@openbotauth/github-connector';
+import { mountAgentCard } from '@openbotauth/a2a-card';
 import { jwksRouter } from './routes/jwks.js';
 import { agentRouter } from './routes/agents.js';
 import { agentsAPIRouter } from './routes/agents-api.js';
@@ -71,6 +72,17 @@ app.locals.oauth = oauth;
 
 // Session middleware
 app.use(sessionMiddleware);
+
+// Mount A2A Card
+mountAgentCard(app, {
+  jwksUrl: process.env.AGENTCARD_JWKS_URL || 'http://localhost:8080/jwks/openbotauth.json',
+  mcpUrl: process.env.MCP_BASE_URL || 'http://localhost:8082',
+  a2aUrl: process.env.A2A_BASE_URL || 'http://localhost:8080',
+  enableA2A: process.env.ENABLE_A2A === 'true',
+  contact: process.env.AGENTCARD_CONTACT,
+  docsUrl: process.env.AGENTCARD_DOCS_URL,
+  sigAlgs: process.env.AGENTCARD_SIG_ALGS?.split(',').map(s => s.trim()),
+});
 
 // Health check
 app.get('/health', (_req: express.Request, res: express.Response) => {

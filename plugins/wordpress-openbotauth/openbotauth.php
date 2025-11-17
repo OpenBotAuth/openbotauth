@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: OpenBotAuth
- * Plugin URI: https://github.com/hammadtq/openbotauth
+ * Plugin URI: https://github.com/OpenBotAuth/openbotauth
  * Description: Secure bot authentication using RFC 9421 HTTP signatures. Control bot access with granular policies, teasers, and 402 payment flows.
  * Version: 0.1.0
  * Author: OpenBotAuth
- * Author URI: https://github.com/hammadtq/openbotauth
+ * Author URI: https://github.com/OpenBotAuth/openbotauth
  * License: MIT
  * Text Domain: openbotauth
  * Requires at least: 6.0

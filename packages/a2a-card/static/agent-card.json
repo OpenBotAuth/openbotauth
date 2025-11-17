@@ -1,0 +1,32 @@
+{
+  "schema": "a2a-agent-card",
+  "version": "0.1.0-draft",
+  "agent": {
+    "name": "OpenBotAuth Service",
+    "version": "0.1.0"
+  },
+  "endpoints": {
+    "mcp": "http://localhost:8082",
+    "a2a": null
+  },
+  "experimental": {
+    "a2a": false
+  },
+  "auth": {
+    "http-signatures": {
+      "signature-agent": "http://localhost:8080/jwks/openbotauth.json",
+      "alg": ["ed25519"]
+    }
+  },
+  "capabilities": [
+    "policy.apply",
+    "payments.create_intent",
+    "meter.ingest"
+  ],
+  "metadata": {
+    "contact": "security@openbotauth.org",
+    "docs": "https://docs.openbotauth.org/a2a",
+    "updated_at": "2025-11-17T00:00:00.000Z"
+  }
+}
+
