@@ -14,7 +14,7 @@ This monorepo contains:
 
 This repo also explores integrations with local MCP server (Claude Desktop integration) + A2A agent cards. However, these are exploratory features. 
 
-OpenBotAUth works with any origin behind NGINX/Caddy/Envoy, eliminating CDN dependency.
+OpenBotAuth works with any origin behind NGINX/Caddy/Envoy, eliminating CDN dependency.
 
 ---
 
