@@ -93,6 +93,22 @@ class RegistryAPI {
   }
 
   /**
+   * Get all profiles (public registry)
+   */
+  async getAllProfiles(): Promise<{ username: string; created_at: string }[]> {
+    try {
+      const response = await this.fetch('/profiles');
+      if (!response.ok) {
+        return [];
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Get all profiles error:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get user profile by username
    */
   async getProfileByUsername(username: string): Promise<Profile | null> {

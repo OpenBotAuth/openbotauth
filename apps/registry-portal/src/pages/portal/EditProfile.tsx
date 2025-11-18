@@ -11,7 +11,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { NavLink } from "@/components/NavLink";
+import AuthenticatedNav from "@/components/AuthenticatedNav";
 import { ArrowLeft, Save, HelpCircle } from "lucide-react";
 
 const profileSchema = z.object({
@@ -217,19 +217,17 @@ const EditProfile = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">OpenBotRegistry</h1>
-          <div className="flex items-center gap-4">
-            <NavLink to={`/${username}`} className="text-muted-foreground hover:text-foreground transition-colors">
-              <ArrowLeft className="w-4 h-4 inline mr-1" />
-              Back to Profile
-            </NavLink>
-          </div>
-        </div>
-      </header>
+      <AuthenticatedNav />
 
       <main className="container mx-auto px-4 py-8 max-w-7xl">
+        <Button
+          variant="ghost"
+          onClick={() => navigate(`/${username}`)}
+          className="mb-4"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Profile
+        </Button>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="h-fit">
             <CardHeader>

@@ -2,11 +2,11 @@ import { Button } from "@/components/ui/button";
 
 const Hero = () => {
   return (
-    <section className="container mx-auto px-6 py-20 md:py-32">
+    <section className="container mx-auto px-6 py-16 md:py-16">
       <div className="max-w-4xl mx-auto text-center">
         {/* Large Logo Icon */}
-        <div className="flex justify-center mb-12 md:mb-16">
-          <div className="w-32 h-32 md:w-40 md:h-40">
+        <div className="flex justify-center mb-4 md:mb-6">
+          <div className="w-20 h-20 md:w-24 md:h-24">
             <svg
               width="100%"
               height="100%"
@@ -32,20 +32,26 @@ const Hero = () => {
         </div>
 
         {/* Hero Heading */}
-        <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif mb-8 md:mb-12 leading-tight">
-          It's that time again to reinvent the Internet
+        <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif mb-6 md:mb-8 leading-tight">
+          Give your web bots a real identity
         </h1>
 
         {/* Subheading */}
-        <p className="text-lg md:text-xl lg:text-2xl font-serif mb-12 md:mb-16 max-w-3xl mx-auto leading-relaxed">
-          51%* of web traffic today is of crawlers. It's time to define a new economy for new age
-          surfers.
+        <p className="text-lg md:text-xl lg:text-2xl font-serif mb-10 md:mb-12 max-w-3xl mx-auto leading-relaxed">
+          Register your crawler or AI agent with GitHub, publish its JWKS once, and let websites verify HTTP Message Signatures at origin — without CDN lock-in.
         </p>
 
-        {/* CTA Button */}
-        <Button variant="hero" asChild>
-          <a href="/contact">Let's talk</a>
-        </Button>
+        {/* CTA Buttons */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <Button variant="hero" asChild className="w-full sm:w-auto">
+            <a href="/login">Claim your username</a>
+          </Button>
+          <Button variant="hero" asChild className="w-full sm:w-auto">
+            <a href="https://github.com/OpenBotAuth/openbotauth" target="_blank" rel="noopener noreferrer">
+              View on GitHub
+            </a>
+          </Button>
+        </div>
       </div>
     </section>
   );

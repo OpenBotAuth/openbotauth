@@ -5,9 +5,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { KeyRound, Sparkles, Copy, Check, Download } from "lucide-react";
+import { KeyRound, Sparkles, Copy, Check, Download, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import AuthenticatedNav from "@/components/AuthenticatedNav";
 
 const Setup = () => {
   const navigate = useNavigate();
@@ -144,17 +145,23 @@ const Setup = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold">
-            {isUpdating ? "Update Your Key" : "Setup Your Account"}
-          </h1>
-        </div>
-      </header>
+      <AuthenticatedNav />
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 max-w-3xl">
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => navigate(-1)}
+            className="mb-2"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+          <h1 className="text-3xl font-bold">
+            {isUpdating ? "Update Your Key" : "Setup Your Account"}
+          </h1>
+        </div>
         <div className="space-y-6">
           <Card>
             <CardHeader>

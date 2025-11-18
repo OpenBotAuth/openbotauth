@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { NavLink } from "@/components/NavLink";
+import AuthenticatedNav from "@/components/AuthenticatedNav";
 
 interface Bot {
   username: string;
@@ -23,13 +23,8 @@ const Registry = () => {
 
   const fetchBots = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username, created_at')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setBots(data || []);
+      const profiles = await api.getAllProfiles();
+      setBots(profiles);
     } catch (error) {
       console.error('Error fetching bots:', error);
       toast({
@@ -43,8 +38,7 @@ const Registry = () => {
   };
 
   const getJwksUrl = (username: string) => {
-    const projectId = "lxqarpgicszdxydkdccz";
-    return `https://${projectId}.supabase.co/functions/v1/jwks/${username}.json`;
+    return api.getUserJWKSUrl(username);
   };
 
   const copyToClipboard = (text: string, username: string) => {
@@ -59,18 +53,7 @@ const Registry = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b border-border">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-foreground">OpenBot Registry</h1>
-            <div className="flex gap-4">
-              <NavLink to="/">Home</NavLink>
-              <NavLink to="/registry">Registry</NavLink>
-              <NavLink to="/login">Login</NavLink>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AuthenticatedNav />
 
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">

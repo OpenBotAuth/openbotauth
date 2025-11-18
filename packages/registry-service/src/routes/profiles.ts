@@ -21,6 +21,29 @@ const requireAuth = (req: Request, res: Response, next: Function) => {
 };
 
 /**
+ * GET /profiles
+ * 
+ * Get all profiles (public registry)
+ */
+profilesRouter.get('/', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const db: Database = req.app.locals.db;
+    const pool = db.getPool();
+
+    const result = await pool.query(
+      `SELECT username, created_at 
+       FROM profiles 
+       ORDER BY created_at DESC`
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error listing profiles:', error);
+    res.status(500).json({ error: 'Failed to list profiles' });
+  }
+});
+
+/**
  * GET /profiles/:username
  * 
  * Get profile by username (public)

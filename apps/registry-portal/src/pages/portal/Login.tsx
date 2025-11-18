@@ -78,7 +78,7 @@ const Login = () => {
           />
           <div className="space-y-4">
             <h2 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              OpenBotRegistry
+              OpenBotAuth
             </h2>
             <p className="text-lg text-muted-foreground leading-relaxed">
               A secure, open registry for bot authentication using JWKS and Web Bot Auth protocols
