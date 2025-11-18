@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import Logo from "./Logo";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Menu, X, LogOut } from "lucide-react";
-import { api } from "@/lib/api";
+import { ChevronDown, Menu, X } from "lucide-react";
 
 const DiscordIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -13,35 +12,6 @@ const DiscordIcon = () => (
 
 const Navigation = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [username, setUsername] = useState<string | null>(null);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const session = await api.getSession();
-        if (session) {
-          setIsAuthenticated(true);
-          setUsername(session.profile.username);
-        }
-      } catch (error) {
-        setIsAuthenticated(false);
-      }
-    };
-    checkAuth();
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await api.logout();
-      setIsAuthenticated(false);
-      setUsername(null);
-      navigate('/');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
 
   const navItems = [
     { name: "Registry", hasDropdown: false, href: "/registry", external: false },
@@ -89,37 +59,16 @@ const Navigation = () => {
             )}
           </div>
 
-          {/* Sign In and Discord Buttons / User Menu */}
+          {/* Sign In and Discord Buttons */}
           <div className="hidden md:flex items-center gap-4">
-            {isAuthenticated ? (
-              <>
-                <Link to={`/${username}`}>
-                  <Button 
-                    variant="ghost"
-                    className="font-serif px-6 hover:bg-muted transition-all"
-                  >
-                    My Profile
-                  </Button>
-                </Link>
-                <Button 
-                  variant="ghost"
-                  className="font-serif px-6 border-2 border-foreground hover:bg-foreground hover:text-background transition-all"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
-                </Button>
-              </>
-            ) : (
-              <Link to="/login">
-                <Button 
-                  variant="ghost"
-                  className="font-serif px-6 border-2 border-foreground hover:bg-foreground hover:text-background transition-all"
-                >
-                  Sign in with GitHub
-                </Button>
-              </Link>
-            )}
+            <Link to="/login">
+              <Button 
+                variant="ghost"
+                className="font-serif px-6 border-2 border-foreground hover:bg-foreground hover:text-background transition-all"
+              >
+                Sign in with GitHub
+              </Button>
+            </Link>
             <a
               href="https://discord.gg/QXujuH42nT"
               target="_blank"
@@ -174,46 +123,18 @@ const Navigation = () => {
                   </Link>
                 )
               )}
-              {isAuthenticated ? (
-                <>
-                  <Link
-                    to={`/${username}`}
-                    className="w-full"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <Button 
-                      variant="ghost"
-                      className="font-serif w-full hover:bg-muted transition-all"
-                    >
-                      My Profile
-                    </Button>
-                  </Link>
-                  <Button 
-                    variant="ghost"
-                    className="font-serif w-full border-2 border-foreground hover:bg-foreground hover:text-background transition-all"
-                    onClick={() => {
-                      handleLogout();
-                      setMobileMenuOpen(false);
-                    }}
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Logout
-                  </Button>
-                </>
-              ) : (
-                <Link
-                  to="/login"
-                  className="w-full"
-                  onClick={() => setMobileMenuOpen(false)}
+              <Link
+                to="/login"
+                className="w-full"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Button 
+                  variant="ghost"
+                  className="font-serif w-full border-2 border-foreground hover:bg-foreground hover:text-background transition-all"
                 >
-                  <Button 
-                    variant="ghost"
-                    className="font-serif w-full border-2 border-foreground hover:bg-foreground hover:text-background transition-all"
-                  >
-                    Sign in with GitHub
-                  </Button>
-                </Link>
-              )}
+                  Sign in with GitHub
+                </Button>
+              </Link>
               <a
                 href="https://discord.gg/QXujuH42nT"
                 target="_blank"
