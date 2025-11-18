@@ -5,9 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, ArrowLeft, ExternalLink, Edit, Copy, Check, LogOut, KeyRound } from "lucide-react";
+import { Loader2, ArrowLeft, ExternalLink, Edit, Copy, Check, KeyRound } from "lucide-react";
 import { toast } from "sonner";
-import { NavLink } from "@/components/NavLink";
+import AuthenticatedNav from "@/components/AuthenticatedNav";
 import { format } from "date-fns";
 import {
   Table,
@@ -162,11 +162,6 @@ const PublicProfile = () => {
     toast.success("Profile URL copied to clipboard!");
   };
 
-  const handleLogout = async () => {
-    await api.logout();
-    navigate("/login");
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -194,30 +189,7 @@ const PublicProfile = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">OpenBotRegistry</h1>
-          <div className="flex items-center gap-4">
-            <NavLink to="/registry" className="text-muted-foreground hover:text-foreground transition-colors">
-              Registry
-            </NavLink>
-            <NavLink to="/" className="text-muted-foreground hover:text-foreground transition-colors">
-              Home
-            </NavLink>
-            {isOwnProfile ? (
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
-            ) : currentUserId && currentUsername && (
-              <Button variant="ghost" size="sm" onClick={() => navigate(`/${currentUsername}`)}>
-                My Profile
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
+      <AuthenticatedNav />
 
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Profile Header */}
@@ -225,18 +197,18 @@ const PublicProfile = () => {
 
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-4">
-                  <Avatar className="h-20 w-20">
+                  <Avatar className="h-20 w-20 flex-shrink-0">
                     <AvatarImage src={profile.avatar_url || undefined} />
                     <AvatarFallback>
                       {profile.username.substring(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <h1 className="text-3xl font-bold">@{profile.username}</h1>
+                  <div className="flex-1 min-w-0">
+                    <h1 className="text-2xl md:text-3xl font-bold break-words">@{profile.username}</h1>
                     {profile.client_name && (
-                      <p className="text-lg text-muted-foreground">{profile.client_name}</p>
+                      <p className="text-base md:text-lg text-muted-foreground">{profile.client_name}</p>
                     )}
                     {profile.github_username && (
                       <a
@@ -252,12 +224,12 @@ const PublicProfile = () => {
                   </div>
                 </div>
                 {isOwnProfile && (
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handleCopyProfileUrl}>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={handleCopyProfileUrl} className="flex-1 sm:flex-none">
                       <Copy className="w-4 h-4 mr-2" />
-                      Share Profile
+                      Share
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => navigate("/profile/edit")}>
+                    <Button variant="outline" size="sm" onClick={() => navigate("/profile/edit")} className="flex-1 sm:flex-none">
                       <Edit className="w-4 h-4 mr-2" />
                       Edit Profile
                     </Button>

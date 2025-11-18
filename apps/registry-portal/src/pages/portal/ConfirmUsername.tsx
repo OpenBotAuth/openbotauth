@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import AuthenticatedNav from "@/components/AuthenticatedNav";
 
 const ConfirmUsername = () => {
   const navigate = useNavigate();
@@ -117,12 +118,7 @@ const ConfirmUsername = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold">OpenBotRegistry</h1>
-        </div>
-      </header>
+      <AuthenticatedNav />
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 max-w-2xl">

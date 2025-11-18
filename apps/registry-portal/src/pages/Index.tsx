@@ -50,7 +50,7 @@ const Index = () => {
       {/* Header */}
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">OpenBotRegistry</h1>
+          <h1 className="text-xl font-bold">OpenBotAuth</h1>
           <div className="flex items-center gap-4">
             <NavLink to="/my-agents" className="text-muted-foreground hover:text-foreground transition-colors">
               My Agents
