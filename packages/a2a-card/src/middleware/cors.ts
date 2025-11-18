@@ -27,7 +27,7 @@ export function agentCardCors(req: Request, res: Response, next: NextFunction) {
 /**
  * No CORS middleware for A2A stubs (prevent accidental use)
  */
-export function a2aStubCors(req: Request, res: Response, next: NextFunction) {
+export function a2aStubCors(_req: Request, _res: Response, next: NextFunction) {
   // No CORS headers - same-origin only
   // This prevents accidental cross-origin use of experimental endpoints
   next();

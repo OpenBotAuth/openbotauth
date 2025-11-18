@@ -63,13 +63,13 @@ async function main() {
   console.error('Database and Redis connected');
 
   // Initialize tools
-  const policyTool = new PolicyTool(db, redis);
+  const policyTool = new PolicyTool(db, redis as any);
   const paymentsTool = new PaymentsTool(
     db,
-    redis,
+    redis as any,
     process.env.PAYMENT_BASE_URL || 'http://localhost:8082'
   );
-  const meterTool = new MeterTool(db, redis);
+  const meterTool = new MeterTool(db, redis as any);
 
   console.error('Tools initialized');
 

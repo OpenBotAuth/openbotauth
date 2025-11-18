@@ -107,9 +107,13 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
     });
     res.setHeader('Set-Cookie', cookie);
 
-    // Redirect to portal
+    // Get user's profile to redirect to their profile page
+    const profile = await db.findProfileByUserId(user.id);
+    
+    // Redirect to user's profile page
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    res.redirect(frontendUrl);
+    const redirectPath = profile ? `/${profile.username}` : '/setup';
+    res.redirect(`${frontendUrl}${redirectPath}`);
   } catch (error) {
     console.error('OAuth callback error:', error);
     res.status(500).json({ error: 'Authentication failed' });

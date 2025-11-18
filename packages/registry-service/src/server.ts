@@ -74,7 +74,7 @@ app.locals.oauth = oauth;
 app.use(sessionMiddleware);
 
 // Mount A2A Card
-mountAgentCard(app, {
+mountAgentCard(app as any, {
   jwksUrl: process.env.AGENTCARD_JWKS_URL || 'http://localhost:8080/jwks/openbotauth.json',
   mcpUrl: process.env.MCP_BASE_URL || 'http://localhost:8082',
   a2aUrl: process.env.A2A_BASE_URL || 'http://localhost:8080',

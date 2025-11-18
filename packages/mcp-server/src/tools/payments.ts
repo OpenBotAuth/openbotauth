@@ -203,7 +203,7 @@ export class PaymentsTool {
   /**
    * Verify payment receipt
    */
-  async verifyReceipt(intentId: string, receipt: string): Promise<boolean> {
+  async verifyReceipt(intentId: string, _receipt: string): Promise<boolean> {
     // Get intent
     const intent = await this.getIntent(intentId);
     if (!intent) {

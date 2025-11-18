@@ -19,7 +19,7 @@ export function mountAgentCard(app: Express, config: AgentCardConfig) {
   const getCard = () => generateAgentCard(config);
 
   // Add Link header to root
-  app.use((req, res, next) => {
+  app.use((_req, res, next) => {
     res.setHeader('Link', '</.well-known/agent-card.json>; rel="a2a-agent"');
     next();
   });
@@ -29,7 +29,7 @@ export function mountAgentCard(app: Express, config: AgentCardConfig) {
     '/.well-known/agent-card.json',
     agentCardCors,
     agentCardCache(getCard),
-    (req: Request, res: Response) => {
+    (_req: Request, res: Response) => {
       // Card is in res.locals from cache middleware
       const card = res.locals.card || getCard();
       res.json(card);
@@ -39,7 +39,7 @@ export function mountAgentCard(app: Express, config: AgentCardConfig) {
   // A2A stub endpoints
   if (config.enableA2A) {
     // Task creation endpoint
-    app.post('/a2a/tasks/create', a2aStubCors, rateLimit, (req: Request, res: Response) => {
+    app.post('/a2a/tasks/create', a2aStubCors, rateLimit, (_req: Request, res: Response) => {
       const response: TaskCreateResponse = {
         task_id: `t_${randomUUID()}`,
         status: 'pending',
@@ -83,11 +83,11 @@ export function mountAgentCard(app: Express, config: AgentCardConfig) {
       message: 'A2A endpoints are experimental and currently disabled. Set ENABLE_A2A=true to enable.',
     };
 
-    app.post('/a2a/tasks/create', a2aStubCors, rateLimit, (req: Request, res: Response) => {
+    app.post('/a2a/tasks/create', a2aStubCors, rateLimit, (_req: Request, res: Response) => {
       res.status(501).json(notImplementedResponse);
     });
 
-    app.get('/a2a/tasks/:id/events', a2aStubCors, rateLimit, (req: Request, res: Response) => {
+    app.get('/a2a/tasks/:id/events', a2aStubCors, rateLimit, (_req: Request, res: Response) => {
       res.status(501).json(notImplementedResponse);
     });
   }

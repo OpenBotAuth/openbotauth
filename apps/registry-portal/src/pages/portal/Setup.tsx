@@ -247,7 +247,7 @@ const Setup = () => {
                     </Button>
                   )}
                   {!isUpdating && (
-                    <Button type="button" variant="outline" onClick={() => navigate("/")}>
+                    <Button type="button" variant="outline" onClick={() => navigate(-1)}>
                       Back
                     </Button>
                   )}

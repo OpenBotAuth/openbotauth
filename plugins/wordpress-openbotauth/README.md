@@ -168,10 +168,18 @@ zip -r wordpress-openbotauth.zip wordpress-openbotauth
 1. Go to **Settings → OpenBotAuth**
 
 2. **Verifier Service URL**
+   
+   **For local development:**
    ```
    http://localhost:8081/verify
    ```
-   Or your production verifier URL:
+   
+   **For production (OpenBotAuth hosted verifier):**
+   ```
+   https://verifier.openbotauth.org/verify
+   ```
+   
+   **For self-hosted production:**
    ```
    https://verifier.yourdomain.com/verify
    ```

@@ -17,8 +17,8 @@ const Login = () => {
       try {
         const session = await api.getSession();
         if (session) {
-          // User is already logged in, redirect to home
-          navigate("/");
+          // User is already logged in, redirect to their profile
+          navigate(`/${session.profile.username}`);
         }
       } catch (error) {
         // Not logged in, stay on login page

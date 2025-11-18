@@ -71,29 +71,25 @@ const EditProfile = () => {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        navigate("/login");
-        return;
-      }
+      try {
+        const session = await api.getSession();
+        
+        if (!session) {
+          navigate("/login");
+          return;
+        }
 
-      setUserId(session.user.id);
+        setUserId(session.user.id);
+        setUsername(session.profile.username);
 
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+        const profileData = await api.getProfileByUsername(session.profile.username);
 
-      if (error) {
-        toast.error("Failed to load profile");
-        setLoading(false);
-        return;
-      }
+        if (!profileData) {
+          toast.error("Failed to load profile");
+          setLoading(false);
+          return;
+        }
 
-      if (profileData) {
-        setUsername(profileData.username);
         form.reset({
           client_name: profileData.client_name || "",
           client_uri: profileData.client_uri || "",
@@ -109,8 +105,12 @@ const EditProfile = () => {
           rate_expectation: profileData.rate_expectation || "",
           known_urls: profileData.known_urls?.join(", ") || "",
         });
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        toast.error("Failed to load profile");
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchProfile();
@@ -183,32 +183,27 @@ const EditProfile = () => {
         ? values.known_urls.split(",").map(u => u.trim()).filter(u => u)
         : null;
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          client_name: values.client_name || null,
-          client_uri: values.client_uri || null,
-          logo_uri: values.logo_uri || null,
-          contacts: contactsArray,
-          expected_user_agent: values.expected_user_agent || null,
-          rfc9309_product_token: values.rfc9309_product_token || null,
-          rfc9309_compliance: complianceArray,
-          trigger: values.trigger || null,
-          purpose: values.purpose || null,
-          targeted_content: values.targeted_content || null,
-          rate_control: values.rate_control || null,
-          rate_expectation: values.rate_expectation || null,
-          known_urls: urlsArray,
-        })
-        .eq('id', userId);
-
-      if (error) throw error;
+      await api.updateProfile({
+        client_name: values.client_name || null,
+        client_uri: values.client_uri || null,
+        logo_uri: values.logo_uri || null,
+        contacts: contactsArray,
+        expected_user_agent: values.expected_user_agent || null,
+        rfc9309_product_token: values.rfc9309_product_token || null,
+        rfc9309_compliance: complianceArray,
+        trigger: values.trigger || null,
+        purpose: values.purpose || null,
+        targeted_content: values.targeted_content || null,
+        rate_control: values.rate_control || null,
+        rate_expectation: values.rate_expectation || null,
+        known_urls: urlsArray,
+      });
 
       toast.success("Profile updated successfully!");
       navigate(`/${username}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating profile:", error);
-      toast.error("Failed to update profile");
+      toast.error(error.message || "Failed to update profile");
     }
   };
 

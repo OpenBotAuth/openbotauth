@@ -55,6 +55,7 @@ const PublicProfile = () => {
   const [activityLoading, setActivityLoading] = useState(false);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [publicKey, setPublicKey] = useState("");
   const [keyHistory, setKeyHistory] = useState<any[]>([]);
@@ -70,6 +71,7 @@ const PublicProfile = () => {
       // Check if user is logged in
       const session = await api.getSession();
       setCurrentUserId(session?.user?.id || null);
+      setCurrentUsername(session?.profile?.username || null);
 
       // Fetch profile by username
       const profileData = await api.getProfileByUsername(username!);
@@ -180,7 +182,7 @@ const PublicProfile = () => {
         <p className="text-muted-foreground mb-4">
           The profile "@{username}" does not exist.
         </p>
-        <Button onClick={() => navigate("/")}>Go Home</Button>
+        <Button onClick={() => navigate(-1)}>Go Back</Button>
       </div>
     );
   }
@@ -208,8 +210,8 @@ const PublicProfile = () => {
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
               </Button>
-            ) : currentUserId && (
-              <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
+            ) : currentUserId && currentUsername && (
+              <Button variant="ghost" size="sm" onClick={() => navigate(`/${currentUsername}`)}>
                 My Profile
               </Button>
             )}

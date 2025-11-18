@@ -34,7 +34,9 @@ class Admin {
      */
     public function register_settings() {
         register_setting('openbotauth', 'openbotauth_verifier_url');
-        register_setting('openbotauth', 'openbotauth_policy');
+        register_setting('openbotauth', 'openbotauth_policy', [
+            'sanitize_callback' => [$this, 'sanitize_policy']
+        ]);
         register_setting('openbotauth', 'openbotauth_payment_url');
         
         add_settings_section(
@@ -154,6 +156,39 @@ class Admin {
             </details>
         </div>
         <?php
+    }
+    
+    /**
+     * Sanitize policy settings
+     */
+    public function sanitize_policy($value) {
+        // If we have individual field submissions, build the policy JSON
+        if (isset($_POST['openbotauth_default_effect']) || isset($_POST['openbotauth_teaser_words'])) {
+            $policy = json_decode($value, true) ?: [];
+            
+            if (!isset($policy['default'])) {
+                $policy['default'] = [];
+            }
+            
+            if (isset($_POST['openbotauth_default_effect'])) {
+                $policy['default']['effect'] = sanitize_text_field($_POST['openbotauth_default_effect']);
+            }
+            
+            if (isset($_POST['openbotauth_teaser_words'])) {
+                $policy['default']['teaser_words'] = intval($_POST['openbotauth_teaser_words']);
+            }
+            
+            return json_encode($policy);
+        }
+        
+        // Otherwise, validate and return the JSON as-is
+        $decoded = json_decode($value, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            add_settings_error('openbotauth_policy', 'invalid_json', 'Invalid policy JSON');
+            return get_option('openbotauth_policy', '{}');
+        }
+        
+        return $value;
     }
     
     /**

@@ -1,10 +1,26 @@
 # OpenBotAuth Registry Portal
 
-Web UI for OpenBotAuth registry - agent and key management interface.
+Unified web application serving both the marketing website and the authenticated portal for OpenBotAuth.
 
 ## Overview
 
-The Registry Portal is a React-based web application that provides a user-friendly interface for:
+This application serves both:
+- **Marketing Website**: Public pages (/, /publishers, /crawlers, /contact)
+- **Portal Application**: Authenticated pages (/login, /setup, /registry, etc.)
+
+### Marketing Pages
+Located in `src/pages/marketing/` and `src/components/marketing/`
+- Public-facing content
+- SEO optimized
+- No authentication required
+
+### Portal Pages  
+Located in `src/pages/portal/`
+- Requires GitHub OAuth authentication
+- Key and agent management
+- JWKS hosting
+
+The Registry Portal provides a user-friendly interface for:
 
 - **GitHub OAuth Login** - Authenticate with your GitHub account
 - **Agent Management** - Create, view, update, and delete agents
@@ -113,17 +129,32 @@ The portal will be available at: **http://localhost:5173**
 apps/registry-portal/
 ├── src/
 │   ├── components/          # React components
+│   │   ├── marketing/      # Marketing components
+│   │   │   ├── Hero.tsx
+│   │   │   ├── Navigation.tsx
+│   │   │   ├── NavLink.tsx
+│   │   │   ├── Logo.tsx
+│   │   │   └── SEO.tsx
 │   │   ├── ui/             # shadcn/ui components
 │   │   ├── AddAgentModal.tsx
-│   │   └── NavLink.tsx
-│   ├── pages/              # Page components
-│   │   ├── Index.tsx       # Home/dashboard
-│   │   ├── Login.tsx       # GitHub OAuth login
-│   │   ├── Setup.tsx       # Key setup page
-│   │   ├── MyAgents.tsx    # Agent list
-│   │   ├── AgentDetail.tsx # Agent details
-│   │   ├── EditProfile.tsx # Profile editor
 │   │   └── ...
+│   ├── pages/              # Page components
+│   │   ├── marketing/      # Marketing pages
+│   │   │   ├── Home.tsx
+│   │   │   ├── Publishers.tsx
+│   │   │   ├── Crawlers.tsx
+│   │   │   └── Contact.tsx
+│   │   ├── portal/         # Portal pages
+│   │   │   ├── Login.tsx
+│   │   │   ├── Setup.tsx
+│   │   │   ├── MyAgents.tsx
+│   │   │   ├── AgentDetail.tsx
+│   │   │   ├── EditProfile.tsx
+│   │   │   ├── Registry.tsx
+│   │   │   ├── PublicProfile.tsx
+│   │   │   └── ConfirmUsername.tsx
+│   │   ├── Index.tsx       # Legacy redirect
+│   │   └── NotFound.tsx
 │   ├── lib/                # Utilities
 │   │   ├── api.ts          # API client
 │   │   └── utils.ts        # Helper functions
@@ -131,6 +162,10 @@ apps/registry-portal/
 │   ├── App.tsx             # Main app component
 │   └── main.tsx            # Entry point
 ├── public/                 # Static assets
+│   ├── bot-favicon.svg     # Marketing favicon
+│   ├── social-preview.png  # Social media preview
+│   ├── robots.txt          # SEO robots file
+│   └── sitemap.xml         # SEO sitemap
 ├── index.html              # HTML template
 ├── vite.config.ts          # Vite configuration
 ├── tailwind.config.ts      # Tailwind configuration

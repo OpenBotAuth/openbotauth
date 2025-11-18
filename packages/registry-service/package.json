@@ -28,6 +28,7 @@
     "vitest": "^1.6.0"
   },
   "dependencies": {
+    "@openbotauth/a2a-card": "workspace:*",
     "@openbotauth/github-connector": "workspace:*",
     "@openbotauth/registry-signer": "workspace:*",
     "dotenv": "^17.2.3",

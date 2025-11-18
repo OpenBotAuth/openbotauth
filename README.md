@@ -56,7 +56,7 @@ openbotauth/
 │  ├─ mcp-server/               ✅ MCP server (policy/meter/payments tools)
 │  └─ a2a-card/                 ✅ Static agent card + A2A stub endpoints
 ├─ apps/
-│  ├─ registry-portal/          ✅ Vite UI for agent/key management
+│  ├─ registry-portal/          ✅ Marketing website + Portal UI
 │  └─ test-server/              ✅ Test server for signature verification
 ├─ plugins/
 │  └─ wordpress-openbotauth/    ✅ WP plugin for policy, pricing, analytics
@@ -162,6 +162,10 @@ cp -r plugins/wordpress-openbotauth /path/to/wordpress/wp-content/plugins/
 # Configure in Settings → OpenBotAuth
 ```
 
+**Configuration:**
+- **Verifier URL (Production):** `https://verifier.openbotauth.org/verify`
+- **Verifier URL (Local):** `http://localhost:8081/verify`
+
 **Tech:** PHP, WordPress API
 
 ---
@@ -231,9 +235,23 @@ export ENABLE_A2A=true
 
 ### 🎨 Registry Portal
 
-Vite-powered UI for agent and key management.
+**[📖 Full Documentation →](apps/registry-portal/README.md)**
 
-**Features:**
+**Location**: `apps/registry-portal/`
+
+Unified application serving:
+- **Marketing website** (openbotauth.org) - Public pages for publishers and crawlers
+- **Portal UI** - Authenticated agent and key management
+
+Runs on http://localhost:5173 in development.
+
+**Marketing Pages:**
+- `/` - Home page with hero section
+- `/publishers` - Intent-based pricing for publishers
+- `/crawlers` - Open registration for crawlers
+- `/contact` - Contact information
+
+**Portal Features:**
 - GitHub OAuth login
 - Ed25519 keypair generation
 - Public key registration
@@ -241,7 +259,7 @@ Vite-powered UI for agent and key management.
 - Profile viewing
 - Key history
 
-**Tech:** React, Vite, TypeScript, shadcn/ui
+**Tech:** React, Vite, TypeScript, shadcn/ui, react-helmet-async
 
 ---
 

@@ -3,40 +3,61 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Login from "./pages/Login";
-import Setup from "./pages/Setup";
-import EditProfile from "./pages/EditProfile";
-import Registry from "./pages/Registry";
+import { HelmetProvider } from "react-helmet-async";
+
+// Marketing pages
+import Home from "./pages/marketing/Home";
+import Publishers from "./pages/marketing/Publishers";
+import Crawlers from "./pages/marketing/Crawlers";
+import Contact from "./pages/marketing/Contact";
+
+// Portal pages
+import Login from "./pages/portal/Login";
+import Setup from "./pages/portal/Setup";
+import EditProfile from "./pages/portal/EditProfile";
+import Registry from "./pages/portal/Registry";
 import NotFound from "./pages/NotFound";
-import ConfirmUsername from "./pages/ConfirmUsername";
+import ConfirmUsername from "./pages/portal/ConfirmUsername";
 import Index from "./pages/Index";
-import MyAgents from "./pages/MyAgents";
-import AgentDetail from "./pages/AgentDetail";
-import PublicProfile from "./pages/PublicProfile";
+import MyAgents from "./pages/portal/MyAgents";
+import AgentDetail from "./pages/portal/AgentDetail";
+import PublicProfile from "./pages/portal/PublicProfile";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/setup" element={<Setup />} />
-          <Route path="/confirm-username" element={<ConfirmUsername />} />
-          <Route path="/profile/edit" element={<EditProfile />} />
-          <Route path="/registry" element={<Registry />} />
-          <Route path="/my-agents" element={<MyAgents />} />
-          <Route path="/agents/:agentId" element={<AgentDetail />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="/:username" element={<PublicProfile />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <HelmetProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Marketing routes - public */}
+            <Route path="/" element={<Home />} />
+            <Route path="/publishers" element={<Publishers />} />
+            <Route path="/crawlers" element={<Crawlers />} />
+            <Route path="/contact" element={<Contact />} />
+            
+            {/* Portal routes - authenticated */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/setup" element={<Setup />} />
+            <Route path="/confirm-username" element={<ConfirmUsername />} />
+            <Route path="/profile/edit" element={<EditProfile />} />
+            <Route path="/registry" element={<Registry />} />
+            <Route path="/my-agents" element={<MyAgents />} />
+            <Route path="/agents/:agentId" element={<AgentDetail />} />
+            
+            {/* Legacy route - redirect to registry */}
+            <Route path="/portal" element={<Index />} />
+            
+            {/* Public profile - must be after all other routes */}
+            <Route path="/:username" element={<PublicProfile />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </HelmetProvider>
   </QueryClientProvider>
 );
 
