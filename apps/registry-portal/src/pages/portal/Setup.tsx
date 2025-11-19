@@ -13,13 +13,16 @@ import AuthenticatedNav from "@/components/AuthenticatedNav";
 const Setup = () => {
   const navigate = useNavigate();
   const [publicKey, setPublicKey] = useState("");
+  const [publicKeyPEM, setPublicKeyPEM] = useState("");
   const [privateKey, setPrivateKey] = useState("");
+  const [kid, setKid] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [username, setUsername] = useState<string>("");
   const [showKeys, setShowKeys] = useState(false);
   const [copiedPrivate, setCopiedPrivate] = useState(false);
+  const [copiedKid, setCopiedKid] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
@@ -47,6 +50,18 @@ const Setup = () => {
     };
     checkAuth();
   }, [navigate]);
+
+  // Generate KID from public key (SHA-256 hash, first 16 chars)
+  const generateKid = async (publicKeyBase64: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(publicKeyBase64);
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashBase64 = btoa(String.fromCharCode(...hashArray));
+    // Convert to base64url and take first 16 chars
+    const base64url = hashBase64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    return base64url.substring(0, 16);
+  };
 
   const generateKeyPair = async () => {
     setIsGenerating(true);
@@ -82,8 +97,13 @@ const Setup = () => {
       const publicKeyPEM = `-----BEGIN PUBLIC KEY-----\n${publicKeyBase64.match(/.{1,64}/g)?.join('\n')}\n-----END PUBLIC KEY-----`;
       const privateKeyPEM = `-----BEGIN PRIVATE KEY-----\n${privateKeyBase64.match(/.{1,64}/g)?.join('\n')}\n-----END PRIVATE KEY-----`;
 
+      // Generate KID
+      const generatedKid = await generateKid(publicKeyBase64);
+
       setPublicKey(publicKeyBase64);
+      setPublicKeyPEM(publicKeyPEM);
       setPrivateKey(privateKeyPEM);
+      setKid(generatedKid);
       setShowKeys(true);
       
       toast.success("Key pair generated successfully!");
@@ -102,17 +122,61 @@ const Setup = () => {
     setTimeout(() => setCopiedPrivate(false), 2000);
   };
 
+  const copyKid = () => {
+    navigator.clipboard.writeText(kid);
+    setCopiedKid(true);
+    toast.success("Key ID (KID) copied to clipboard!");
+    setTimeout(() => setCopiedKid(false), 2000);
+  };
+
   const downloadPrivateKey = () => {
-    const blob = new Blob([privateKey], { type: 'text/plain' });
+    // Create a comprehensive file with all key information
+    const content = `OpenBotAuth Key Pair
+Generated: ${new Date().toISOString()}
+Username: ${username}
+JWKS URL: https://api.openbotauth.org/jwks/${username}.json
+
+==============================================
+KEY ID (KID)
+==============================================
+${kid}
+
+Use this KID in the 'keyid' parameter when signing HTTP requests with RFC 9421.
+
+==============================================
+PRIVATE KEY (Keep this secret!)
+==============================================
+${privateKey}
+
+==============================================
+PUBLIC KEY (PEM Format)
+==============================================
+${publicKeyPEM}
+
+==============================================
+PUBLIC KEY (Base64 - for registration)
+==============================================
+${publicKey}
+
+==============================================
+IMPORTANT NOTES
+==============================================
+- Store your private key securely and never share it
+- The public key is already registered in your JWKS endpoint
+- Use the KID when creating HTTP Message Signatures (RFC 9421)
+- Your JWKS URL is publicly accessible for verification
+`;
+
+    const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'private_key.txt';
+    a.download = `openbotauth-keys-${username}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success("Private key downloaded!");
+    toast.success("All keys downloaded!");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -188,16 +252,34 @@ const Setup = () => {
                 </Button>
               </div>
 
-              {/* Generated Keys Display */}
+              {/* Generated Keys Display - All in one container */}
               {showKeys && privateKey && (
-                <Alert className="border-accent bg-accent/5">
-                  <AlertDescription className="space-y-4">
+                <Card className="border-2 border-accent">
+                  <CardHeader>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <KeyRound className="w-5 h-5 text-accent" />
-                        <span className="font-semibold text-accent">Save Your Private Key</span>
+                        <CardTitle>Your Generated Keys</CardTitle>
                       </div>
-                      <div className="flex gap-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={downloadPrivateKey}
+                        className="bg-accent hover:bg-accent/90"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download All Keys
+                      </Button>
+                    </div>
+                    <CardDescription>
+                      Save all your keys securely. This is the only time you'll see your private key!
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Private Key */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-base font-semibold text-accent">Private Key</Label>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -209,43 +291,81 @@ const Setup = () => {
                             <Copy className="w-4 h-4" />
                           )}
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={downloadPrivateKey}
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          Download TXT
-                        </Button>
                       </div>
+                      <Alert className="bg-accent/5 border-accent/20">
+                        <AlertDescription>
+                          <div className="p-2 bg-background rounded">
+                            <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                              {privateKey}
+                            </pre>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      This is the only time you'll see your private key. Copy and store it securely!
-                    </p>
-                    <div className="p-3 bg-background rounded-lg">
-                      <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                        {privateKey}
-                      </pre>
-                    </div>
-                  </AlertDescription>
-                </Alert>
+
+                    {/* Public Key */}
+                    {publicKeyPEM && (
+                      <div className="space-y-2">
+                        <Label className="text-base font-semibold">Public Key</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Your public key will be hosted at your JWKS endpoint
+                        </p>
+                        <div className="p-3 bg-muted rounded-lg">
+                          <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                            {publicKeyPEM}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Key ID (KID) */}
+                    {kid && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base font-semibold">Key ID (KID)</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={copyKid}
+                          >
+                            {copiedKid ? (
+                              <Check className="w-4 h-4 text-accent" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Use this KID when signing HTTP requests with RFC 9421
+                        </p>
+                        <div className="p-3 bg-muted rounded-lg">
+                          <code className="text-sm font-mono break-all">
+                            {kid}
+                          </code>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               )}
 
-              {/* Public Key Input */}
+              {/* Public Key Input - Only show if keys weren't generated */}
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="publicKey">Public Key</Label>
-                  <Textarea
-                    id="publicKey"
-                    placeholder="Enter your Ed25519 public key (Base64 encoded)"
-                    value={publicKey}
-                    onChange={(e) => setPublicKey(e.target.value)}
-                    className="min-h-[100px] font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Your public key will be hosted at a JWKS endpoint for bot authentication
-                  </p>
-                </div>
+                {!showKeys && (
+                  <div className="space-y-2">
+                    <Label htmlFor="publicKey">Public Key</Label>
+                    <Textarea
+                      id="publicKey"
+                      placeholder="Enter your Ed25519 public key (Base64 encoded)"
+                      value={publicKey}
+                      onChange={(e) => setPublicKey(e.target.value)}
+                      className="min-h-[100px] font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Your public key will be hosted at a JWKS endpoint for bot authentication
+                    </p>
+                  </div>
+                )}
 
                 <div className="flex gap-4">
                   {isUpdating && (
