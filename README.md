@@ -265,6 +265,87 @@ Runs on http://localhost:5173 in development.
 
 ---
 
+## 🎬 Demos
+
+**[📦 Demo Repository →](https://github.com/OpenBotAuth/openbotauth-demos)**
+
+Interactive demos proving the OpenBotAuth concept: **unsigned agents get teaser/402 content, while signed agents get full access**.
+
+### Available Demos
+
+**1. Python LangChain Agent** (`examples/langchain-agent/`)
+
+Command-line demo comparing unsigned vs signed HTTP requests:
+
+```bash
+# Unsigned request → teaser or 402
+python demo_agent.py --mode unsigned
+
+# Signed request → full content with X-OBA-Decision: allow
+python demo_agent.py --mode signed
+```
+
+**Features:**
+- RFC 9421 HTTP Message Signatures in Python
+- Ed25519 signing with cryptography library
+- Clear terminal output showing header and content differences
+- Optional LangChain integration
+
+**2. Web Widget** (`apps/widget-backend/` + `apps/widget-frontend/`)
+
+Interactive browser-based demo with visual signature diff:
+
+```bash
+pnpm install
+pnpm dev:widget-backend  # Terminal 1
+pnpm dev:widget-frontend # Terminal 2
+```
+
+**Features:**
+- Toggle between unsigned/signed modes
+- Visual diff of signature headers
+- Real-time fetch with status and response preview
+- Built with React + TypeScript
+
+### Quick Start with Demos
+
+```bash
+# Clone the demos repository
+git clone https://github.com/OpenBotAuth/openbotauth-demos.git
+cd openbotauth-demos
+
+# Get your keys from the registry portal
+# Visit https://registry.openbotauth.org and generate keys
+
+# Auto-configure with key parser (recommended)
+node scripts/parse-keys.js ~/Downloads/openbotauth-keys-username.txt
+
+# Run Python agent
+cd examples/langchain-agent
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python demo_agent.py --mode signed
+
+# Or run web widget
+pnpm install
+pnpm dev:widget-backend  # Terminal 1
+pnpm dev:widget-frontend # Terminal 2
+```
+
+**Test URL:** `https://blog.attach.dev/?p=6` (WordPress with OpenBotAuth plugin)
+
+**What you'll see:**
+- **Unsigned:** Teaser content or 402 response
+- **Signed:** Full content with `X-OBA-Decision: allow` header
+
+### Tech Stack (Demos)
+
+- **Python:** httpx, cryptography, python-dotenv
+- **TypeScript:** Node.js Web Crypto API, Express, React
+- **Standards:** RFC 9421, Ed25519, JWKS
+
+---
+
 ## Development
 
 ```bash
