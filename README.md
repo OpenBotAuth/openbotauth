@@ -42,8 +42,6 @@ pnpm dev:service    # Registry service (port 8080)
 pnpm dev:portal     # Portal UI (port 5173)
 ```
 
-See [SETUP.md](SETUP.md) for detailed setup instructions.
-
 ---
 
 ## Architecture
@@ -351,13 +349,10 @@ pnpm dev
    pnpm dev fetch http://localhost:3000/protected -v
    ```
 
-See [SETUP.md](SETUP.md) for detailed testing instructions.
-
 ---
 
 ## Documentation
 
-- **[SETUP.md](SETUP.md)** — Complete setup guide
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System architecture
 - **[docs/A2A_CARD.md](docs/A2A_CARD.md)** — A2A discovery documentation
 - **[packages/mcp-server/README.md](packages/mcp-server/README.md)** — MCP server guide
