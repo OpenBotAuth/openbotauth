@@ -23,7 +23,7 @@
     "authentication"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/pg": "^8.15.6",

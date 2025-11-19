@@ -17,7 +17,7 @@
     "jwks"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/prompts": "^2.4.9",

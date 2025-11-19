@@ -21,7 +21,7 @@
     "cli"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@types/node": "^20.14.0",
     "tsx": "^4.15.0",
