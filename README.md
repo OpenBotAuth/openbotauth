@@ -1,18 +1,22 @@
-# OpenBotAuth — Agent Identity & Policy for HTTP
+![generated-image-2-2](https://github.com/user-attachments/assets/eeda5efb-43e2-488b-9cd7-19ca67e2f4f0)
+
+## OpenBotAuth — Social Identities for Agents over HTTP 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 
-**Production-lean system for bot authentication, policy enforcement, and usage metering over HTTP.**
+OpenBotAuth is a way for agents to browse the internet on their owners' behalf. Written as an extension to Web Bot Auth, it hosts OpenBotRegistry to curate human <> agent identities and offers origin server plugins for websites to identity and monetize agentic movements. There's no CDN lock-in and the directory can be used by other origin server implementations to identify agents. 
 
-OpenBotAuth provides:
-1. **Agent identity over HTTP** — RFC 9421 HTTP Message Signatures + JWKS
-2. **Origin-side verification** — Node.js verifier service with nonce replay protection
-3. **Granular policy & pricing** — WordPress plugin for content gating, 402 payment flow
-4. **Interop hooks** — MCP server (Claude Desktop integration) + A2A discovery card
+This monorepo contains:
+1. **Github Auth Flow** - for SSO auth
+2. **Registry Verification** - that generates Signature Agent Cards
+3. **Origin Verifier** — Node.js verifier service with nonce replay protection
+4. **WordPress Plugin** — for custom content policy, block/unblock and x402 payments
 
-> **No CDN dependency.** Works with any origin behind NGINX/Caddy/Envoy.
+This repo also explores integrations with local MCP server (Claude Desktop integration) + A2A agent cards. However, these are exploratory features. 
+
+OpenBotAuth works with any origin behind NGINX/Caddy/Envoy, eliminating CDN dependency.
 
 ---
 
