@@ -11,7 +11,9 @@
 
 <p align="center">
   <a href="https://youtu.be/8W5tScru5Us" target="_blank">
-    <img src="https://img.youtube.com/vi/8W5tScru5Us/maxresdefault.jpg" width="720">
+    <img src="https://img.youtube.com/vi/8W5tScru5Us/maxresdefault.jpg" width="720" alt="OpenBotAuth Demo" style="border-radius: 8px;">
+    <br>
+    <img src="https://upload.wikimedia.org/wikipedia/commons/7/75/YouTube_social_white_squircle.svg" width="64" style="margin-top:-80px; position:relative;">
   </a>
 </p>
 
