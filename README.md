@@ -73,6 +73,41 @@ openbotauth/
 
 ---
 
+## Transparency & Telemetry
+
+When publishers use the hosted verifier at `verifier.openbotauth.org`, every verification request provides observability from the origin side:
+
+### What You Get for Free
+
+Every verification includes:
+- Agent ID (JWKS URL)
+- Target origin (e.g., blog.attach.dev)
+- Request method and path
+
+From this we derive:
+- **Last seen timestamps** per agent
+- **Request volume** per agent (rough metric)
+- **Site diversity** - which origins an agent is visiting
+- **Karma score** - "popular with publishers" reputation
+
+This gives publishers:
+- Real-time transparency on agent behavior
+- Bad behavior signals (high traffic but often rejected)
+- Agent reputation without centralized authority
+
+### Privacy & Self-Hosting
+
+If you self-host the verifier, you can:
+- Keep all metrics local
+- Opt-in to send anonymized stats back to OpenBotAuth (analytics "ping")
+- Maintain full control over your data
+
+Karma scores are displayed publicly on agent profile pages as a transparency feature.
+
+See [docs/TELEMETRY.md](docs/TELEMETRY.md) for detailed documentation.
+
+---
+
 ## Components
 
 ### 🔐 Registry Service

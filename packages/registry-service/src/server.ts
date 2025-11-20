@@ -17,6 +17,7 @@ import { authRouter } from './routes/auth.js';
 import { activityRouter } from './routes/activity.js';
 import { profilesRouter } from './routes/profiles.js';
 import { keysRouter } from './routes/keys.js';
+import { telemetryRouter } from './routes/telemetry.js';
 import { sessionMiddleware } from './middleware/session.js';
 
 const app = express();
@@ -97,6 +98,7 @@ app.use('/auth', authRouter);
 app.use('/agent-activity', activityRouter);
 app.use('/profiles', profilesRouter);
 app.use('/keys', keysRouter);
+app.use('/telemetry', telemetryRouter);
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

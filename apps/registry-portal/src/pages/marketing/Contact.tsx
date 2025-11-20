@@ -1,5 +1,6 @@
 import Navigation from "@/components/marketing/Navigation";
 import SEO from "@/components/marketing/SEO";
+import Footer from "@/components/Footer";
 
 const Contact = () => {
   const structuredData = {
@@ -60,6 +61,7 @@ const Contact = () => {
           </div>
         </section>
       </main>
+      <Footer />
     </div>
   );
 };

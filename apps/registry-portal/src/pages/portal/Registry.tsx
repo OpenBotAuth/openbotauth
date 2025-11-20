@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ExternalLink, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AuthenticatedNav from "@/components/AuthenticatedNav";
+import Footer from "@/components/Footer";
 
 interface Bot {
   username: string;
@@ -125,6 +126,7 @@ const Registry = () => {
           </div>
         )}
       </div>
+      <Footer />
     </div>
   );
 };

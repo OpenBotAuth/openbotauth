@@ -1,6 +1,7 @@
 import Navigation from "@/components/marketing/Navigation";
 import Hero from "@/components/marketing/Hero";
 import SEO from "@/components/marketing/SEO";
+import Footer from "@/components/Footer";
 
 const Home = () => {
   const structuredData = {
@@ -29,6 +30,7 @@ const Home = () => {
       <main>
         <Hero />
       </main>
+      <Footer />
     </div>
   );
 };

@@ -312,6 +312,38 @@ class RegistryAPI {
       return [];
     }
   }
+
+  /**
+   * Get telemetry stats for a user
+   */
+  async getUserTelemetry(username: string): Promise<{
+    username: string;
+    last_seen: string | null;
+    request_volume: number;
+    site_diversity: number;
+    karma_score: number;
+    is_public?: boolean;
+  }> {
+    const response = await this.fetch(`/telemetry/${username}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch telemetry');
+    }
+    return await response.json();
+  }
+
+  /**
+   * Update telemetry visibility (public/private)
+   */
+  async updateTelemetryVisibility(username: string, isPublic: boolean): Promise<void> {
+    const response = await this.fetch(`/telemetry/${username}/visibility`, {
+      method: 'PUT',
+      body: JSON.stringify({ is_public: isPublic }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to update telemetry visibility');
+    }
+  }
 }
 
 export const api = new RegistryAPI();

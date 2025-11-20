@@ -8,10 +8,12 @@ namespace OpenBotAuth;
 class ContentFilter {
     private $verifier;
     private $policy_engine;
+    private $plugin;
     
-    public function __construct($verifier, $policy_engine) {
+    public function __construct($verifier, $policy_engine, $plugin) {
         $this->verifier = $verifier;
         $this->policy_engine = $policy_engine;
+        $this->plugin = $plugin;
     }
     
     /**
@@ -30,8 +32,8 @@ class ContentFilter {
         
         global $post;
         
-        // Verify signature
-        $verification = $this->verifier->verify_request();
+        // Get cached verification (to avoid duplicate verification)
+        $verification = $this->plugin->get_verification();
         
         // Get policy
         $policy = $this->policy_engine->get_policy($post);
@@ -39,13 +41,46 @@ class ContentFilter {
         // Apply policy
         $result = $this->policy_engine->apply_policy($policy, $verification, $post);
         
-        // Handle teaser
-        if ($result['effect'] === 'teaser' || (!$verification['verified'] && !empty($policy['teaser_words']))) {
-            $teaser_words = $result['teaser_words'] ?? $policy['teaser_words'] ?? 100;
-            return $this->create_teaser($content, $teaser_words);
-        }
+        // Set response header based on decision
+        $this->set_decision_header($result['effect']);
         
-        return $content;
+        // Handle different effects
+        switch ($result['effect']) {
+            case 'deny':
+                status_header(403);
+                return '<p>Access denied.</p>';
+                
+            case 'pay':
+                status_header(402);
+                if (!empty($result['pay_url'])) {
+                    header('Link: <' . $result['pay_url'] . '>; rel="payment"');
+                }
+                return '<p>Payment required to access this content.</p>';
+                
+            case 'rate_limit':
+                status_header(429);
+                if (!empty($result['retry_after'])) {
+                    header('Retry-After: ' . $result['retry_after']);
+                }
+                return '<p>Rate limit exceeded. Please try again later.</p>';
+                
+            case 'teaser':
+                $teaser_words = $result['teaser_words'] ?? $policy['teaser_words'] ?? 100;
+                return $this->create_teaser($content, $teaser_words);
+                
+            case 'allow':
+            default:
+                return $content;
+        }
+    }
+    
+    /**
+     * Set X-OBA-Decision header
+     */
+    private function set_decision_header($effect) {
+        if (!headers_sent()) {
+            header('X-OBA-Decision: ' . $effect);
+        }
     }
     
     /**

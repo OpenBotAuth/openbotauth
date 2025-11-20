@@ -41,3 +41,4 @@ temp/
 # Docker
 .docker/
 
+.cursor/

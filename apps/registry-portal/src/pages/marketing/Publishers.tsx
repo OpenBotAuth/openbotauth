@@ -1,6 +1,7 @@
 import Navigation from "@/components/marketing/Navigation";
 import { Button } from "@/components/ui/button";
 import SEO from "@/components/marketing/SEO";
+import Footer from "@/components/Footer";
 
 const Publishers = () => {
   const structuredData = {
@@ -48,6 +49,7 @@ const Publishers = () => {
           </div>
         </section>
       </main>
+      <Footer />
     </div>
   );
 };

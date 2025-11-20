@@ -7,9 +7,11 @@
 import 'dotenv/config';
 import express from 'express';
 import { createClient } from 'redis';
+import { Pool } from 'pg';
 import { JWKSCacheManager } from './jwks-cache.js';
 import { NonceManager } from './nonce-manager.js';
 import { SignatureVerifier } from './signature-verifier.js';
+import { TelemetryLogger } from './telemetry.js';
 import type { VerificationRequest } from './types.js';
 
 const app = express();
@@ -47,6 +49,21 @@ redisClient.on('connect', () => {
 
 await redisClient.connect();
 
+// Initialize PostgreSQL pool (optional for telemetry)
+const dbPool = process.env.NEON_DATABASE_URL 
+  ? new Pool({
+      connectionString: process.env.NEON_DATABASE_URL,
+      ssl: process.env.NEON_DATABASE_URL.includes('neon.tech') ? { rejectUnauthorized: false } : undefined,
+    })
+  : null;
+
+if (dbPool) {
+  dbPool.on('error', (err: Error) => {
+    console.error('PostgreSQL pool error:', err);
+  });
+  console.log('✅ PostgreSQL pool initialized');
+}
+
 // Initialize services
 const jwksCache = new JWKSCacheManager(redisClient);
 const nonceManager = new NonceManager(
@@ -67,10 +84,19 @@ const verifier = new SignatureVerifier(
   maxSkewSec
 );
 
+// Initialize telemetry logger (only if DB is configured)
+const telemetryEnabled = process.env.ENABLE_TELEMETRY !== 'false' && dbPool !== null;
+const telemetryLogger = telemetryEnabled ? new TelemetryLogger(redisClient as any, dbPool!) : null;
+
+if (telemetryLogger) {
+  console.log('✅ Telemetry logging enabled');
+}
+
 // Store in app locals for access in routes
 app.locals.verifier = verifier;
 app.locals.jwksCache = jwksCache;
 app.locals.nonceManager = nonceManager;
+app.locals.telemetryLogger = telemetryLogger;
 
 /**
  * Health check endpoint
@@ -135,6 +161,28 @@ app.post('/authorize', async (req, res) => {
     res.setHeader('X-OBAuth-Agent', result.agent?.client_name || 'unknown');
     res.setHeader('X-OBAuth-JWKS-URL', result.agent?.jwks_url || '');
     res.setHeader('X-OBAuth-Kid', result.agent?.kid || '');
+
+    // Log telemetry (non-blocking)
+    if (result.verified && result.agent && app.locals.telemetryLogger) {
+      const jwksUrl = result.agent.jwks_url;
+      const usernameMatch = jwksUrl.match(/\/jwks\/([^.]+)\.json/);
+      
+      if (usernameMatch) {
+        const username = usernameMatch[1];
+        const targetOrigin = new URL(url).origin;
+        
+        // Log to telemetry system (fire and forget)
+        app.locals.telemetryLogger.logVerification({
+          username,
+          jwksUrl,
+          targetOrigin,
+          method: method.toUpperCase(),
+          verified: true,
+        }).catch((err: Error) => {
+          console.error('Telemetry logging failed:', err);
+        });
+      }
+    }
   } catch (error: any) {
     console.error('Authorization error:', error);
     res.status(500).json({
@@ -167,6 +215,28 @@ app.post('/verify', async (req, res) => {
     };
 
     const result = await verifier.verify(verificationRequest);
+
+    // Log telemetry (non-blocking) - same as /authorize
+    if (result.verified && result.agent && app.locals.telemetryLogger) {
+      const jwksUrl = result.agent.jwks_url;
+      const usernameMatch = jwksUrl.match(/\/jwks\/([^.]+)\.json/);
+      
+      if (usernameMatch) {
+        const username = usernameMatch[1];
+        const targetOrigin = new URL(url).origin;
+        
+        // Log to telemetry system (fire and forget)
+        app.locals.telemetryLogger.logVerification({
+          username,
+          jwksUrl,
+          targetOrigin,
+          method: method.toUpperCase(),
+          verified: true,
+        }).catch((err: Error) => {
+          console.error('Telemetry logging failed:', err);
+        });
+      }
+    }
 
     res.json(result);
   } catch (error: any) {
@@ -235,6 +305,9 @@ app.listen(port, () => {
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, closing server...');
   await redisClient.quit();
+  if (dbPool) {
+    await dbPool.end();
+  }
   process.exit(0);
 });
 
