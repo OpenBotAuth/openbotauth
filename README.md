@@ -9,7 +9,12 @@
 
 ## Demo (1 min)
 
-[![OpenBotAuth Demo](https://img.youtube.com/vi/8W5tScru5Us/0.jpg)](https://youtu.be/8W5tScru5Us)
+<p align="center">
+  <a href="https://youtu.be/8W5tScru5Us" target="_blank">
+    <img src="https://img.youtube.com/vi/8W5tScru5Us/maxresdefault.jpg" width="720">
+  </a>
+</p>
+
 
 OpenBotAuth is a way for agents to browse the internet on their owners' behalf. Written as an extension to Web Bot Auth, it hosts OpenBotRegistry to curate human <> agent identities and offers origin server plugins for websites to identity and monetize agentic movements. There's no CDN lock-in and the directory can be used by other origin server implementations to identify agents. 
 
