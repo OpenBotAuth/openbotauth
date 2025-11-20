@@ -1,6 +1,7 @@
 import Navigation from "@/components/marketing/Navigation";
 import { Button } from "@/components/ui/button";
 import SEO from "@/components/marketing/SEO";
+import Footer from "@/components/Footer";
 
 const Crawlers = () => {
   const structuredData = {
@@ -47,6 +48,7 @@ const Crawlers = () => {
           </div>
         </section>
       </main>
+      <Footer />
     </div>
   );
 };

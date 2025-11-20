@@ -9,6 +9,7 @@ import { KeyRound, Sparkles, Copy, Check, Download, ArrowLeft } from "lucide-rea
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import AuthenticatedNav from "@/components/AuthenticatedNav";
+import Footer from "@/components/Footer";
 
 const Setup = () => {
   const navigate = useNavigate();
@@ -391,6 +392,7 @@ IMPORTANT NOTES
           </Card>
         </div>
       </main>
+      <Footer />
     </div>
   );
 };

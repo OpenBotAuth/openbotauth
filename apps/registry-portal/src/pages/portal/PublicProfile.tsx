@@ -5,10 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, ArrowLeft, ExternalLink, Edit, Copy, Check, KeyRound } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Loader2, ArrowLeft, ExternalLink, Edit, Copy, Check, KeyRound, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import AuthenticatedNav from "@/components/AuthenticatedNav";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
+import Footer from "@/components/Footer";
 import {
   Table,
   TableBody,
@@ -59,6 +62,13 @@ const PublicProfile = () => {
   const [copied, setCopied] = useState(false);
   const [publicKey, setPublicKey] = useState("");
   const [keyHistory, setKeyHistory] = useState<any[]>([]);
+  const [telemetryStats, setTelemetryStats] = useState<{
+    last_seen: string | null;
+    request_volume: number;
+    site_diversity: number;
+    karma_score: number;
+    is_public?: boolean;
+  } | null>(null);
 
   useEffect(() => {
     fetchProfile();
@@ -68,7 +78,7 @@ const PublicProfile = () => {
     try {
       setLoading(true);
 
-      // Check if user is logged in
+      // Check if user is logged in (optional - don't fail if not logged in)
       const session = await api.getSession();
       setCurrentUserId(session?.user?.id || null);
       setCurrentUsername(session?.profile?.username || null);
@@ -82,7 +92,7 @@ const PublicProfile = () => {
 
       setProfile(profileData);
       
-      // Check if this is the user's own profile
+      // Check if this is the user's own profile (only if logged in)
       const ownProfile = session?.user?.id === profileData.id;
       setIsOwnProfile(ownProfile);
 
@@ -93,11 +103,28 @@ const PublicProfile = () => {
         setPublicKey(api.getUserJWKSUrl(username!));
         // Key history can be added to the API later
         setKeyHistory([]);
+        
+        // Fetch agents for this user (only if logged in as owner)
+        try {
+          const agentsData = await api.listAgents();
+          setAgents(agentsData || []);
+        } catch (err) {
+          console.error('Failed to fetch agents:', err);
+          setAgents([]);
+        }
+      } else {
+        // Not the owner - no agents to show
+        setAgents([]);
       }
 
-      // Fetch agents for this user
-      const agentsData = await api.listAgents();
-      setAgents(agentsData || []);
+      // Fetch telemetry stats for this user
+      try {
+        const stats = await api.getUserTelemetry(username!);
+        setTelemetryStats(stats);
+      } catch (err) {
+        console.error('Failed to fetch telemetry:', err);
+        // Non-critical, continue without stats
+      }
     } catch (error) {
       console.error("Error fetching profile:", error);
       toast.error("Failed to load profile");
@@ -160,6 +187,23 @@ const PublicProfile = () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url);
     toast.success("Profile URL copied to clipboard!");
+  };
+
+  const handleTelemetryVisibilityToggle = async (checked: boolean) => {
+    try {
+      // Update local state immediately for better UX
+      setTelemetryStats(prev => prev ? { ...prev, is_public: checked } : null);
+      
+      // Call API to update privacy setting
+      await api.updateTelemetryVisibility(username!, checked);
+      
+      toast.success(checked ? "Telemetry is now public" : "Telemetry is now private");
+    } catch (error) {
+      console.error("Failed to update telemetry visibility:", error);
+      // Revert on error
+      setTelemetryStats(prev => prev ? { ...prev, is_public: !checked } : null);
+      toast.error("Failed to update visibility setting");
+    }
   };
 
   if (loading) {
@@ -239,6 +283,76 @@ const PublicProfile = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Telemetry Stats - Visible if public OR if viewing own profile */}
+        {telemetryStats && (isOwnProfile || telemetryStats.is_public !== false) && (
+          <div className="mb-8">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Activity & Reputation</CardTitle>
+                    <CardDescription>
+                      Transparency from the hosted verifier service
+                    </CardDescription>
+                  </div>
+                  {isOwnProfile && (
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="telemetry-visibility" className="flex items-center gap-2 cursor-pointer">
+                        {telemetryStats.is_public !== false ? (
+                          <Eye className="h-4 w-4" />
+                        ) : (
+                          <EyeOff className="h-4 w-4" />
+                        )}
+                        <span className="text-sm">
+                          {telemetryStats.is_public !== false ? 'Public' : 'Private'}
+                        </span>
+                      </Label>
+                      <Switch
+                        id="telemetry-visibility"
+                        checked={telemetryStats.is_public !== false}
+                        onCheckedChange={handleTelemetryVisibilityToggle}
+                      />
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!isOwnProfile && telemetryStats.is_public === false ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    This user has chosen to keep their activity private.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <div className="text-2xl font-bold">{telemetryStats.request_volume.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Request Volume</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">{telemetryStats.site_diversity}</div>
+                      <div className="text-xs text-muted-foreground">Site Diversity</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">{telemetryStats.karma_score}</div>
+                      <div className="text-xs text-muted-foreground">Karma Score</div>
+                      {telemetryStats.karma_score > 100 && (
+                        <Badge variant="secondary" className="mt-1">Popular with publishers</Badge>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">
+                        {telemetryStats.last_seen 
+                          ? formatDistanceToNow(new Date(telemetryStats.last_seen), { addSuffix: true })
+                          : 'Never'}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Last Seen</div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* JWKS Section - Only for own profile */}
         {isOwnProfile && publicKey && (
@@ -332,11 +446,6 @@ const PublicProfile = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold">Agents ({agents.length})</h2>
-            {isOwnProfile && (
-              <Button onClick={() => navigate("/my-agents")}>
-                Manage Agents
-              </Button>
-            )}
           </div>
           {agents.length === 0 ? (
             <Card>
@@ -468,6 +577,7 @@ const PublicProfile = () => {
           </div>
         )}
       </div>
+      <Footer />
     </div>
   );
 };
