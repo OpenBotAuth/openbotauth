@@ -11,12 +11,11 @@
 
 <p align="center">
   <a href="https://youtu.be/8W5tScru5Us" target="_blank">
-    <img src="https://img.youtube.com/vi/8W5tScru5Us/maxresdefault.jpg" width="720" alt="OpenBotAuth Demo" style="border-radius: 8px;">
+    <img src="https://img.youtube.com/vi/8W5tScru5Us/maxresdefault.jpg" width="720">
     <br>
-    <img src="https://upload.wikimedia.org/wikipedia/commons/7/75/YouTube_social_white_squircle.svg" width="64" style="margin-top:-80px; position:relative;">
+    <img src="https://img.shields.io/badge/▶️%20Watch%20the%20Demo-red?style=for-the-badge">
   </a>
 </p>
-
 
 OpenBotAuth is a way for agents to browse the internet on their owners' behalf. Written as an extension to Web Bot Auth, it hosts OpenBotRegistry to curate human <> agent identities and offers origin server plugins for websites to identity and monetize agentic movements. There's no CDN lock-in and the directory can be used by other origin server implementations to identify agents. 
 
