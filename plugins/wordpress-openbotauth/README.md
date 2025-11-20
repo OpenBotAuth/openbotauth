@@ -184,15 +184,17 @@ zip -r wordpress-openbotauth.zip wordpress-openbotauth
    https://verifier.yourdomain.com/verify
    ```
 
-3. **Default Policy**
-   - **Allow**: All bots can access content
-   - **Teaser**: Show preview (first N words)
+3. **Default Policy** (default: Teaser)
+   - **Allow**: All bots can access content (not recommended for security)
+   - **Teaser**: Show preview (first N words) - **RECOMMENDED**
    - **Deny**: Block unverified bots
 
 4. **Teaser Word Count**
-   - Number of words to show in preview (e.g., `100`)
+   - Number of words to show in preview (default: `100`)
 
 5. Click **Save Settings**
+
+> **Security Note**: The plugin defaults to "Teaser" mode to fail securely. If the verifier service is unreachable, unverified bots will only see previews, not full content.
 
 ### Advanced Configuration
 
@@ -248,11 +250,13 @@ pnpm dev fetch https://yoursite.com/protected-post -v
 
 **Expected responses:**
 
-- ✅ **200 OK**: Bot is verified and allowed
-- 🎭 **200 OK** (teaser): Unverified bot sees preview
-- 💰 **402 Payment Required**: Payment needed
-- 🚫 **403 Forbidden**: Bot is denied
-- ⏱️ **429 Too Many Requests**: Rate limit exceeded
+- ✅ **200 OK** + `X-OBA-Decision: allow`: Bot is verified and allowed
+- 🎭 **200 OK** + `X-OBA-Decision: teaser`: Unverified bot sees preview
+- 💰 **402 Payment Required** + `X-OBA-Decision: pay`: Payment needed
+- 🚫 **403 Forbidden** + `X-OBA-Decision: deny`: Bot is denied
+- ⏱️ **429 Too Many Requests** + `X-OBA-Decision: rate_limit`: Rate limit exceeded
+
+The `X-OBA-Decision` header indicates the policy decision applied to the request.
 
 ---
 
@@ -569,6 +573,20 @@ add_action('openbotauth_payment_required', function($agent, $post, $price) {
 2. `teaser_words` > 0
 3. User is not logged in (logged-in users see full content)
 4. Request is not verified (verified bots see full content)
+5. Check the `X-OBA-Decision` header in the response to see what policy was applied
+
+### No X-OBA-Decision Header
+
+**Issue**: Response doesn't include `X-OBA-Decision` header
+
+**Check**:
+1. Ensure you're testing on a singular post/page (not homepage or archive)
+2. Log out of WordPress (plugin skips filtering for logged-in users)
+3. Check PHP error logs for verifier connection issues:
+   ```bash
+   tail -f /path/to/wordpress/wp-content/debug.log
+   ```
+4. Verify the verifier URL is correct and accessible
 
 ---
 

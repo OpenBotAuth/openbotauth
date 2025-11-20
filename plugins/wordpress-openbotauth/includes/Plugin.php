@@ -12,6 +12,9 @@ class Plugin {
     private $content_filter;
     private $admin;
     
+    // Cache verification result to avoid duplicate verifications
+    private $verification_cache = null;
+    
     public static function get_instance() {
         if (null === self::$instance) {
             self::$instance = new self();
@@ -27,7 +30,7 @@ class Plugin {
         // Initialize components
         $this->verifier = new Verifier();
         $this->policy_engine = new PolicyEngine();
-        $this->content_filter = new ContentFilter($this->verifier, $this->policy_engine);
+        $this->content_filter = new ContentFilter($this->verifier, $this->policy_engine, $this);
         
         // Admin interface
         if (is_admin()) {
@@ -41,6 +44,16 @@ class Plugin {
         
         // REST API
         add_action('rest_api_init', [$this, 'register_rest_routes']);
+    }
+    
+    /**
+     * Get cached verification result (to avoid duplicate verifications)
+     */
+    public function get_verification() {
+        if ($this->verification_cache === null) {
+            $this->verification_cache = $this->verifier->verify_request();
+        }
+        return $this->verification_cache;
     }
     
     /**
@@ -59,8 +72,8 @@ class Plugin {
         
         global $post;
         
-        // Verify signature
-        $verification = $this->verifier->verify_request();
+        // Get cached verification (to avoid duplicate verification)
+        $verification = $this->get_verification();
         
         // Get policy for this post
         $policy = $this->policy_engine->get_policy($post);

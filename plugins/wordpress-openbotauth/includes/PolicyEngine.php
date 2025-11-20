@@ -33,8 +33,8 @@ class PolicyEngine {
         $policy = json_decode($policy_json, true);
         
         return $policy['default'] ?? [
-            'effect' => 'allow',
-            'teaser_words' => 0,
+            'effect' => 'teaser',
+            'teaser_words' => 100,
         ];
     }
     

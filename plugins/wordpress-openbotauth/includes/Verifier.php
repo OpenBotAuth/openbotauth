@@ -44,9 +44,22 @@ class Verifier {
         ]);
         
         if (is_wp_error($response)) {
+            $error_msg = 'Verifier service error: ' . $response->get_error_message();
+            error_log('[OpenBotAuth] ' . $error_msg);
             return [
                 'verified' => false,
-                'error' => 'Verifier service error: ' . $response->get_error_message(),
+                'error' => $error_msg,
+                'agent' => null,
+            ];
+        }
+        
+        $status_code = wp_remote_retrieve_response_code($response);
+        if ($status_code !== 200) {
+            $error_msg = 'Verifier service returned status ' . $status_code;
+            error_log('[OpenBotAuth] ' . $error_msg);
+            return [
+                'verified' => false,
+                'error' => $error_msg,
                 'agent' => null,
             ];
         }
@@ -54,9 +67,11 @@ class Verifier {
         $body = json_decode(wp_remote_retrieve_body($response), true);
         
         if (!$body) {
+            $error_msg = 'Invalid verifier response (empty or malformed JSON)';
+            error_log('[OpenBotAuth] ' . $error_msg);
             return [
                 'verified' => false,
-                'error' => 'Invalid verifier response',
+                'error' => $error_msg,
                 'agent' => null,
             ];
         }
