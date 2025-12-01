@@ -353,6 +353,25 @@ pnpm dev:widget-frontend # Terminal 2
 - Real-time fetch with status and response preview
 - Built with React + TypeScript
 
+**3. TAP Voice Agents** — [Full Documentation →](https://github.com/OpenBotAuth/openbotauth-demos/blob/main/TAP_VOICE_DEMO.md) | [Demo Video →](https://youtu.be/1ZPB_n6v6EI)
+
+Autonomous agent-to-merchant payments using cryptographic identity and consent proofs:
+
+```bash
+pnpm install
+pnpm dev:tap-voice-backend  # Terminal 1
+pnpm dev:tap-voice-frontend # Terminal 2
+```
+
+**Features:**
+- User-owned AI agents (Pete for shopping, Penny for payments)
+- Triple-layer signing: RFC 9421 + consent proof + payment request
+- Live 15-step sequence diagram showing cryptographic handshake
+- ElevenLabs voice integration with manual fallback controls
+- Origin-first verification (no CDN/proxy required)
+
+**What it demonstrates:** How commerce works when users have their own AI agents that shop and pay on their behalf using cryptographic signatures to prove identity and consent to merchants.
+
 ### Quick Start with Demos
 
 ```bash
