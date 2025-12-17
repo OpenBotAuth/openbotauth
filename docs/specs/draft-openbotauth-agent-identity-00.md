@@ -1,40 +1,31 @@
 Internet-Draft              OpenBotAuth                 Expires 2026-04-30
-Intended status: Informational                            2025-04-30
+Intended status: Informational                            2025-12-17
 
-```
-       OpenBotAuth Agent Identity & Passport Draft
-          draft-openbotauth-agent-identity-00
-```
+        OpenBotAuth Agent Identity Profile for Web Bot Authentication
+               draft-openbotauth-agent-identity-01
 
 Abstract
 
-This document defines an extension to the IETF Web Bot Authentication
-(WBA) architecture that assigns long‑lived, origin‑agnostic
-identifiers to autonomous software agents and specifies how those
-agents present verifiable “passports” when interacting with HTTP
-resources.
+This document defines an OpenBotAuth profile for deploying long-lived,
+origin-agnostic “agent identifiers” alongside the emerging Web Bot
+Authentication (WBA) architecture that uses HTTP Message Signatures.
 
-The draft introduces:
+This profile does NOT change WBA wire formats. Instead, it defines:
 
-* an `agent:` identifier scheme;
-* a binding from agent identifiers to WBA key directories and JWKS;
-* use of the `Signature-Agent` header field in HTTP Message
-  Signatures to carry an `agent-id`;
-* a delegation model for sub‑agents acting under a parent agent
-  using a signed Agent Delegation Token (ADT); and
-* an optional "402 Agent Required" response pattern for resources
-  that demand an authenticated agent passport.
-
-The goal is to let websites, APIs, and other agents reliably
-recognize and authorize autonomous software agents across origins,
-while remaining compatible with the WBA architecture and its use of
-HTTP Message Signatures (RFC 9421).
+* an optional, stable agent identifier scheme ("agent:" identifiers);
+* how an implementation can associate such identifiers with WBA key
+  directories and HTTP Message Signature verification;
+* an optional delegation model using X.509 certificate chains carried
+  via JWKS ("x5c" / "x5u") consistent with existing directory examples;
+* an optional use of a Signature Agent Card as the primary location for
+  agent metadata, including agent identifiers and parent/sub-agent
+  relationships.
 
 Status of This Memo
 
-This Internet‑Draft‑style document is published by the OpenBotAuth
-project for review and comment.  It is not an IETF product and is not
-a candidate for the standards track at this time.  It may be updated,
+This Internet-Draft-style document is published by the OpenBotAuth
+project for review and comment. It is not an IETF product and is not a
+candidate for the standards track at this time. It may be updated,
 replaced, or obsoleted at any time.
 
 Copyright Notice
@@ -42,506 +33,294 @@ Copyright Notice
 Copyright © 2025 OpenBotAuth contributors.
 
 This document is licensed under the Apache License, Version 2.0.
-You may not use this file except in compliance with the License.
-You may obtain a copy of the License at https://www.apache.org/licenses/LICENSE-2.0
 
 ---
 
-## 1.  Introduction
+1.  Introduction
 
-The Web Bot Authentication architecture draft defines how HTTP Message
-Signatures and well‑known key directories can be used to authenticate
-web crawlers and other automated clients.  The draft is intentionally
-minimal: it focuses on key discovery and HTTP‑level proofs, and it does
-not attempt to define an identifier scheme for agents, a delegation
-model, or specific authorization semantics.
+The Web Bot Authentication (WBA) effort standardizes mechanisms for
+cryptographic identification of non-browser HTTP clients using HTTP
+Message Signatures and discoverable key directories.
 
-At the same time, the rise of LLM‑based agents and voice agents creates
-new requirements:
+WBA’s scope is intentionally constrained; it does not attempt to define
+full “agentic” identity or capability models. OpenBotAuth builds an
+optional identity layer ABOVE WBA by introducing long-lived agent
+identifiers and optional delegation, without altering WBA’s core header
+or directory formats.
 
-* agents may be long‑lived principals with their own policy, memory
-  and reputation;
-* an end‑user or organization may run multiple agents (and sub‑agents)
-  with different privileges;
-* websites may wish to distinguish between anonymous scripted access
-  and authenticated, passport‑bearing agents; and
-* some use‑cases (e.g., voice checkout) require fine‑grained policy on
-  which agents may act on behalf of which users.
+This profile aims to:
+* keep WBA’s request signing and key discovery as the normative base;
+* define a clean place to hang stable “agent identity” metadata;
+* offer an optional X.509-based delegation mechanism that interoperates
+  with JWKS distribution.
 
-This draft extends WBA in a narrow way to address these needs while
-preserving the core properties of the architecture:
+Non-goals:
+* defining authorization semantics, payments, or “agent passports” as a
+  new security boundary;
+* defining a universal registry or reputation network;
+* requiring X.509 for WBA interoperability.
 
-* identities are backed by public keys discoverable via HTTP;
-* HTTP Message Signatures (RFC 9421) provide request‑level proofs;
-* existing HTTP status codes and header fields are reused where
-  possible.
+2.  Conventions and Terminology
 
-The main contribution is the definition of `agent-id` as a first‑class
-identifier, along with a JOSE‑based delegation mechanism that allows a
-verifier to link an agent keypair to a parent agent and, optionally, a
-human or organizational owner.
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" are to be
+interpreted as described in RFC 2119.
 
-## 2.  Conventions and Terminology
+Terms used from related drafts:
+* Key Directory: a JWKS served as an HTTP Message Signatures Directory.
+* Signature-Agent: the HTTP header field that communicates a directory
+  location (URI) for signature verification.
+* Signature Agent Card: a JSON object describing a signature agent.
 
-The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT** and
-**MAY** in this document are to be interpreted as described in RFC 2119.
+OpenBotAuth-specific terms:
+* Agent Identifier (agent-id): a stable identifier string for an agent.
+* Parent Agent: an agent delegating authority to another agent.
+* Sub-Agent: an agent operating under delegated authority.
 
-* **agent** – an autonomous process, model, or composite system that
-  initiates HTTP requests or acts on HTTP responses.
-* **parent agent** – an agent that delegates capabilities or identity to
-  one or more sub‑agents.
-* **sub‑agent** – an agent acting under a parent agent with delegated
-  authority scoped by policy.
-* **agent-id** – the canonical identifier for an agent, defined in
-  Section 3.
-* **principal** – a human or organizational account that ultimately
-  owns or controls one or more agents.
-* **passport** – an HTTP request that carries a valid HTTP Message
-  Signature bound to an `agent-id` via the `Signature-Agent` field.
-* **registry** – a service that maintains bindings from `agent-id`s to
-  WBA key directories and optional metadata, and that issues Agent
-  Delegation Tokens (ADTs).
+3.  Agent Identifiers ("agent:")
 
-This draft assumes familiarity with:
+3.1.  Syntax
 
-* Web Bot Authentication architecture (draft‑meunier‑web‑bot‑auth‑architecture);
-* HTTP Message Signatures (RFC 9421);
-* Structured Field Values for HTTP (RFC 8941); and
-* JSON Web Key (JWK) and JSON Web Signature (JWS).
+OpenBotAuth defines an OPTIONAL "agent:" identifier scheme:
 
-## 3.  Agent Identifier Scheme (`agent:` URI)
-
-### 3.1.  Syntax
-
-Agents are identified by an opaque, globally unique string called an
-`agent-id`.  This draft defines the `agent:` URI scheme for this
-purpose:
-
-```abnf
-agent-id     = "agent:" local-part "@" authority
-local-part   = 1*( ALPHA / DIGIT / "-" / "_" / "." )
-authority    = 1*( ALPHA / DIGIT / "-" / "." )
-```
+  agent-id     = "agent:" local-part "@" authority
+  local-part   = 1*( ALPHA / DIGIT / "-" / "_" / "." )
+  authority    = 1*( ALPHA / DIGIT / "-" / "." )
 
 Examples:
+  agent:pete@openbotauth.org
+  agent:pricebot@acme-retail.example
+  agent:cart-voice@shop.example
 
-* `agent:pete@openbotauth.org`    – registry‑hosted agent
-* `agent:pricebot@acme-retail`    – enterprise agent
-* `agent:cart-voice@shop.demo`    – scoped voice agent for one site
+The agent-id is a naming layer; it is not a replacement for key-based
+verification. Implementations MUST treat the entire agent-id as opaque.
 
-The entire `agent-id` MUST be treated as an opaque, case‑insensitive
-identifier.  No normative semantics are assigned to sub‑strings or
-sub‑domains of the authority; deployments MAY apply local conventions.
+3.2.  Sub-Agent Naming Convention
 
-### 3.2.  Sub‑Agent Identifiers
+OpenBotAuth allows an OPTIONAL syntactic convention for sub-agents:
 
-Sub‑agents are agents that operate under a parent agent’s administrative
-control.  This draft defines a simple hierarchical convention for
-sub‑agent IDs:
-
-```abnf
-subagent-id = agent-id "/" sub-label
-sub-label   = 1*( ALPHA / DIGIT / "-" / "_" / "." )
-```
+  subagent-id = agent-id "/" sub-label
+  sub-label   = 1*( ALPHA / DIGIT / "-" / "_" / "." )
 
 Examples:
+  agent:pete@openbotauth.org/voice
+  agent:pete@openbotauth.org/browser
 
-* `agent:pete@openbotauth.org/browser` – browser automation sub‑agent
-* `agent:pete@openbotauth.org/voice`   – voice surface sub‑agent
-* `agent:pete@openbotauth.org/rag`     – retrieval sub‑agent
+This convention MUST NOT be used to infer authorization. Actual
+delegation, when used, is expressed via X.509 and/or published metadata.
 
-Sub‑agent identifiers are syntactic sugar; the registry maintains an
-explicit parent relationship (Section 4.3).  Relying parties MUST NOT
-attempt to infer privilege from the path component alone.
+4.  WBA Compatibility Requirements (Requests)
 
-## 4.  Principals and Agent Delegation
+An OpenBotAuth agent interacting with HTTP resources SHOULD follow the
+WBA architecture’s signing guidance:
 
-### 4.1.  Principals
+* Requests MUST be signed using HTTP Message Signatures (RFC 9421).
+* Covered components SHOULD include at least "@method", "@path" and
+  "@authority".
+* A "Signature-Agent" header SHOULD be sent to allow in-band discovery
+  of the key directory.
+* Implementations SHOULD cover "signature-agent" in the signature input
+  so that directory discovery is integrity-protected.
+* The "keyid" SHOULD be a JWK thumbprint, and implementations SHOULD
+  use the WBA tag value.
 
-A principal represents the ultimate owner of one or more agents.  This
-may be an individual user, a team, or an organization account.
+(See References for the relevant WBA and directory drafts.)
 
-This draft uses the following informal identifier for principals:
+5.  Signature-Agent and Directory Discovery
 
-```abnf
-principal-id = "principal:" local-part "@" authority
-```
+5.1.  Signature-Agent Header Field
 
-For example:
+This profile uses the Signature-Agent header field as defined in the
+HTTP Message Signatures Directory draft:
 
-* `principal:hammad@openbotauth.org`
-* `principal:acme-security@acme-retail`
+* Signature-Agent is a Structured Field Dictionary.
+* Each member value is a String Item whose content is a URI pointing to
+  an HTTP Message Signatures Directory (JWKS).
 
-The precise mapping between principal identifiers and human identity is
-out of scope; implementations MAY use existing identity providers
-(GitHub, OIDC, etc.) to establish who controls a given principal.
+Example (single signature label "sig1"):
 
-### 4.2.  Agent Key Material
+  Signature-Agent: sig1="https://registry.openbotauth.org/agents/pete/.well-known/http-message-signatures-directory"
 
-Each agent (including each sub‑agent) uses its own Ed25519 keypair for
-HTTP Message Signatures.  Keys MAY be generated by the registry or by
-the agent operator and registered via an API.
+If multiple signatures are present, implementations MAY supply multiple
+dictionary members keyed by the signature label(s).
 
-Agent public keys are published as JWKs inside a WBA‑compatible key
-directory (Section 4.4).  The JWK `kid` parameter SHOULD be the JWK
-thumbprint so that it uniquely identifies a key.
+5.2.  Key Directory Format and Response Validation
 
-Example JWK for a sub‑agent:
+Key directories are served as JWKS with media type:
+  application/http-message-signatures-directory+json
 
-```json
+Directory servers SHOULD sign directory responses in a verifiable way
+using HTTP Message Signatures, so that verifiers can bind keys to the
+intended directory authority. If a directory response is signed, the
+directory signing conventions defined by the directory draft apply,
+including tag value and thumbprint-style keyid.
+
+6.  Signature Agent Card (Preferred Metadata Container)
+
+6.1.  Overview
+
+OpenBotAuth RECOMMENDS using a Signature Agent Card as the primary
+metadata container for:
+* human-readable bot metadata,
+* contacts,
+* and OPTIONAL OpenBotAuth identity bindings (agent-id, parent agent-id).
+
+The Signature Agent Card is defined by the WBA registry/card draft.
+OpenBotAuth adds OPTIONAL extension parameters under the "oba_" prefix.
+
+6.2.  Location
+
+By convention, an agent’s Signature Agent Card is published at:
+
+  /.well-known/signature-agent-card
+
+Registries MAY also publish lists of card URLs and/or host cards for
+agents.
+
+6.3.  OpenBotAuth Extension Parameters
+
+This profile defines the following OPTIONAL card parameters:
+
+* oba_agent_id:
+    A stable OpenBotAuth agent identifier (Section 3).
+* oba_parent_agent_id:
+    The delegating parent agent identifier, if applicable.
+* oba_principal:
+    An operator or owning principal identifier (informational only).
+
+These parameters are advisory metadata unless backed by verified keys
+and (optionally) verified X.509 delegation.
+
+6.4.  Example Signature Agent Card
+
 {
-  "kty": "OKP",
-  "crv": "Ed25519",
-  "kid": "pete-voice-key-1",
-  "x": "...base64url...",
-  "use": "sig",
-  "alg": "EdDSA"
+  "client_name": "Pete Voice Agent",
+  "client_uri": "https://openbotauth.org/agents/pete/voice",
+  "contacts": ["mailto:hammad@openbotauth.org"],
+  "rfc9309-product-token": "PeteVoice",
+  "purpose": ["voice-checkout"],
+  "keys": {
+    "keys": [{
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "kid": "base64url-thumbprint-or-kid",
+      "x": "...",
+      "use": "sig",
+      "alg": "EdDSA"
+    }]
+  },
+
+  "oba_agent_id": "agent:pete@openbotauth.org/voice",
+  "oba_parent_agent_id": "agent:pete@openbotauth.org",
+  "oba_principal": "principal:hammad@openbotauth.org"
 }
-```
 
-### 4.3.  Registry Records and Parent/Sub‑Agent Relationships
+7.  Optional X.509 Delegation via JWKS (x5c / x5u)
 
-The registry maintains a record per agent, which includes at minimum:
+7.1.  Overview
 
-```json
-{
-  "agent_id": "agent:pete@openbotauth.org/voice",
-  "parent_agent_id": "agent:pete@openbotauth.org",
-  "principal_id": "principal:hammad@openbotauth.org",
-  "jwks_uri": "https://registry.openbotauth.org/agents/pete/voice/.well-known/http-message-signatures-directory",
-  "status": "active"
-}
-```
-
-Relying parties MAY use `parent_agent_id` to apply policy such as
-"accept any active sub‑agent of `agent:pete@openbotauth.org`".  The
-registry is responsible for ensuring that only an authorized principal
-can create or revoke agents and sub‑agents under that principal.
-
-### 4.4.  Mapping `agent-id` to a Key Directory
-
-The WBA architecture defines a key directory at:
-
-```text
-/.well-known/http-message-signatures-directory
-```
-
-for a given origin.  OpenBotAuth introduces a registry abstraction that
-maps `agent-id`s to per‑agent key directories.
-
-Given an `agent-id` of the form:
-
-```text
-agent:<local-part>@<authority>
-```
-
-the default key directory URL is constructed as:
-
-```text
-https://registry.<authority>/agents/<pct-encode(local-part)>/
-        .well-known/http-message-signatures-directory
-```
-
-Sub‑agents MAY have nested paths under the same base, for example:
-
-```text
-https://registry.openbotauth.org/agents/pete/voice/.well-known/http-message-signatures-directory
-```
-
-Deployments MAY support alternative mappings; this convention is
-RECOMMENDED for interoperability.
-
-### 4.5.  Agent Delegation Token (ADT)
-
-To allow verifiers to link an agent keypair back to a principal and
-optionally a parent agent, this draft defines an Agent Delegation Token
-(ADT).
-
-An ADT is a JSON Web Signature (JWS) object with the following
-properties:
-
-* JWS protected header:
-
-  ```json
-  {
-    "alg": "EdDSA",
-    "typ": "oba-delegation+jwt"
-  }
-  ```
-
-* JWS payload (claims set):
-
-  ```json
-  {
-    "sub": "agent:pete@openbotauth.org/voice",      // the agent-id
-    "agent_kid": "pete-voice-key-1",                // key used for HTTP signatures
-    "principal": "principal:hammad@openbotauth.org",// owning principal
-    "parent": "agent:pete@openbotauth.org",         // optional parent agent-id
-    "scope": "checkout",                            // optional scope/role
-    "iat": 1714410000,
-    "exp": 1714496400
-  }
-  ```
-
-* Signature: produced by a registry signing key that is trusted by the
-  relying party.
-
-The registry publishes its delegation signing keys as a JWKS at a
-well‑known location, for example:
-
-```text
-https://registry.<authority>/.well-known/openbotauth-delegation-keys
-```
-
-An ADT for a given agent SHOULD be available at a stable URL, such as:
-
-```text
-https://registry.<authority>/agents/<pct-encode(local-part)>/delegation.jwt
-```
-
-When sub‑agents are used (`agent:pete@.../voice`), the ADT’s `sub`
-claim MUST contain the full sub‑agent identifier, and the `parent`
-claim SHOULD point to the parent agent.
-
-### 4.6.  Verifier Use of ADT
-
-A verifier that wishes to establish the principal and parent for an
-agent proceeds as follows:
-
-1. Obtain `agent-id` from the `Signature-Agent` header.
-2. Resolve the agent’s key directory (Section 4.4) and fetch the JWKS.
-3. Locate the JWK whose `kid` matches the key used in the HTTP
-   signature.
-4. Fetch the ADT for this `agent-id` from the registry.
-5. Verify the JWS using the registry’s delegation JWKS.
-6. Check that `agent_kid` in the ADT matches the JWK’s `kid`.
-7. Check that `exp` has not passed.
-8. Use the `principal` and `parent` claims for policy decisions.
-
-If any step fails, the verifier MUST treat the agent as *unlinked* to a
-principal for the purposes of delegation.  The HTTP signature itself may
-still be valid; local policy determines whether unsigned delegation is
-permitted.
-
-## 5.  HTTP Message Signature Usage
-
-Agents present passports by signing HTTP requests using the mechanisms
-in RFC 9421.  This draft constrains the use of the `Signature-Agent`
-field and describes how `agent-id`s bind to signatures.
-
-### 5.1.  Required Covered Components
-
-For an agent passport, the signature’s covered components MUST include
-at least:
-
-* `@method`
-* `@path`
-* `@authority`
-
-Deployments concerned about replay SHOULD also include one of:
-
-* `@expires` (recommended), or
-* `@created` with short TTL enforced server‑side, or
-* a nonce header such as `X-OBA-Nonce`.
-
-### 5.2.  Signature-Agent Header Field
-
-The `Signature-Agent` header field value MUST be a single sf‑string
-whose content is an `agent-id` or sub‑agent identifier as defined in
-Section 3.
-
-```http
-Signature-Agent: agent:pete@openbotauth.org/voice
-```
-
-The `Signature-Agent` field binds the HTTP Message Signature to a
-specific agent record in the registry.  The signer’s `keyid` parameter
-in the `Signature-Input` field SHOULD correspond to a key in that
-agent’s JWKS document.
-
-### 5.3.  Example Signed Request
-
-```http
-POST /checkout HTTP/1.1
-Host: cart.demo
-Content-Type: application/json
-Signature-Agent: agent:pete@openbotauth.org/voice
-Signature-Input: sig1=("@method" "@path" "@authority" "@expires");
-    keyid="pete-voice-key-1"; alg="ed25519"; created=1714410000;
-    expires=1714410060
-Signature: sig1=:z2Jvb3Zl...Base64...aGVybw==:
-
-{"order_id":"1234"}
-```
-
-### 5.4.  Optional X.509 Delegation
-
-The HTTP Message Signatures Directory draft includes experimental
-examples of using X.509 certificate chains (`x5c` and `x5u`) to express
-host‑level delegation.  OpenBotAuth implementations MAY support such
-mechanisms for consistency with those examples, but X.509 chaining is
-not required for agent identity or principal‑agent delegation in this
-specification.
-
-When `x5c` is present on a JWK, a verifier MAY attempt to validate the
-certificate chain according to local policy.  Success or failure of this
-validation MUST NOT affect the basic interpretation of `agent-id` or the
-ADT described in Section 4.5.
-
-## 6.  402 Agent Required Semantics
-
-Many resources may be publicly accessible to generic HTTP clients while
-reserving enhanced functionality (e.g., higher rate limits, write
-operations, checkout flows) for authenticated agents.  This draft
-defines an optional use of HTTP status 402 to signal that an
-authenticated agent passport is required.
-
-When a protected resource receives a request that lacks a valid agent
-passport, it MAY respond:
-
-* **Status:** 402 (Payment Required)
-
-* **Body:** a JSON object containing an error code, for example:
-
-  ```json
-  {"error":"agent_required"}
-  ```
-
-* **Optional header:**
-
-  ```http
-  X-Agent-Required: openbotauth
-  ```
-
-Rationale: status 402 is reserved for future use by HTTP and is
-commonly associated with "provide value before accessing this
-resource".  In this context, the "value" is a verifiable agent
-passport; deployments MAY also couple this with monetary payment or
-other proof of value.
-
-Relying parties SHOULD NOT rely solely on the presence of 402 responses
-for security; it is a hint, not a guarantee.  Misconfigured servers may
-still incorrectly accept unsigned requests.
-
-## 7.  Agent Cards (Metadata)
-
-Agents often need human‑readable metadata for debugging, policy,
-reputation, and UI.  This draft defines an optional JSON document called
-an **Agent Card**.
-
-### 7.1.  Location
-
-By convention, an Agent Card for `agent:<local-part>@<authority>` is
-published at:
-
-```text
-https://registry.<authority>/agents/<pct-encode(local-part)>/card.json
-```
-
-A registry MAY also expose a discovery API that returns the card URL for
-an `agent-id`.
-
-### 7.2.  Schema
-
-This draft does not require a fixed schema, but recommends the following
+Some deployments may want a delegation chain where a parent agent (or a
+platform/registry) vouches for a sub-agent key. This profile supports
+an OPTIONAL X.509 mechanism carried in JWKS, leveraging existing JOSE
 fields:
 
-```json
-{
-  "agent_id": "agent:pete@openbotauth.org/voice",
-  "agent_name": "Pete (Voice Checkout)",
-  "description": "Demo voice agent that performs checkout operations.",
-  "operator": {
-    "name": "Hammad Tariq",
-    "contact": "mailto:hammad@example.com",
-    "website": "https://openbotauth.org/"
-  },
-  "key_directory_url": "https://registry.openbotauth.org/agents/pete/voice/.well-known/http-message-signatures-directory",
-  "purpose": "voice-checkout",
-  "subject": "github:hammadtariq",
-  "compliance": ["robots.txt"],
-  "policy_uri": "https://registry.openbotauth.org/policies/pete-voice.html"
-}
-```
+* "x5c": an array of base64-encoded DER certificates (leaf first).
+* "x5u": a URI to retrieve the leaf certificate.
 
-The `subject` claim is non‑normative and MAY link an agent to a human or
-organizational identity using prefixes such as `github:`, `mailto:`, or
-`did:`.  Relying parties MUST treat this value as advisory unless
-separately validated.  The `principal_id` from registry records and the
-ADT described in Section 4.5 provide the stronger linkage.
+If X.509 delegation is not used, WBA verification still works: HTTP
+Message Signatures verify possession of a key from a discoverable
+directory. X.509 only adds an OPTIONAL additional trust layer.
 
-## 8.  Security Considerations
+7.2.  Certificate Binding Rules (Profile)
 
-### 8.1.  Key Compromise and Rotation
+If a JWK includes "x5c" or "x5u", verifiers that implement this option:
 
-Compromise of an agent’s private key allows an attacker to impersonate
-that agent.  Registries SHOULD provide:
+* MUST verify that the public key in the leaf certificate matches the
+  JWK’s public key material.
+* MUST validate the certificate chain according to RFC 5280 to a trust
+  anchor configured by local policy (e.g., a registry CA).
+* MAY build the chain using Authority Information Access (AIA) if present.
 
-* key rotation mechanisms with overlap periods;
-* revocation metadata in Agent Cards or separate endpoints;
-* short‑lived keys for high‑value agents.
+7.3.  Delegation Semantics
 
-Relying parties SHOULD cache JWKS responses with conservative TTLs and
-refresh on signature verification failures.
+When X.509 validation succeeds, relying parties MAY interpret:
 
-### 8.2.  Delegation Abuse
+* the certificate issuer relationship as evidence that the issuer
+  (parent agent / platform) delegated authority for the leaf key;
+* the validated chain as evidence that the platform/registry is acting
+  as a CA for that delegation scope.
 
-Sub‑agents increase the attack surface.  Registries SHOULD ensure that
-only a principal (or a designated admin agent) can create or revoke
-sub‑agents, and SHOULD record and expose `parent_agent_id` for policy
-enforcement.
+OpenBotAuth does not standardize global semantics for what delegation
+permits. Authorization decisions remain local policy.
 
-Relying parties MAY restrict high‑risk operations to specific
-sub‑agents, e.g., accept `agent:pete@openbotauth.org/voice` for checkout
-but not `agent:pete@openbotauth.org/scraper`.
+7.4.  Recommended Identity Hint in Certificates (Non-Normative)
 
-### 8.3.  Privacy
+To help map certificates to OpenBotAuth agent identifiers, implementers
+MAY include the agent-id as a URI value in the leaf certificate’s
+subjectAltName extension.
 
-Agent IDs are stable identifiers and can be used to track activity
-across sites.  Deployments concerned with privacy MAY:
+This is informational and not required for interoperability.
 
-* issue multiple agents with distinct IDs for different contexts;
-* rotate agent IDs over time;
-* avoid embedding user‑identifying information in `agent-id` strings.
+8.  Verification Process (Relying Party)
 
-Subject bindings in Agent Cards SHOULD be treated as sensitive and MAY
-be omitted for privacy‑preserving deployments.
+A relying party verifying an OpenBotAuth agent request can:
 
-### 8.4.  Replay and Downgrade Attacks
+1. Parse the HTTP Message Signature per RFC 9421.
+2. Parse Signature-Agent; select the directory URI associated with the
+   signature label (e.g., "sig1").
+3. Fetch the directory (JWKS) and (if present) validate the directory
+   response signatures.
+4. Locate the JWK whose "kid" matches the signature "keyid".
+5. Verify the HTTP Message Signature using that key.
+6. OPTIONAL: fetch /.well-known/signature-agent-card from the agent or
+   from the registry; read oba_agent_id and related fields.
+7. OPTIONAL: if "x5c" or "x5u" are present, validate X.509 chain and
+   bind leaf key to JWK.
 
-To mitigate replay, agents SHOULD sign time‑bounded components and
-servers SHOULD enforce expirations and/or nonces.
+If steps (1)-(5) succeed, the request is cryptographically attributable
+to the signing key. Steps (6)-(7) can provide additional identity and
+delegation signals.
 
-Servers MUST ensure that absence of `Signature-Agent` or failure to
-verify a signature does not mistakenly grant access intended only for
-passport‑bearing agents.
+9.  Security and Privacy Considerations
 
-### 8.5.  Registry Trust
+* Stable identifiers enable correlation across origins; operators should
+  consider whether to use multiple agents or rotate identifiers.
+* Signature-Agent discovery SHOULD be covered by the signature input to
+  prevent downgrade or redirection attacks.
+* Directory responses should be verifiable (signed) to mitigate key
+  substitution risks.
+* X.509 delegation introduces traditional PKI risks (CA compromise,
+  misissuance, revocation complexity). If used, deployments should
+  define revocation and key rotation policies.
 
-The ADT mechanism assumes that verifiers trust a registry’s
-"delegation" keys to speak for the mapping between principals and
-agents.  Deployments SHOULD publish registry delegation keys at
-well‑known locations and rotate them carefully.  In higher‑assurance
-settings, verifiers MAY pin specific registries or require additional
-out‑of‑band trust establishment.
+10.  IANA Considerations
 
-## 9.  IANA Considerations
+This document does not request IANA actions. Registration of a new URI
+scheme or new HTTP fields is out of scope for this project document.
 
-This document suggests registration of the `agent:` URI scheme and
-potentially an `X-Agent-Required` HTTP header field.  Formal IANA
-registration is out of scope for this draft.
+11.  References
 
-## 10.  References
+Normative:
+* RFC 9421: HTTP Message Signatures
+* RFC 8941: Structured Field Values for HTTP
+* RFC 5280: Internet X.509 Public Key Infrastructure Certificate and CRL Profile
+* RFC 7517: JSON Web Key (JWK)
 
-* Meunier, T., "Web Bot Authentication Architecture", work in
-  progress, IETF draft‑meunier‑web‑bot‑auth‑architecture.
-* Cavage, M., et al., "HTTP Message Signatures", RFC 9421.
-* Nottingham, M., "Structured Field Values for HTTP", RFC 8941.
-* Jones, M., "JSON Web Key (JWK)", RFC 7517.
-* Jones, M., "JSON Web Signature (JWS)", RFC 7515.
+Informative (work in progress):
+* draft-meunier-web-bot-auth-architecture
+* draft-meunier-http-message-signatures-directory
+* draft-meunier-webbotauth-registry (Registry and Signature Agent Card)
 
-## 11.  Changelog
+12.  Changelog
 
-* 00  – Initial draft defining `agent-id` scheme, sub‑agent notation,
-  registry mapping, Agent Delegation Token (ADT), Signature-Agent
-  binding, 402 semantics and Agent Cards.
+* 01:
+  - Align Signature-Agent usage with the directory draft (directory URI,
+    structured dictionary) and remove the overload where Signature-Agent
+    carried agent-id directly.
+  - Replace ADT-centric delegation with OPTIONAL X.509 delegation carried
+    via x5c/x5u in JWKS.
+  - Recommend Signature Agent Card as the metadata container for agent-id
+    and parent relationships.
+  - Remove 402 semantics from the core profile (left to future documents).
+* 00:
+  - Initial OpenBotAuth draft.
