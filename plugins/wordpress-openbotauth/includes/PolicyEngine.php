@@ -18,11 +18,21 @@ class PolicyEngine {
         $post_policy = get_post_meta($post->ID, '_openbotauth_policy', true);
         
         if (!empty($post_policy)) {
-            return json_decode($post_policy, true);
+            $policy = json_decode($post_policy, true);
+        } else {
+            // Fall back to default policy
+            $policy = $this->get_default_policy();
         }
         
-        // Fall back to default policy
-        return $this->get_default_policy();
+        /**
+         * Filter the policy before applying it.
+         *
+         * @param array    $policy The policy configuration
+         * @param \WP_Post $post   The current post
+         */
+        $policy = apply_filters('openbotauth_policy', $policy, $post);
+        
+        return $policy;
     }
     
     /**
@@ -56,10 +66,15 @@ class PolicyEngine {
         $agent = $verification['agent'];
         
         // Check whitelist
+        // Whitelist-only semantics: If a whitelist is defined and non-empty,
+        // only agents matching the whitelist are allowed. All other agents are denied.
+        // This provides strict access control for sites that only want specific bots.
         if (!empty($policy['whitelist'])) {
             if ($this->matches_agent_pattern($agent, $policy['whitelist'])) {
                 return ['effect' => 'allow'];
             }
+            // Agent is signed but not in whitelist - deny access
+            return ['effect' => 'deny', 'reason' => 'Agent not in whitelist'];
         }
         
         // Check blacklist

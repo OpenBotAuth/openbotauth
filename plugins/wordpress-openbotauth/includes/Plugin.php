@@ -70,10 +70,26 @@ class Plugin {
             return;
         }
         
+        // Bypass gating for requests without signature headers (normal browsers)
+        // OpenBotAuth only applies to agent requests with RFC 9421 signatures
+        if (!$this->verifier->has_signature_headers()) {
+            return;
+        }
+        
         global $post;
         
         // Get cached verification (to avoid duplicate verification)
         $verification = $this->get_verification();
+        
+        /**
+         * Fires when a bot request has been verified.
+         *
+         * @param array    $agent The verified agent data (jwks_url, kid, etc.)
+         * @param \WP_Post $post  The current post
+         */
+        if (!empty($verification['verified']) && !empty($verification['agent'])) {
+            do_action('openbotauth_verified', $verification['agent'], $post);
+        }
         
         // Get policy for this post
         $policy = $this->policy_engine->get_policy($post);
@@ -81,18 +97,38 @@ class Plugin {
         // Apply policy
         $result = $this->policy_engine->apply_policy($policy, $verification, $post);
         
+        // Track decision in local analytics (no external requests)
+        Analytics::increment($result['effect']);
+        
         // Handle result
         switch ($result['effect']) {
             case 'deny':
-                wp_die(__('Access denied', 'openbotauth'), 403);
+                status_header(403);
+                header('X-OBA-Decision: deny');
+                wp_die(__('Access denied', 'openbotauth'), '', ['response' => 403]);
                 break;
                 
             case 'pay':
+                /**
+                 * Fires when payment is required for content access.
+                 *
+                 * @param array    $agent      The agent data (if verified)
+                 * @param \WP_Post $post       The current post
+                 * @param int      $price_cents The price in cents
+                 */
+                if (!empty($verification['agent'])) {
+                    do_action('openbotauth_payment_required', $verification['agent'], $post, $result['price_cents']);
+                }
                 $this->send_402_response($result, $post);
                 break;
                 
             case 'rate_limit':
-                wp_die(__('Rate limit exceeded', 'openbotauth'), 429);
+                status_header(429);
+                header('X-OBA-Decision: rate_limit');
+                if (!empty($result['retry_after'])) {
+                    header('Retry-After: ' . intval($result['retry_after']));
+                }
+                wp_die(__('Rate limit exceeded', 'openbotauth'), '', ['response' => 429]);
                 break;
                 
             case 'allow':

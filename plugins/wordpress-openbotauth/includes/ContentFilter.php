@@ -30,6 +30,12 @@ class ContentFilter {
             return $content;
         }
         
+        // Bypass filtering for requests without signature headers (normal browsers)
+        // OpenBotAuth only applies to agent requests with RFC 9421 signatures
+        if (!$this->verifier->has_signature_headers()) {
+            return $content;
+        }
+        
         global $post;
         
         // Get cached verification (to avoid duplicate verification)
@@ -50,6 +56,8 @@ class ContentFilter {
                 status_header(403);
                 return '<p>Access denied.</p>';
                 
+            // Note: This branch only executes if check_access() is disabled or skipped,
+            // since Plugin::check_access() exits on 402 before content filtering runs.
             case 'pay':
                 status_header(402);
                 if (!empty($result['pay_url'])) {

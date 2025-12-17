@@ -9,7 +9,7 @@ class Verifier {
     private $verifier_url;
     
     public function __construct() {
-        $this->verifier_url = get_option('openbotauth_verifier_url', 'http://localhost:8081/verify');
+        $this->verifier_url = get_option('openbotauth_verifier_url', 'https://verifier.openbotauth.org/verify');
     }
     
     /**
@@ -81,6 +81,19 @@ class Verifier {
             'error' => $body['error'] ?? null,
             'agent' => $body['agent'] ?? null,
         ];
+    }
+    
+    /**
+     * Check if the current request has any signature headers
+     * Used to determine if this is an agent request vs normal browser
+     * 
+     * @return bool True if any signature headers are present
+     */
+    public function has_signature_headers() {
+        $headers = $this->get_signature_headers();
+        return !empty($headers['signature']) || 
+               !empty($headers['signature-input']) || 
+               !empty($headers['signature-agent']);
     }
     
     /**

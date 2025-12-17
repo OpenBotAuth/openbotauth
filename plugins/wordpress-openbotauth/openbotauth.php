@@ -54,7 +54,7 @@ add_action('plugins_loaded', 'openbotauth_init');
 // Activation hook
 register_activation_hook(__FILE__, function() {
     // Create default options
-    add_option('openbotauth_verifier_url', 'http://localhost:8081/verify');
+    add_option('openbotauth_verifier_url', 'https://verifier.openbotauth.org/verify');
     add_option('openbotauth_policy', json_encode([
         'default' => [
             'effect' => 'teaser',

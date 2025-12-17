@@ -14,6 +14,9 @@ class Admin {
         add_action('save_post', [$this, 'save_post_meta']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_scripts']);
         add_action('wp_ajax_openbotauth_save_policy', [$this, 'ajax_save_policy']);
+        
+        // Clean up old analytics data (older than 30 days)
+        add_action('admin_init', [Analytics::class, 'cleanup_old_stats']);
     }
     
     /**
@@ -33,11 +36,15 @@ class Admin {
      * Register settings
      */
     public function register_settings() {
-        register_setting('openbotauth', 'openbotauth_verifier_url');
+        register_setting('openbotauth', 'openbotauth_verifier_url', [
+            'sanitize_callback' => 'esc_url_raw'
+        ]);
         register_setting('openbotauth', 'openbotauth_policy', [
             'sanitize_callback' => [$this, 'sanitize_policy']
         ]);
-        register_setting('openbotauth', 'openbotauth_payment_url');
+        register_setting('openbotauth', 'openbotauth_payment_url', [
+            'sanitize_callback' => 'esc_url_raw'
+        ]);
         
         add_settings_section(
             'openbotauth_general',
@@ -56,7 +63,7 @@ class Admin {
         
         add_settings_field(
             'payment_url',
-            __('Payment Service URL', 'openbotauth'),
+            __('Payment Service URL (optional)', 'openbotauth'),
             [$this, 'render_payment_url_field'],
             'openbotauth',
             'openbotauth_general'
@@ -154,7 +161,63 @@ class Admin {
 }
                 </pre>
             </details>
+            
+            <hr>
+            
+            <?php $this->render_analytics_section(); ?>
         </div>
+        <?php
+    }
+    
+    /**
+     * Render analytics section
+     * Displays local-only decision counts for the last 7 days.
+     * No data is sent to external servers.
+     */
+    private function render_analytics_section() {
+        $stats = Analytics::get_stats(7);
+        $totals = Analytics::get_totals(7);
+        
+        ?>
+        <h2><?php _e('Agent Request Analytics', 'openbotauth'); ?></h2>
+        <p class="description">
+            <?php _e('Local-only analytics for signed agent requests (last 7 days). No data is sent to external servers.', 'openbotauth'); ?>
+        </p>
+        
+        <table class="widefat striped" style="max-width: 800px;">
+            <thead>
+                <tr>
+                    <th><?php _e('Date', 'openbotauth'); ?></th>
+                    <th style="text-align: center;"><?php _e('Allow', 'openbotauth'); ?></th>
+                    <th style="text-align: center;"><?php _e('Teaser', 'openbotauth'); ?></th>
+                    <th style="text-align: center;"><?php _e('Deny', 'openbotauth'); ?></th>
+                    <th style="text-align: center;"><?php _e('Pay', 'openbotauth'); ?></th>
+                    <th style="text-align: center;"><?php _e('Rate Limit', 'openbotauth'); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($stats as $date => $day_stats): ?>
+                <tr>
+                    <td><?php echo esc_html($date); ?></td>
+                    <td style="text-align: center;"><?php echo intval($day_stats['allow']); ?></td>
+                    <td style="text-align: center;"><?php echo intval($day_stats['teaser']); ?></td>
+                    <td style="text-align: center;"><?php echo intval($day_stats['deny']); ?></td>
+                    <td style="text-align: center;"><?php echo intval($day_stats['pay']); ?></td>
+                    <td style="text-align: center;"><?php echo intval($day_stats['rate_limit']); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+            <tfoot>
+                <tr style="font-weight: bold;">
+                    <td><?php _e('Total', 'openbotauth'); ?></td>
+                    <td style="text-align: center;"><?php echo intval($totals['allow']); ?></td>
+                    <td style="text-align: center;"><?php echo intval($totals['teaser']); ?></td>
+                    <td style="text-align: center;"><?php echo intval($totals['deny']); ?></td>
+                    <td style="text-align: center;"><?php echo intval($totals['pay']); ?></td>
+                    <td style="text-align: center;"><?php echo intval($totals['rate_limit']); ?></td>
+                </tr>
+            </tfoot>
+        </table>
         <?php
     }
     
@@ -195,13 +258,13 @@ class Admin {
      * Render verifier URL field
      */
     public function render_verifier_url_field() {
-        $value = get_option('openbotauth_verifier_url', 'http://localhost:8081/verify');
+        $value = get_option('openbotauth_verifier_url', 'https://verifier.openbotauth.org/verify');
         ?>
         <input type="url" 
                name="openbotauth_verifier_url" 
                value="<?php echo esc_attr($value); ?>" 
                class="regular-text"
-               placeholder="http://localhost:8081/verify">
+               placeholder="https://verifier.openbotauth.org/verify">
         <p class="description">
             <?php _e('URL of the OpenBotAuth verifier service (Node.js service that verifies RFC 9421 signatures)', 'openbotauth'); ?>
         </p>
@@ -220,7 +283,7 @@ class Admin {
                class="regular-text"
                placeholder="https://payments.example.com/pay">
         <p class="description">
-            <?php _e('Base URL for payment processing (optional)', 'openbotauth'); ?>
+            <?php _e('Base URL for payment processing (optional). Used with 402 response stub - actual payment integration requires custom implementation.', 'openbotauth'); ?>
         </p>
         <?php
     }
@@ -338,7 +401,7 @@ class Admin {
                        value="<?php echo esc_attr($price_cents); ?>" 
                        min="0" 
                        style="width: 100%;">
-                <small><?php _e('402 payment required if > 0', 'openbotauth'); ?></small>
+                <small><?php _e('Returns 402 stub response if > 0 (payment integration requires custom implementation)', 'openbotauth'); ?></small>
             </p>
         </div>
         
