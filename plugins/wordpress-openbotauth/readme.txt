@@ -5,8 +5,8 @@ Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.0
 Stable tag: 0.1.1
-License: MIT
-License URI: https://opensource.org/licenses/MIT
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 Secure bot authentication using RFC 9421 HTTP signatures. Control bot access with granular policies, teasers, and 402 payment flows.
 
@@ -42,6 +42,7 @@ Instead of blocking all bots or allowing unrestricted access, you can:
 
 **This plugin connects to an external verifier service.** When a signed bot request is received, the plugin sends the following data to your configured verifier URL via `wp_remote_post`:
 
+* HTTP method (GET, POST, etc.)
 * The accessed URL (including query string, if present)
 * HTTP signature headers (Signature, Signature-Input, Signature-Agent)
 

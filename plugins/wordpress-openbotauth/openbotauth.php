@@ -6,7 +6,8 @@
  * Version: 0.1.1
  * Author: OpenBotAuth
  * Author URI: https://github.com/OpenBotAuth/openbotauth
- * License: MIT
+ * License: GPLv2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: openbotauth
  * Requires at least: 6.0
  * Requires PHP: 8.0
