@@ -18,10 +18,16 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Plugin constants
-define('OPENBOTAUTH_VERSION', '0.1.1');
-define('OPENBOTAUTH_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('OPENBOTAUTH_PLUGIN_URL', plugin_dir_url(__FILE__));
+// Plugin constants (defensive definitions)
+if (!defined('OPENBOTAUTH_VERSION')) {
+    define('OPENBOTAUTH_VERSION', '0.1.1');
+}
+if (!defined('OPENBOTAUTH_PLUGIN_DIR')) {
+    define('OPENBOTAUTH_PLUGIN_DIR', plugin_dir_path(__FILE__));
+}
+if (!defined('OPENBOTAUTH_PLUGIN_URL')) {
+    define('OPENBOTAUTH_PLUGIN_URL', plugin_dir_url(__FILE__));
+}
 
 // Autoloader
 spl_autoload_register(function ($class) {
@@ -64,12 +70,5 @@ register_activation_hook(__FILE__, function() {
             'teaser_words' => 100
         ]
     ]));
-    
-    flush_rewrite_rules();
-});
-
-// Deactivation hook
-register_deactivation_hook(__FILE__, function() {
-    flush_rewrite_rules();
 });
 
