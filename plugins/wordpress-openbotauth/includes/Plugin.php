@@ -98,7 +98,10 @@ class Plugin {
         $result = $this->policy_engine->apply_policy($policy, $verification, $post);
         
         // Track decision in local analytics (no external requests)
-        Analytics::increment($result['effect']);
+        // Only increment if we have a valid effect
+        if (!empty($result['effect'])) {
+            Analytics::increment($result['effect']);
+        }
         
         // Handle result
         switch ($result['effect']) {

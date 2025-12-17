@@ -15,7 +15,7 @@ class Verifier {
     
     public function __construct() {
         // If "Use hosted verifier" is enabled, use the hosted URL (explicit consent)
-        $use_hosted = get_option('openbotauth_use_hosted_verifier', false);
+        $use_hosted = (bool) get_option('openbotauth_use_hosted_verifier', false);
         
         if ($use_hosted) {
             $this->verifier_url = self::HOSTED_VERIFIER_URL;
