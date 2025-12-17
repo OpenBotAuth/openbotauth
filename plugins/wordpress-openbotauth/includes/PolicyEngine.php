@@ -19,6 +19,10 @@ class PolicyEngine {
         
         if (!empty($post_policy)) {
             $policy = json_decode($post_policy, true);
+            // Guard against invalid JSON - fall back to default if decode fails
+            if (!is_array($policy)) {
+                $policy = $this->get_default_policy();
+            }
         } else {
             // Fall back to default policy
             $policy = $this->get_default_policy();
@@ -31,6 +35,11 @@ class PolicyEngine {
          * @param \WP_Post $post   The current post
          */
         $policy = apply_filters('openbotauth_policy', $policy, $post);
+        
+        // Final safety check - ensure we always return an array
+        if (!is_array($policy)) {
+            $policy = $this->get_default_policy();
+        }
         
         return $policy;
     }

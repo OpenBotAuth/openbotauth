@@ -2,7 +2,7 @@
 Contributors: openbotauth
 Tags: bot authentication, ai agents, http signatures, rfc 9421, access control
 Requires at least: 6.0
-Tested up to: 6.4
+Tested up to: 6.9
 Requires PHP: 8.0
 Stable tag: 0.1.1
 License: MIT
@@ -42,10 +42,10 @@ Instead of blocking all bots or allowing unrestricted access, you can:
 
 **This plugin connects to an external verifier service.** When a signed bot request is received, the plugin sends the following data to your configured verifier URL via `wp_remote_post`:
 
-* The request URL being accessed
+* The accessed URL (including query string, if present)
 * HTTP signature headers (Signature, Signature-Input, Signature-Agent)
 
-**No personal user data is collected or transmitted.**
+**No WordPress user accounts, cookies, or personal data is transmitted.** Note that the URL may include query parameters depending on your site's structure.
 
 You can:
 * Use the hosted verifier at `https://verifier.openbotauth.org/verify`
@@ -59,16 +59,17 @@ You can:
 1. Upload the `wordpress-openbotauth` folder to `/wp-content/plugins/`
 2. Activate the plugin through the 'Plugins' menu in WordPress
 3. Go to **Settings > OpenBotAuth** to configure
-4. Set your **Verifier Service URL**:
-   * Local development: `http://localhost:8081/verify`
-   * Production: `https://verifier.openbotauth.org/verify` or your self-hosted URL
+4. Configure your **Verifier Service**:
+   * Check "Use hosted OpenBotAuth verifier" to use the hosted service, OR
+   * Enter your self-hosted verifier URL (e.g., `http://localhost:8081/verify` for local dev)
+   * Leave empty to disable verification (all signed requests treated as unverified)
 5. Configure your default policy (Allow, Teaser, or Deny)
 
 == Frequently Asked Questions ==
 
 = Do I need to run my own verifier service? =
 
-No, you can use the hosted verifier at `https://verifier.openbotauth.org/verify`. For production use or privacy requirements, you can self-host the verifier service.
+No, you can enable the hosted verifier in Settings by checking "Use hosted OpenBotAuth verifier". For privacy requirements or custom configurations, you can self-host the verifier service. The plugin does not contact any external service until you explicitly configure it.
 
 = Will this block normal human visitors? =
 

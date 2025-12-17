@@ -94,9 +94,15 @@ class Analytics {
     
     /**
      * Clean up old stats (older than 30 days)
-     * Called on admin init to avoid bloating options table.
+     * Throttled to run at most once per day via transient.
      */
     public static function cleanup_old_stats() {
+        // Throttle: only run once per day
+        $transient_key = 'openbotauth_cleanup_ran';
+        if (get_transient($transient_key)) {
+            return; // Already ran today
+        }
+        
         global $wpdb;
         
         $cutoff_date = date('Y-m-d', strtotime('-30 days', current_time('timestamp')));
@@ -118,6 +124,9 @@ class Analytics {
                 delete_option($option_name);
             }
         }
+        
+        // Mark as run for 24 hours
+        set_transient($transient_key, true, DAY_IN_SECONDS);
     }
 }
 

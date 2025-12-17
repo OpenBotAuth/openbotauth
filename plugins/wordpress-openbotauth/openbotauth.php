@@ -54,7 +54,9 @@ add_action('plugins_loaded', 'openbotauth_init');
 // Activation hook
 register_activation_hook(__FILE__, function() {
     // Create default options
-    add_option('openbotauth_verifier_url', 'https://verifier.openbotauth.org/verify');
+    // Verifier URL is empty by default - admin must explicitly configure or enable hosted verifier
+    add_option('openbotauth_verifier_url', '');
+    add_option('openbotauth_use_hosted_verifier', false);
     add_option('openbotauth_policy', json_encode([
         'default' => [
             'effect' => 'teaser',

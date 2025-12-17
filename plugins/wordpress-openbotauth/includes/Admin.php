@@ -39,6 +39,9 @@ class Admin {
         register_setting('openbotauth', 'openbotauth_verifier_url', [
             'sanitize_callback' => 'esc_url_raw'
         ]);
+        register_setting('openbotauth', 'openbotauth_use_hosted_verifier', [
+            'sanitize_callback' => [$this, 'sanitize_use_hosted_verifier']
+        ]);
         register_setting('openbotauth', 'openbotauth_policy', [
             'sanitize_callback' => [$this, 'sanitize_policy']
         ]);
@@ -255,19 +258,60 @@ class Admin {
     }
     
     /**
+     * Sanitize the use hosted verifier checkbox
+     * When enabled, automatically fills the verifier URL
+     */
+    public function sanitize_use_hosted_verifier($value) {
+        $use_hosted = (bool) $value;
+        
+        if ($use_hosted) {
+            // When checkbox is enabled, set the hosted verifier URL
+            update_option('openbotauth_verifier_url', 'https://verifier.openbotauth.org/verify');
+        }
+        
+        return $use_hosted;
+    }
+    
+    /**
      * Render verifier URL field
      */
     public function render_verifier_url_field() {
-        $value = get_option('openbotauth_verifier_url', 'https://verifier.openbotauth.org/verify');
+        $value = get_option('openbotauth_verifier_url', '');
+        $use_hosted = get_option('openbotauth_use_hosted_verifier', false);
+        $hosted_url = 'https://verifier.openbotauth.org/verify';
         ?>
+        <p>
+            <label>
+                <input type="checkbox" 
+                       name="openbotauth_use_hosted_verifier" 
+                       id="openbotauth_use_hosted_verifier"
+                       value="1" 
+                       <?php checked($use_hosted); ?>>
+                <?php _e('Use hosted OpenBotAuth verifier', 'openbotauth'); ?>
+            </label>
+            <span class="description" style="margin-left: 8px;">
+                <?php _e('(Fills URL automatically)', 'openbotauth'); ?>
+            </span>
+        </p>
         <input type="url" 
                name="openbotauth_verifier_url" 
+               id="openbotauth_verifier_url"
                value="<?php echo esc_attr($value); ?>" 
                class="regular-text"
-               placeholder="https://verifier.openbotauth.org/verify">
+               placeholder="<?php echo esc_attr($hosted_url); ?>">
         <p class="description">
-            <?php _e('URL of the OpenBotAuth verifier service (Node.js service that verifies RFC 9421 signatures)', 'openbotauth'); ?>
+            <?php _e('URL of the OpenBotAuth verifier service. Leave empty to disable signature verification (all signed requests will be treated as unverified).', 'openbotauth'); ?>
         </p>
+        <script>
+        jQuery(document).ready(function($) {
+            var hostedUrl = '<?php echo esc_js($hosted_url); ?>';
+            $('#openbotauth_use_hosted_verifier').on('change', function() {
+                if (this.checked) {
+                    $('#openbotauth_verifier_url').val(hostedUrl);
+                }
+            });
+        });
+        </script>
         <?php
     }
     

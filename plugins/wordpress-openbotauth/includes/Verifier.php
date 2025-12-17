@@ -9,7 +9,7 @@ class Verifier {
     private $verifier_url;
     
     public function __construct() {
-        $this->verifier_url = get_option('openbotauth_verifier_url', 'https://verifier.openbotauth.org/verify');
+        $this->verifier_url = get_option('openbotauth_verifier_url', '');
     }
     
     /**
@@ -18,6 +18,15 @@ class Verifier {
      * @return array Verification result with 'verified', 'agent', 'error' keys
      */
     public function verify_request() {
+        // If no verifier URL is configured, treat all requests as unverified
+        if (empty($this->verifier_url)) {
+            return [
+                'verified' => false,
+                'error' => 'Verifier service not configured',
+                'agent' => null,
+            ];
+        }
+        
         // Extract signature headers
         $headers = $this->get_signature_headers();
         
