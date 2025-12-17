@@ -8,8 +8,20 @@ namespace OpenBotAuth;
 class Verifier {
     private $verifier_url;
     
+    /**
+     * Hosted verifier URL constant
+     */
+    const HOSTED_VERIFIER_URL = 'https://verifier.openbotauth.org/verify';
+    
     public function __construct() {
-        $this->verifier_url = get_option('openbotauth_verifier_url', '');
+        // If "Use hosted verifier" is enabled, use the hosted URL (explicit consent)
+        $use_hosted = get_option('openbotauth_use_hosted_verifier', false);
+        
+        if ($use_hosted) {
+            $this->verifier_url = self::HOSTED_VERIFIER_URL;
+        } else {
+            $this->verifier_url = get_option('openbotauth_verifier_url', '');
+        }
     }
     
     /**

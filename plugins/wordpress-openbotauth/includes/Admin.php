@@ -259,17 +259,11 @@ class Admin {
     
     /**
      * Sanitize the use hosted verifier checkbox
-     * When enabled, automatically fills the verifier URL
+     * Just returns boolean - no side effects. The Verifier class handles
+     * using the hosted URL when this option is enabled.
      */
     public function sanitize_use_hosted_verifier($value) {
-        $use_hosted = (bool) $value;
-        
-        if ($use_hosted) {
-            // When checkbox is enabled, set the hosted verifier URL
-            update_option('openbotauth_verifier_url', 'https://verifier.openbotauth.org/verify');
-        }
-        
-        return $use_hosted;
+        return (bool) $value;
     }
     
     /**
@@ -282,6 +276,8 @@ class Admin {
         ?>
         <p>
             <label>
+                <!-- Hidden input ensures unchecking submits value 0 -->
+                <input type="hidden" name="openbotauth_use_hosted_verifier" value="0">
                 <input type="checkbox" 
                        name="openbotauth_use_hosted_verifier" 
                        id="openbotauth_use_hosted_verifier"
