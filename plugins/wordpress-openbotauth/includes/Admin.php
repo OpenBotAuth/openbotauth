@@ -104,50 +104,76 @@ class Admin {
             return;
         }
         
+        // Get current tab
+        $current_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'config';
+        $tabs = [
+            'config' => [
+                'label' => __('Configuration', 'openbotauth'),
+                'icon' => 'dashicons-admin-settings'
+            ],
+            'analytics' => [
+                'label' => __('Analytics', 'openbotauth'),
+                'icon' => 'dashicons-chart-area'
+            ],
+        ];
+        
         ?>
         <div class="wrap">
             <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
             
-            <div class="notice notice-info">
-                <p>
-                    <strong><?php _e('OpenBotAuth', 'openbotauth'); ?></strong> - 
-                    <?php _e('Secure bot authentication using RFC 9421 HTTP signatures.', 'openbotauth'); ?>
-                </p>
-                <p>
-                    <?php _e('Control bot access with granular policies, teasers, and 402 payment flows.', 'openbotauth'); ?>
-                    <a href="https://github.com/OpenBotAuth/openbotauth" target="_blank"><?php _e('Documentation', 'openbotauth'); ?></a>
-                </p>
-            </div>
+            <!-- Tab Navigation -->
+            <nav class="nav-tab-wrapper wp-clearfix" style="margin-bottom: 20px;">
+                <?php foreach ($tabs as $tab_id => $tab): ?>
+                    <a href="<?php echo esc_url(add_query_arg('tab', $tab_id, admin_url('options-general.php?page=openbotauth'))); ?>" 
+                       class="nav-tab <?php echo $current_tab === $tab_id ? 'nav-tab-active' : ''; ?>">
+                        <span class="dashicons <?php echo esc_attr($tab['icon']); ?>" style="margin-right: 4px; line-height: 1.6;"></span>
+                        <?php echo esc_html($tab['label']); ?>
+                    </a>
+                <?php endforeach; ?>
+            </nav>
             
-            <form action="options.php" method="post">
-                <?php
-                settings_fields('openbotauth');
-                do_settings_sections('openbotauth');
-                submit_button(__('Save Settings', 'openbotauth'));
-                ?>
-            </form>
-            
-            <hr>
-            
-            <h2><?php _e('Advanced Policy Configuration', 'openbotauth'); ?></h2>
-            <p><?php _e('For advanced policy configuration (whitelists, blacklists, rate limits), edit the policy JSON directly:', 'openbotauth'); ?></p>
-            
-            <textarea id="openbotauth-policy-json" rows="15" style="width: 100%; font-family: monospace;">
+            <?php if ($current_tab === 'config'): ?>
+                <!-- Configuration Tab -->
+                <div class="notice notice-info">
+                    <p>
+                        <strong><?php _e('OpenBotAuth', 'openbotauth'); ?></strong> - 
+                        <?php _e('Secure bot authentication using RFC 9421 HTTP signatures.', 'openbotauth'); ?>
+                    </p>
+                    <p>
+                        <?php _e('Control bot access with granular policies, teasers, and 402 payment flows.', 'openbotauth'); ?>
+                        <a href="https://github.com/OpenBotAuth/openbotauth" target="_blank"><?php _e('Documentation', 'openbotauth'); ?></a>
+                    </p>
+                </div>
+                
+                <form action="options.php" method="post">
+                    <?php
+                    settings_fields('openbotauth');
+                    do_settings_sections('openbotauth');
+                    submit_button(__('Save Settings', 'openbotauth'));
+                    ?>
+                </form>
+                
+                <hr>
+                
+                <h2><?php _e('Advanced Policy Configuration', 'openbotauth'); ?></h2>
+                <p><?php _e('For advanced policy configuration (whitelists, blacklists, rate limits), edit the policy JSON directly:', 'openbotauth'); ?></p>
+                
+                <textarea id="openbotauth-policy-json" rows="15" style="width: 100%; font-family: monospace;">
 <?php echo esc_textarea(get_option('openbotauth_policy', '{}')); ?>
-            </textarea>
-            
-            <p>
-                <button type="button" class="button button-primary" id="openbotauth-save-policy">
-                    <?php _e('Save Policy JSON', 'openbotauth'); ?>
-                </button>
-                <button type="button" class="button" id="openbotauth-validate-policy">
-                    <?php _e('Validate JSON', 'openbotauth'); ?>
-                </button>
-            </p>
-            
-            <details>
-                <summary><?php _e('Policy JSON Schema', 'openbotauth'); ?></summary>
-                <pre style="background: #f5f5f5; padding: 15px; overflow: auto;">
+                </textarea>
+                
+                <p>
+                    <button type="button" class="button button-primary" id="openbotauth-save-policy">
+                        <?php _e('Save Policy JSON', 'openbotauth'); ?>
+                    </button>
+                    <button type="button" class="button" id="openbotauth-validate-policy">
+                        <?php _e('Validate JSON', 'openbotauth'); ?>
+                    </button>
+                </p>
+                
+                <details>
+                    <summary><?php _e('Policy JSON Schema', 'openbotauth'); ?></summary>
+                    <pre style="background: #f5f5f5; padding: 15px; overflow: auto;">
 {
   "default": {
     "effect": "allow|deny|teaser",
@@ -162,12 +188,14 @@ class Admin {
     }
   }
 }
-                </pre>
-            </details>
-            
-            <hr>
-            
-            <?php $this->render_analytics_section(); ?>
+                    </pre>
+                </details>
+                
+            <?php elseif ($current_tab === 'analytics'): ?>
+                <!-- Analytics Tab -->
+                <?php $this->render_analytics_section(); ?>
+                
+            <?php endif; ?>
         </div>
         <?php
     }
