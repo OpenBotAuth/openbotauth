@@ -137,7 +137,7 @@ const Radar = () => {
     icon: React.ElementType; 
     color?: string;
   }) => (
-    <Card className="bg-card/50 backdrop-blur border-border/50">
+    <Card className="border shadow-sm">
       <CardContent className="pt-6">
         <div className="flex items-center justify-between">
           <div>
@@ -146,7 +146,7 @@ const Radar = () => {
               {typeof value === 'number' ? value.toLocaleString() : value}
             </p>
           </div>
-          <Icon className={`w-8 h-8 ${color} opacity-50`} />
+          <Icon className={`w-8 h-8 ${color} opacity-60`} />
         </div>
       </CardContent>
     </Card>
@@ -161,7 +161,7 @@ const Radar = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen bg-background">
       <SEO
         title="Radar - Ecosystem Telemetry"
         description="Real-time insights into the OpenBotAuth ecosystem. View verified requests, top agents, and publisher adoption."
@@ -175,7 +175,7 @@ const Radar = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold text-foreground">
               OpenBotAuth Radar
             </h1>
             <p className="text-muted-foreground mt-2">
@@ -186,14 +186,12 @@ const Radar = () => {
             <Button
               variant={window === 'today' ? 'default' : 'outline'}
               onClick={() => setWindow('today')}
-              className={window === 'today' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
             >
               Today
             </Button>
             <Button
               variant={window === '7d' ? 'default' : 'outline'}
               onClick={() => setWindow('7d')}
-              className={window === '7d' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
             >
               7 Days
             </Button>
@@ -203,14 +201,14 @@ const Radar = () => {
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
-              <Activity className="w-12 h-12 animate-pulse text-emerald-500 mx-auto mb-4" />
+              <Activity className="w-12 h-12 animate-pulse text-emerald-600 mx-auto mb-4" />
               <p className="text-muted-foreground">Loading Radar data...</p>
             </div>
           </div>
         ) : error ? (
-          <Card className="border-amber-500/50 bg-amber-500/10">
+          <Card className="border-amber-500 bg-amber-50">
             <CardContent className="pt-6">
-              <p className="text-amber-400">{error}</p>
+              <p className="text-amber-700">{error}</p>
               <p className="text-sm text-muted-foreground mt-2">
                 Radar data requires the registry and verifier services to be running with telemetry enabled.
               </p>
@@ -224,48 +222,48 @@ const Radar = () => {
                 title="Signed Requests"
                 value={overview?.signed || 0}
                 icon={Activity}
-                color="text-blue-400"
+                color="text-blue-600"
               />
               <StatCard
                 title="Verified"
                 value={overview?.verified || 0}
                 icon={CheckCircle}
-                color="text-emerald-400"
+                color="text-emerald-600"
               />
               <StatCard
                 title="Failed"
                 value={overview?.failed || 0}
                 icon={XCircle}
-                color="text-red-400"
+                color="text-red-600"
               />
               <StatCard
                 title="Unique Agents"
                 value={overview?.unique_agents || 0}
                 icon={Bot}
-                color="text-purple-400"
+                color="text-purple-600"
               />
             </div>
 
             {/* Chart */}
-            <Card className="mb-8 bg-card/50 backdrop-blur border-border/50">
+            <Card className="mb-8 border shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-emerald-400" />
+                  <Activity className="w-5 h-5 text-emerald-600" />
                   Verified Requests ({window === 'today' ? 'Today' : '7 Days'})
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <SimpleLineChart data={timeseries?.points || []} color="#22c55e" />
+                <SimpleLineChart data={timeseries?.points || []} color="#059669" />
               </CardContent>
             </Card>
 
             {/* Tables */}
             <div className="grid md:grid-cols-2 gap-6">
               {/* Top Agents */}
-              <Card className="bg-card/50 backdrop-blur border-border/50">
+              <Card className="border shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Bot className="w-5 h-5 text-purple-400" />
+                    <Bot className="w-5 h-5 text-purple-600" />
                     Top Agents
                   </CardTitle>
                 </CardHeader>
@@ -277,7 +275,7 @@ const Radar = () => {
                       {topAgents.map((agent, i) => (
                         <div
                           key={agent.agent_id || i}
-                          className="flex items-center justify-between py-2 px-3 rounded-lg bg-background/50 hover:bg-background/80 transition-colors"
+                          className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                         >
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">
@@ -290,11 +288,11 @@ const Radar = () => {
                             )}
                           </div>
                           <div className="flex items-center gap-3 text-sm">
-                            <span className="text-emerald-400" title="Verified">
+                            <span className="text-emerald-600 font-medium" title="Verified">
                               {agent.verified_count.toLocaleString()}
                             </span>
                             {agent.failed_count > 0 && (
-                              <span className="text-red-400" title="Failed">
+                              <span className="text-red-600 font-medium" title="Failed">
                                 {agent.failed_count.toLocaleString()}
                               </span>
                             )}
@@ -307,10 +305,10 @@ const Radar = () => {
               </Card>
 
               {/* Top Origins */}
-              <Card className="bg-card/50 backdrop-blur border-border/50">
+              <Card className="border shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Globe className="w-5 h-5 text-cyan-400" />
+                    <Globe className="w-5 h-5 text-blue-600" />
                     Top Origins
                   </CardTitle>
                 </CardHeader>
@@ -322,17 +320,17 @@ const Radar = () => {
                       {topOrigins.map((origin, i) => (
                         <div
                           key={origin.origin || i}
-                          className="flex items-center justify-between py-2 px-3 rounded-lg bg-background/50 hover:bg-background/80 transition-colors"
+                          className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                         >
                           <p className="font-medium truncate flex-1 min-w-0">
                             {origin.origin?.replace(/^https?:\/\//, '') || 'Unknown'}
                           </p>
                           <div className="flex items-center gap-3 text-sm">
-                            <span className="text-emerald-400" title="Verified">
+                            <span className="text-emerald-600 font-medium" title="Verified">
                               {origin.verified_count.toLocaleString()}
                             </span>
                             {origin.failed_count > 0 && (
-                              <span className="text-red-400" title="Failed">
+                              <span className="text-red-600 font-medium" title="Failed">
                                 {origin.failed_count.toLocaleString()}
                               </span>
                             )}
