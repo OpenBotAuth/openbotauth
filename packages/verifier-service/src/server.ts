@@ -135,7 +135,7 @@ function mapErrorToFailureReason(error: string | undefined): string {
 /**
  * Extract username from JWKS URL pattern /jwks/{username}.json
  */
-function extractUsernameFromJwksUrl(jwksUrl: string | undefined): string | null {
+function extractUsernameFromJwksUrl(jwksUrl: string | null | undefined): string | null {
   if (!jwksUrl) return null;
   const match = jwksUrl.match(/\/jwks\/([^.]+)\.json/);
   return match ? match[1] : null;
