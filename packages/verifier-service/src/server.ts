@@ -219,6 +219,12 @@ app.post('/authorize', async (req, res) => {
       return;
     }
 
+    // Set headers for NGINX to pass downstream (must be before json())
+    res.setHeader('X-OBAuth-Verified', 'true');
+    res.setHeader('X-OBAuth-Agent', result.agent?.client_name || 'unknown');
+    res.setHeader('X-OBAuth-JWKS-URL', result.agent?.jwks_url || '');
+    res.setHeader('X-OBAuth-Kid', result.agent?.kid || '');
+
     // Success - return verification details
     // These can be used by downstream services
     res.status(200).json({
@@ -227,12 +233,6 @@ app.post('/authorize', async (req, res) => {
       created: result.created,
       expires: result.expires,
     });
-
-    // Also set headers for NGINX to pass downstream
-    res.setHeader('X-OBAuth-Verified', 'true');
-    res.setHeader('X-OBAuth-Agent', result.agent?.client_name || 'unknown');
-    res.setHeader('X-OBAuth-JWKS-URL', result.agent?.jwks_url || '');
-    res.setHeader('X-OBAuth-Kid', result.agent?.kid || '');
 
     // Log to per-user karma telemetry (verified successes only)
     if (result.verified && result.agent && username && app.locals.telemetryLogger) {

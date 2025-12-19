@@ -399,7 +399,7 @@ class RegistryAPI {
    */
   async getRadarTimeseries(
     metric: 'signed' | 'verified' | 'failed' = 'verified',
-    window: '7d' = '7d'
+    window: '7d' | 'today' = '7d'
   ): Promise<TimeseriesResponse> {
     const response = await this.fetch(`/telemetry/timeseries?metric=${metric}&window=${window}`);
     if (!response.ok) {

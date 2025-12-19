@@ -26,7 +26,7 @@ const Radar = () => {
       try {
         const [overviewData, verifiedSeries, agentsData, originsData] = await Promise.all([
           api.getRadarOverview(window),
-          api.getRadarTimeseries('verified', '7d'),
+          api.getRadarTimeseries('verified', window),
           api.getTopAgents(window, 10),
           api.getTopOrigins(window, 10),
         ]);
@@ -251,7 +251,7 @@ const Radar = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="w-5 h-5 text-emerald-400" />
-                  Verified Requests (7 Days)
+                  Verified Requests ({window === 'today' ? 'Today' : '7 Days'})
                 </CardTitle>
               </CardHeader>
               <CardContent>

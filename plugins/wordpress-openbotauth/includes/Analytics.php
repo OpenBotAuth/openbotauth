@@ -103,6 +103,7 @@ class Analytics {
     
     /**
      * Increment a meta counter for today
+     * Uses atomic database operations to prevent race conditions.
      *
      * @param string $key The counter key (signed_total, verified_total)
      */
@@ -112,13 +113,53 @@ class Analytics {
             return;
         }
         
+        global $wpdb;
+        
         $date = current_time('Y-m-d');
         $option_name = self::META_STATS_PREFIX . $date;
         
-        $stats = get_option($option_name, []);
-        $stats[$key] = ($stats[$key] ?? 0) + 1;
+        // Try to update atomically first
+        // This JSON operation is atomic at the database level
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options} 
+             SET option_value = JSON_SET(
+                 COALESCE(NULLIF(option_value, ''), '{}'),
+                 %s,
+                 COALESCE(JSON_EXTRACT(option_value, %s), 0) + 1
+             )
+             WHERE option_name = %s",
+            '$.' . $key,
+            '$.' . $key,
+            $option_name
+        ));
         
-        update_option($option_name, $stats, false); // false = don't autoload
+        // If no rows updated, the option doesn't exist yet - create it
+        if ($updated === 0) {
+            $stats = [$key => 1];
+            // Use INSERT IGNORE to handle race condition on first insert
+            $wpdb->query($wpdb->prepare(
+                "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload)
+                 VALUES (%s, %s, 'no')",
+                $option_name,
+                maybe_serialize($stats)
+            ));
+            
+            // If INSERT was ignored (another request beat us), do the update
+            if ($wpdb->rows_affected === 0) {
+                $wpdb->query($wpdb->prepare(
+                    "UPDATE {$wpdb->options} 
+                     SET option_value = JSON_SET(
+                         COALESCE(NULLIF(option_value, ''), '{}'),
+                         %s,
+                         COALESCE(JSON_EXTRACT(option_value, %s), 0) + 1
+                     )
+                     WHERE option_name = %s",
+                    '$.' . $key,
+                    '$.' . $key,
+                    $option_name
+                ));
+            }
+        }
     }
     
     /**
