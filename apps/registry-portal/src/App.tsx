@@ -10,6 +10,7 @@ import Home from "./pages/marketing/Home";
 import Publishers from "./pages/marketing/Publishers";
 import Crawlers from "./pages/marketing/Crawlers";
 import Contact from "./pages/marketing/Contact";
+import Radar from "./pages/Radar";
 
 // Portal pages
 import Login from "./pages/portal/Login";
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/publishers" element={<Publishers />} />
             <Route path="/crawlers" element={<Crawlers />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/radar" element={<Radar />} />
             
             {/* Portal routes - authenticated */}
             <Route path="/login" element={<Login />} />

@@ -39,6 +39,49 @@ export class TelemetryLogger {
     }
   }
 
+  /**
+   * Log a signed attempt (both verified and failed) for Radar analytics
+   * This is separate from logVerification() to preserve karma stats
+   */
+  async logSignedAttempt(data: {
+    signatureAgent: string | null;
+    targetOrigin: string;
+    method: string;
+    verified: boolean;
+    failureReason: string | null;
+    username: string | null;
+    jwksUrl: string | null;
+    clientName: string | null;
+  }): Promise<void> {
+    try {
+      // 1. Update global Redis counters (for Radar overview/timeseries)
+      const dateKey = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      await Promise.all([
+        this.redis.incr(`stats:global:signed:${dateKey}`),
+        data.verified 
+          ? this.redis.incr(`stats:global:verified:${dateKey}`)
+          : this.redis.incr(`stats:global:failed:${dateKey}`),
+      ]);
+      
+      // 2. Insert to signed_attempt_logs (async, with error handling)
+      setImmediate(async () => {
+        try {
+          await this.db.query(
+            `INSERT INTO signed_attempt_logs 
+             (signature_agent, target_origin, method, verified, failure_reason, username, jwks_url, client_name)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [data.signatureAgent, data.targetOrigin, data.method, data.verified, 
+             data.failureReason, data.username, data.jwksUrl, data.clientName]
+          );
+        } catch (err) {
+          console.error('Signed attempt DB insert error:', err);
+        }
+      });
+    } catch (err) {
+      console.error('Signed attempt Redis error:', err);
+    }
+  }
+
   async getUserStats(username: string): Promise<{
     last_seen: number | null;
     request_volume: number;

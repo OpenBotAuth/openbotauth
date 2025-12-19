@@ -15,6 +15,7 @@ const Navigation = () => {
 
   const navItems = [
     { name: "Registry", hasDropdown: false, href: "/registry", external: false },
+    { name: "Radar", hasDropdown: false, href: "/radar", external: false },
     { name: "Publishers", hasDropdown: false, href: "/publishers", external: false },
     { name: "Crawlers", hasDropdown: false, href: "/crawlers", external: false },
     { name: "Docs", hasDropdown: false, href: "https://docs.openbotauth.org", external: true },

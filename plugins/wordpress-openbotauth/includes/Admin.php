@@ -180,11 +180,21 @@ class Admin {
     private function render_analytics_section() {
         $stats = Analytics::get_stats(7);
         $totals = Analytics::get_totals(7);
+        $meta_totals = Analytics::getMetaTotals(7);
+        
+        $signed = $meta_totals['signed_total'];
+        $verified = $meta_totals['verified_total'];
+        $percent = $signed > 0 ? round(($verified / $signed) * 100) : 0;
         
         ?>
         <h2><?php _e('Agent Request Analytics', 'openbotauth'); ?></h2>
         <p class="description">
             <?php _e('Local-only analytics for signed agent requests (last 7 days). No data is sent to external servers.', 'openbotauth'); ?>
+        </p>
+        
+        <p style="font-size: 1.1em; margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-left: 4px solid #2271b1;">
+            <strong><?php _e('Signed Agent Requests:', 'openbotauth'); ?></strong> <?php echo intval($signed); ?>
+            | <strong><?php _e('Verified:', 'openbotauth'); ?></strong> <?php echo intval($verified); ?> (<?php echo $percent; ?>%)
         </p>
         
         <table class="widefat striped" style="max-width: 800px;">

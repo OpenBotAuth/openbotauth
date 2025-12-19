@@ -99,6 +99,49 @@ app.locals.nonceManager = nonceManager;
 app.locals.telemetryLogger = telemetryLogger;
 
 /**
+ * Check if request has any signature headers (signed lane)
+ */
+function hasSignatureHeaders(headers: Record<string, string | undefined>): boolean {
+  return !!(headers['signature-input'] || headers['signature'] || headers['signature-agent']);
+}
+
+/**
+ * Map verification error to coarse failure reason
+ */
+function mapErrorToFailureReason(error: string | undefined): string {
+  if (!error) return 'unknown';
+  
+  const errorLower = error.toLowerCase();
+  
+  if (errorLower.includes('missing required signature headers')) {
+    return 'missing_headers';
+  }
+  if (errorLower.includes('not from trusted directory')) {
+    return 'untrusted_directory';
+  }
+  if (errorLower.includes('nonce already used') || errorLower.includes('replay')) {
+    return 'nonce_reuse';
+  }
+  if (errorLower.includes('expired') || errorLower.includes('timestamp') || errorLower.includes('clock skew')) {
+    return 'expired';
+  }
+  if (errorLower.includes('failed to fetch') || errorLower.includes('jwks')) {
+    return 'jwks_fetch_failed';
+  }
+  // Default: signature parsing/verification failed
+  return 'bad_signature';
+}
+
+/**
+ * Extract username from JWKS URL pattern /jwks/{username}.json
+ */
+function extractUsernameFromJwksUrl(jwksUrl: string | undefined): string | null {
+  if (!jwksUrl) return null;
+  const match = jwksUrl.match(/\/jwks\/([^.]+)\.json/);
+  return match ? match[1] : null;
+}
+
+/**
  * Health check endpoint
  */
 app.get('/health', (_req, res) => {
@@ -123,6 +166,14 @@ app.post('/authorize', async (req, res) => {
     const protocol = req.headers['x-forwarded-proto'] as string || 'http';
     
     const url = `${protocol}://${host}${uri}`;
+    const signatureAgent = req.headers['signature-agent'] as string | undefined;
+
+    // Check if this is a signed request (for Radar telemetry)
+    const isSigned = hasSignatureHeaders({
+      'signature-input': req.headers['signature-input'] as string,
+      'signature': req.headers['signature'] as string,
+      'signature-agent': signatureAgent,
+    });
 
     // Build verification request
     const verificationRequest: VerificationRequest = {
@@ -131,7 +182,7 @@ app.post('/authorize', async (req, res) => {
       headers: {
         'signature-input': req.headers['signature-input'] as string,
         'signature': req.headers['signature'] as string,
-        'signature-agent': req.headers['signature-agent'] as string,
+        'signature-agent': signatureAgent as string,
         'content-type': req.headers['content-type'] as string,
       },
       body: req.body ? JSON.stringify(req.body) : undefined,
@@ -139,6 +190,27 @@ app.post('/authorize', async (req, res) => {
 
     // Verify signature
     const result = await verifier.verify(verificationRequest);
+    
+    // Compute values for telemetry
+    const targetOrigin = new URL(url).origin;
+    const jwksUrl = result.agent?.jwks_url || signatureAgent || null;
+    const username = extractUsernameFromJwksUrl(jwksUrl);
+
+    // Log signed attempt for Radar (both success and failure)
+    if (isSigned && app.locals.telemetryLogger) {
+      app.locals.telemetryLogger.logSignedAttempt({
+        signatureAgent: signatureAgent || null,
+        targetOrigin,
+        method: method.toUpperCase(),
+        verified: result.verified,
+        failureReason: result.verified ? null : mapErrorToFailureReason(result.error),
+        username,
+        jwksUrl,
+        clientName: result.agent?.client_name || null,
+      }).catch((err: Error) => {
+        console.error('Signed attempt logging failed:', err);
+      });
+    }
 
     if (!result.verified) {
       res.status(401).json({
@@ -162,26 +234,17 @@ app.post('/authorize', async (req, res) => {
     res.setHeader('X-OBAuth-JWKS-URL', result.agent?.jwks_url || '');
     res.setHeader('X-OBAuth-Kid', result.agent?.kid || '');
 
-    // Log telemetry (non-blocking)
-    if (result.verified && result.agent && app.locals.telemetryLogger) {
-      const jwksUrl = result.agent.jwks_url;
-      const usernameMatch = jwksUrl.match(/\/jwks\/([^.]+)\.json/);
-      
-      if (usernameMatch) {
-        const username = usernameMatch[1];
-        const targetOrigin = new URL(url).origin;
-        
-        // Log to telemetry system (fire and forget)
-        app.locals.telemetryLogger.logVerification({
-          username,
-          jwksUrl,
-          targetOrigin,
-          method: method.toUpperCase(),
-          verified: true,
-        }).catch((err: Error) => {
-          console.error('Telemetry logging failed:', err);
-        });
-      }
+    // Log to per-user karma telemetry (verified successes only)
+    if (result.verified && result.agent && username && app.locals.telemetryLogger) {
+      app.locals.telemetryLogger.logVerification({
+        username,
+        jwksUrl: result.agent.jwks_url,
+        targetOrigin,
+        method: method.toUpperCase(),
+        verified: true,
+      }).catch((err: Error) => {
+        console.error('Karma telemetry logging failed:', err);
+      });
     }
   } catch (error: any) {
     console.error('Authorization error:', error);
@@ -207,6 +270,15 @@ app.post('/verify', async (req, res) => {
       return;
     }
 
+    const signatureAgent = headers['signature-agent'] as string | undefined;
+
+    // Check if this is a signed request (for Radar telemetry)
+    const isSigned = hasSignatureHeaders({
+      'signature-input': headers['signature-input'],
+      'signature': headers['signature'],
+      'signature-agent': signatureAgent,
+    });
+
     const verificationRequest: VerificationRequest = {
       method: method.toUpperCase(),
       url,
@@ -216,26 +288,38 @@ app.post('/verify', async (req, res) => {
 
     const result = await verifier.verify(verificationRequest);
 
-    // Log telemetry (non-blocking) - same as /authorize
-    if (result.verified && result.agent && app.locals.telemetryLogger) {
-      const jwksUrl = result.agent.jwks_url;
-      const usernameMatch = jwksUrl.match(/\/jwks\/([^.]+)\.json/);
-      
-      if (usernameMatch) {
-        const username = usernameMatch[1];
-        const targetOrigin = new URL(url).origin;
-        
-        // Log to telemetry system (fire and forget)
-        app.locals.telemetryLogger.logVerification({
-          username,
-          jwksUrl,
-          targetOrigin,
-          method: method.toUpperCase(),
-          verified: true,
-        }).catch((err: Error) => {
-          console.error('Telemetry logging failed:', err);
-        });
-      }
+    // Compute values for telemetry
+    const targetOrigin = new URL(url).origin;
+    const jwksUrl = result.agent?.jwks_url || signatureAgent || null;
+    const username = extractUsernameFromJwksUrl(jwksUrl);
+
+    // Log signed attempt for Radar (both success and failure)
+    if (isSigned && app.locals.telemetryLogger) {
+      app.locals.telemetryLogger.logSignedAttempt({
+        signatureAgent: signatureAgent || null,
+        targetOrigin,
+        method: method.toUpperCase(),
+        verified: result.verified,
+        failureReason: result.verified ? null : mapErrorToFailureReason(result.error),
+        username,
+        jwksUrl,
+        clientName: result.agent?.client_name || null,
+      }).catch((err: Error) => {
+        console.error('Signed attempt logging failed:', err);
+      });
+    }
+
+    // Log to per-user karma telemetry (verified successes only)
+    if (result.verified && result.agent && username && app.locals.telemetryLogger) {
+      app.locals.telemetryLogger.logVerification({
+        username,
+        jwksUrl: result.agent.jwks_url,
+        targetOrigin,
+        method: method.toUpperCase(),
+        verified: true,
+      }).catch((err: Error) => {
+        console.error('Karma telemetry logging failed:', err);
+      });
     }
 
     res.json(result);

@@ -48,6 +48,40 @@ export interface Session {
   profile: Profile;
 }
 
+// Radar types
+export interface RadarOverview {
+  window: 'today' | '7d';
+  signed: number;
+  verified: number;
+  failed: number;
+  unique_origins: number;
+  unique_agents: number;
+}
+
+export interface TimeseriesPoint {
+  date: string;
+  count: number;
+}
+
+export interface TimeseriesResponse {
+  metric: 'signed' | 'verified' | 'failed';
+  window: string;
+  points: TimeseriesPoint[];
+}
+
+export interface TopAgent {
+  agent_id: string;
+  client_name: string | null;
+  verified_count: number;
+  failed_count: number;
+}
+
+export interface TopOrigin {
+  origin: string;
+  verified_count: number;
+  failed_count: number;
+}
+
 class RegistryAPI {
   private baseUrl: string;
 
@@ -343,6 +377,57 @@ class RegistryAPI {
     if (!response.ok) {
       throw new Error('Failed to update telemetry visibility');
     }
+  }
+
+  // ==========================================================================
+  // Radar API Methods (Global ecosystem telemetry)
+  // ==========================================================================
+
+  /**
+   * Get Radar overview stats
+   */
+  async getRadarOverview(window: 'today' | '7d' = '7d'): Promise<RadarOverview> {
+    const response = await this.fetch(`/telemetry/overview?window=${window}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch radar overview');
+    }
+    return await response.json();
+  }
+
+  /**
+   * Get Radar timeseries data
+   */
+  async getRadarTimeseries(
+    metric: 'signed' | 'verified' | 'failed' = 'verified',
+    window: '7d' = '7d'
+  ): Promise<TimeseriesResponse> {
+    const response = await this.fetch(`/telemetry/timeseries?metric=${metric}&window=${window}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch radar timeseries');
+    }
+    return await response.json();
+  }
+
+  /**
+   * Get top agents by verified count
+   */
+  async getTopAgents(window: '7d' | 'today' = '7d', limit: number = 20): Promise<TopAgent[]> {
+    const response = await this.fetch(`/telemetry/top/agents?window=${window}&limit=${limit}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch top agents');
+    }
+    return await response.json();
+  }
+
+  /**
+   * Get top origins by request count
+   */
+  async getTopOrigins(window: '7d' | 'today' = '7d', limit: number = 20): Promise<TopOrigin[]> {
+    const response = await this.fetch(`/telemetry/top/origins?window=${window}&limit=${limit}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch top origins');
+    }
+    return await response.json();
   }
 }
 
