@@ -57,9 +57,6 @@ class Verifier {
             'headers' => $headers,
         ];
         
-        // Debug logging - TEMPORARY
-        error_log('[OpenBotAuth] Verification request: ' . json_encode($verify_request));
-        
         // Call verifier service
         $response = wp_remote_post($this->verifier_url, [
             'headers' => ['Content-Type' => 'application/json'],

@@ -121,13 +121,6 @@ export class SignatureVerifier {
         headers: request.headers,
       });
 
-      // DEBUG: Log signature base for debugging
-      console.log('=== SIGNATURE DEBUG ===');
-      console.log('Request URL:', request.url);
-      console.log('Request Method:', request.method);
-      console.log('Signature Base:\n', signatureBase);
-      console.log('=== END DEBUG ===');
-
       // 9. Verify signature
       const isValid = await this.verifyEd25519Signature(
         signatureBase,
