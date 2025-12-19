@@ -6,7 +6,8 @@
  * Version: 0.1.1
  * Author: OpenBotAuth
  * Author URI: https://github.com/OpenBotAuth/openbotauth
- * License: MIT
+ * License: GPLv2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: openbotauth
  * Requires at least: 6.0
  * Requires PHP: 8.0
@@ -17,10 +18,16 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Plugin constants
-define('OPENBOTAUTH_VERSION', '0.1.1');
-define('OPENBOTAUTH_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('OPENBOTAUTH_PLUGIN_URL', plugin_dir_url(__FILE__));
+// Plugin constants (defensive definitions)
+if (!defined('OPENBOTAUTH_VERSION')) {
+    define('OPENBOTAUTH_VERSION', '0.1.1');
+}
+if (!defined('OPENBOTAUTH_PLUGIN_DIR')) {
+    define('OPENBOTAUTH_PLUGIN_DIR', plugin_dir_path(__FILE__));
+}
+if (!defined('OPENBOTAUTH_PLUGIN_URL')) {
+    define('OPENBOTAUTH_PLUGIN_URL', plugin_dir_url(__FILE__));
+}
 
 // Autoloader
 spl_autoload_register(function ($class) {
@@ -54,19 +61,14 @@ add_action('plugins_loaded', 'openbotauth_init');
 // Activation hook
 register_activation_hook(__FILE__, function() {
     // Create default options
-    add_option('openbotauth_verifier_url', 'http://localhost:8081/verify');
+    // Verifier URL is empty by default - admin must explicitly configure or enable hosted verifier
+    add_option('openbotauth_verifier_url', '');
+    add_option('openbotauth_use_hosted_verifier', false);
     add_option('openbotauth_policy', json_encode([
         'default' => [
             'effect' => 'teaser',
             'teaser_words' => 100
         ]
     ]));
-    
-    flush_rewrite_rules();
-});
-
-// Deactivation hook
-register_deactivation_hook(__FILE__, function() {
-    flush_rewrite_rules();
 });
 

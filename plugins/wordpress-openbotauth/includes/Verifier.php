@@ -8,8 +8,20 @@ namespace OpenBotAuth;
 class Verifier {
     private $verifier_url;
     
+    /**
+     * Hosted verifier URL constant
+     */
+    const HOSTED_VERIFIER_URL = 'https://verifier.openbotauth.org/verify';
+    
     public function __construct() {
-        $this->verifier_url = get_option('openbotauth_verifier_url', 'http://localhost:8081/verify');
+        // If "Use hosted verifier" is enabled, use the hosted URL (explicit consent)
+        $use_hosted = (bool) get_option('openbotauth_use_hosted_verifier', false);
+        
+        if ($use_hosted) {
+            $this->verifier_url = self::HOSTED_VERIFIER_URL;
+        } else {
+            $this->verifier_url = get_option('openbotauth_verifier_url', '');
+        }
     }
     
     /**
@@ -18,6 +30,15 @@ class Verifier {
      * @return array Verification result with 'verified', 'agent', 'error' keys
      */
     public function verify_request() {
+        // If no verifier URL is configured, treat all requests as unverified
+        if (empty($this->verifier_url)) {
+            return [
+                'verified' => false,
+                'error' => 'Verifier service not configured',
+                'agent' => null,
+            ];
+        }
+        
         // Extract signature headers
         $headers = $this->get_signature_headers();
         
@@ -81,6 +102,19 @@ class Verifier {
             'error' => $body['error'] ?? null,
             'agent' => $body['agent'] ?? null,
         ];
+    }
+    
+    /**
+     * Check if the current request has any signature headers
+     * Used to determine if this is an agent request vs normal browser
+     * 
+     * @return bool True if any signature headers are present
+     */
+    public function has_signature_headers() {
+        $headers = $this->get_signature_headers();
+        return !empty($headers['signature']) || 
+               !empty($headers['signature-input']) || 
+               !empty($headers['signature-agent']);
     }
     
     /**
