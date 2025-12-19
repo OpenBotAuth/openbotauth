@@ -63,20 +63,20 @@ export class TelemetryLogger {
           : this.redis.incr(`stats:global:failed:${dateKey}`),
       ]);
       
-      // 2. Insert to signed_attempt_logs (async, with error handling)
-      setImmediate(async () => {
-        try {
-          await this.db.query(
-            `INSERT INTO signed_attempt_logs 
-             (signature_agent, target_origin, method, verified, failure_reason, username, jwks_url, client_name)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-            [data.signatureAgent, data.targetOrigin, data.method, data.verified, 
-             data.failureReason, data.username, data.jwksUrl, data.clientName]
-          );
-        } catch (err) {
-          console.error('Signed attempt DB insert error:', err);
-        }
-      });
+      // 2. Insert to signed_attempt_logs
+      // Awaited so errors propagate to callers (they use .catch())
+      try {
+        await this.db.query(
+          `INSERT INTO signed_attempt_logs 
+           (signature_agent, target_origin, method, verified, failure_reason, username, jwks_url, client_name)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [data.signatureAgent, data.targetOrigin, data.method, data.verified, 
+           data.failureReason, data.username, data.jwksUrl, data.clientName]
+        );
+      } catch (err) {
+        console.error('Signed attempt DB insert error:', err);
+        // Don't rethrow - Redis succeeded, log the DB error but don't fail the whole operation
+      }
     } catch (err) {
       console.error('Signed attempt Redis error:', err);
     }

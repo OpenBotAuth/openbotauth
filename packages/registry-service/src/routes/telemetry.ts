@@ -136,6 +136,12 @@ router.get('/timeseries', async (req: Request, res: Response) => {
       return;
     }
     
+    const validWindows = ['today', '7d'];
+    if (!validWindows.includes(window)) {
+      res.status(400).json({ error: 'Invalid window. Use "today" or "7d"' });
+      return;
+    }
+    
     const dateKeys = getDateKeys(window);
     
     // Fetch counts from Redis for each date
@@ -169,6 +175,12 @@ router.get('/top/agents', async (req: Request, res: Response) => {
   try {
     const window = (req.query.window as string) || '7d';
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    
+    const validWindows = ['today', '7d'];
+    if (!validWindows.includes(window)) {
+      res.status(400).json({ error: 'Invalid window. Use "today" or "7d"' });
+      return;
+    }
     
     if (!dbPool) {
       res.status(500).json({ error: 'Database not configured' });
@@ -211,6 +223,12 @@ router.get('/top/origins', async (req: Request, res: Response) => {
   try {
     const window = (req.query.window as string) || '7d';
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    
+    const validWindows = ['today', '7d'];
+    if (!validWindows.includes(window)) {
+      res.status(400).json({ error: 'Invalid window. Use "today" or "7d"' });
+      return;
+    }
     
     if (!dbPool) {
       res.status(500).json({ error: 'Database not configured' });
