@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS public.signed_attempt_logs (
 -- Indexes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_signed_logs_timestamp ON public.signed_attempt_logs(timestamp);
 CREATE INDEX IF NOT EXISTS idx_signed_logs_verified ON public.signed_attempt_logs(verified);
-CREATE INDEX IF NOT EXISTS idx_signed_logs_date ON public.signed_attempt_logs(DATE(timestamp));
+-- Note: DATE(timestamp) index removed - not IMMUTABLE due to timezone dependency
+-- The idx_signed_logs_timestamp index covers date-range queries effectively
 CREATE INDEX IF NOT EXISTS idx_signed_logs_origin ON public.signed_attempt_logs(target_origin);
 CREATE INDEX IF NOT EXISTS idx_signed_logs_username ON public.signed_attempt_logs(username) WHERE username IS NOT NULL;
 

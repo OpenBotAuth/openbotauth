@@ -103,7 +103,8 @@ class Analytics {
     
     /**
      * Increment a meta counter for today
-     * Uses atomic database operations to prevent race conditions.
+     * Uses atomic INSERT ... ON DUPLICATE KEY UPDATE for race-condition safety.
+     * Stores one option per day per key (e.g., openbotauth_meta_stats_2025-12-19__signed_total)
      *
      * @param string $key The counter key (signed_total, verified_total)
      */
@@ -116,54 +117,24 @@ class Analytics {
         global $wpdb;
         
         $date = current_time('Y-m-d');
-        $option_name = self::META_STATS_PREFIX . $date;
+        // Store one option per key per day for atomic increments
+        $option_name = self::META_STATS_PREFIX . $date . '__' . $key;
         
-        // Try to update atomically first
-        // This JSON operation is atomic at the database level
-        $updated = $wpdb->query($wpdb->prepare(
-            "UPDATE {$wpdb->options} 
-             SET option_value = JSON_SET(
-                 COALESCE(NULLIF(option_value, ''), '{}'),
-                 %s,
-                 COALESCE(JSON_EXTRACT(option_value, %s), 0) + 1
-             )
-             WHERE option_name = %s",
-            '$.' . $key,
-            '$.' . $key,
-            $option_name
-        ));
-        
-        // If no rows updated, the option doesn't exist yet - create it
-        if ($updated === 0) {
-            $stats = [$key => 1];
-            // Use INSERT IGNORE to handle race condition on first insert
-            $wpdb->query($wpdb->prepare(
-                "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload)
-                 VALUES (%s, %s, 'no')",
+        // Atomic upsert: insert 1 or increment existing value
+        $wpdb->query(
+            $wpdb->prepare(
+                "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
+                 VALUES (%s, %s, 'no')
+                 ON DUPLICATE KEY UPDATE option_value = CAST(option_value AS UNSIGNED) + 1",
                 $option_name,
-                maybe_serialize($stats)
-            ));
-            
-            // If INSERT was ignored (another request beat us), do the update
-            if ($wpdb->rows_affected === 0) {
-                $wpdb->query($wpdb->prepare(
-                    "UPDATE {$wpdb->options} 
-                     SET option_value = JSON_SET(
-                         COALESCE(NULLIF(option_value, ''), '{}'),
-                         %s,
-                         COALESCE(JSON_EXTRACT(option_value, %s), 0) + 1
-                     )
-                     WHERE option_name = %s",
-                    '$.' . $key,
-                    '$.' . $key,
-                    $option_name
-                ));
-            }
-        }
+                '1'
+            )
+        );
     }
     
     /**
      * Get meta stats for the last N days
+     * Reads from per-key options (e.g., openbotauth_meta_stats_2025-12-19__signed_total)
      *
      * @param int $days Number of days to retrieve (default 7)
      * @return array Array of date => stats pairs
@@ -173,18 +144,12 @@ class Analytics {
         
         for ($i = 0; $i < $days; $i++) {
             $date = date('Y-m-d', strtotime("-{$i} days", current_time('timestamp')));
-            $option_name = self::META_STATS_PREFIX . $date;
-            $day_stats = get_option($option_name, ['signed_total' => 0, 'verified_total' => 0]);
+            $base = self::META_STATS_PREFIX . $date . '__';
             
-            // Ensure both keys have a value
-            if (!isset($day_stats['signed_total'])) {
-                $day_stats['signed_total'] = 0;
-            }
-            if (!isset($day_stats['verified_total'])) {
-                $day_stats['verified_total'] = 0;
-            }
-            
-            $stats[$date] = $day_stats;
+            $stats[$date] = [
+                'signed_total'   => intval(get_option($base . 'signed_total', 0)),
+                'verified_total' => intval(get_option($base . 'verified_total', 0)),
+            ];
         }
         
         return $stats;
@@ -237,9 +202,14 @@ class Analytics {
             
             foreach ($options as $option_name) {
                 // Extract date from option name
-                $date = str_replace($prefix, '', $option_name);
+                $rest = str_replace($prefix, '', $option_name);
                 
-                if ($date < $cutoff_date) {
+                // For META_STATS_PREFIX, format is YYYY-MM-DD__key, extract first 10 chars
+                // For OPTION_PREFIX, format is just YYYY-MM-DD
+                $date = substr($rest, 0, 10);
+                
+                // Validate it looks like a date before comparing
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) && $date < $cutoff_date) {
                     delete_option($option_name);
                 }
             }
