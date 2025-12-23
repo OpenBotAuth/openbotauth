@@ -12,6 +12,10 @@ class Plugin {
     private $content_filter;
     private $admin;
     
+    // AI Artifacts components
+    private $metadata_provider;
+    private $router;
+    
     // Cache verification result to avoid duplicate verifications
     private $verification_cache = null;
     
@@ -32,12 +36,19 @@ class Plugin {
         $this->policy_engine = new PolicyEngine();
         $this->content_filter = new ContentFilter($this->verifier, $this->policy_engine, $this);
         
+        // AI Artifacts: Initialize metadata provider and router
+        $this->metadata_provider = Content\MetadataProviderFactory::make();
+        $this->router = new Endpoints\Router($this->metadata_provider);
+        
         // Admin interface
         if (is_admin()) {
             $this->admin = new Admin();
         }
         
         // Hooks
+        // AI Artifacts: Early interception for llms.txt, feed.json, markdown endpoints
+        add_action('parse_request', [$this->router, 'handle_request'], 0);
+        
         add_action('template_redirect', [$this, 'check_access'], 0);
         add_filter('the_content', [$this->content_filter, 'filter_content'], 10);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_styles']);

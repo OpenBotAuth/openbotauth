@@ -94,6 +94,45 @@ class Admin {
             'openbotauth',
             'openbotauth_policy'
         );
+        
+        // AI Artifacts settings (v0.1.2+)
+        register_setting('openbotauth', 'openbotauth_llms_enabled', [
+            'type' => 'boolean',
+            'default' => true,
+            'sanitize_callback' => 'rest_sanitize_boolean',
+        ]);
+        register_setting('openbotauth', 'openbotauth_feed_enabled', [
+            'type' => 'boolean',
+            'default' => true,
+            'sanitize_callback' => 'rest_sanitize_boolean',
+        ]);
+        register_setting('openbotauth', 'openbotauth_feed_limit', [
+            'type' => 'integer',
+            'default' => 50,
+            'sanitize_callback' => [$this, 'sanitize_feed_limit'],
+        ]);
+        register_setting('openbotauth', 'openbotauth_feed_post_types', [
+            'type' => 'array',
+            'default' => ['post', 'page'],
+            'sanitize_callback' => [$this, 'sanitize_feed_post_types'],
+        ]);
+    }
+    
+    /**
+     * Sanitize feed limit (1-500)
+     */
+    public function sanitize_feed_limit($value) {
+        return min(500, max(1, absint($value)));
+    }
+    
+    /**
+     * Sanitize feed post types array
+     */
+    public function sanitize_feed_post_types($value) {
+        if (!is_array($value)) {
+            return ['post', 'page'];
+        }
+        return array_filter($value, 'post_type_exists');
     }
     
     /**
@@ -110,6 +149,10 @@ class Admin {
             'config' => [
                 'label' => __('Configuration', 'openbotauth'),
                 'icon' => 'dashicons-admin-settings'
+            ],
+            'ai-artifacts' => [
+                'label' => __('AI Artifacts', 'openbotauth'),
+                'icon' => 'dashicons-rest-api'
             ],
             'analytics' => [
                 'label' => __('Analytics', 'openbotauth'),
@@ -190,6 +233,10 @@ class Admin {
 }
                     </pre>
                 </details>
+                
+            <?php elseif ($current_tab === 'ai-artifacts'): ?>
+                <!-- AI Artifacts Tab -->
+                <?php $this->render_ai_artifacts_section(); ?>
                 
             <?php elseif ($current_tab === 'analytics'): ?>
                 <!-- Analytics Tab -->
@@ -465,6 +512,231 @@ class Admin {
                         </tr>
                     </tfoot>
                 </table>
+            </div>
+        </div>
+        <?php
+    }
+    
+    /**
+     * Render AI Artifacts section
+     * Settings and URLs for llms.txt, feed.json, and markdown endpoints.
+     */
+    private function render_ai_artifacts_section() {
+        $llms_enabled = get_option('openbotauth_llms_enabled', true);
+        $feed_enabled = get_option('openbotauth_feed_enabled', true);
+        $feed_limit = get_option('openbotauth_feed_limit', 50);
+        $feed_post_types = get_option('openbotauth_feed_post_types', ['post', 'page']);
+        
+        // Get available post types
+        $available_post_types = get_post_types(['public' => true], 'objects');
+        unset($available_post_types['attachment']);
+        
+        // Generate URLs
+        $llms_url = home_url('/llms.txt');
+        $llms_wellknown_url = home_url('/.well-known/llms.txt');
+        $feed_url = home_url('/.well-known/openbotauth-feed.json');
+        
+        // Find a sample post for example markdown URL
+        $sample_posts = get_posts(['numberposts' => 1, 'post_status' => 'publish']);
+        $sample_md_url = $sample_posts ? home_url('/.well-known/openbotauth/posts/' . $sample_posts[0]->ID . '.md') : '';
+        
+        ?>
+        <style>
+            .openbotauth-ai-section { max-width: 900px; }
+            .openbotauth-urls-card {
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-radius: 4px;
+                padding: 20px;
+                margin-bottom: 24px;
+            }
+            .openbotauth-url-row {
+                display: flex;
+                align-items: center;
+                padding: 12px 0;
+                border-bottom: 1px solid #f0f0f1;
+            }
+            .openbotauth-url-row:last-child { border-bottom: none; }
+            .openbotauth-url-label {
+                font-weight: 500;
+                color: #1d2327;
+                min-width: 160px;
+            }
+            .openbotauth-url-value {
+                flex: 1;
+                font-family: Consolas, Monaco, monospace;
+                font-size: 13px;
+                background: #f6f7f7;
+                padding: 6px 10px;
+                border-radius: 3px;
+                word-break: break-all;
+            }
+            .openbotauth-url-status {
+                margin-left: 12px;
+            }
+            .openbotauth-status-badge {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 3px;
+                font-size: 11px;
+                font-weight: 500;
+            }
+            .openbotauth-badge-enabled { background: #d1fae5; color: #065f46; }
+            .openbotauth-badge-disabled { background: #fee2e2; color: #991b1b; }
+            .openbotauth-settings-card {
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-radius: 4px;
+                padding: 20px;
+            }
+            .openbotauth-settings-card h3 {
+                margin-top: 0;
+                padding-bottom: 12px;
+                border-bottom: 1px solid #f0f0f1;
+            }
+        </style>
+        
+        <div class="openbotauth-ai-section">
+            <h2><?php _e('AI-Ready Endpoints', 'openbotauth'); ?></h2>
+            <p class="description" style="margin-bottom: 20px;">
+                <?php _e('Machine-readable endpoints for AI systems and crawlers. All data is served locally from your site.', 'openbotauth'); ?>
+            </p>
+            
+            <!-- Copy URLs Section -->
+            <div class="openbotauth-urls-card">
+                <h3 style="margin-top: 0;">
+                    <span class="dashicons dashicons-admin-links" style="color: #2271b1;"></span>
+                    <?php _e('Your AI-Ready URLs', 'openbotauth'); ?>
+                </h3>
+                <p class="description" style="margin-bottom: 16px;">
+                    <?php _e('Copy these URLs to share with AI tools and crawlers:', 'openbotauth'); ?>
+                </p>
+                
+                <div class="openbotauth-url-row">
+                    <div class="openbotauth-url-label"><?php _e('llms.txt', 'openbotauth'); ?></div>
+                    <div class="openbotauth-url-value"><?php echo esc_html(esc_url($llms_url)); ?></div>
+                    <div class="openbotauth-url-status">
+                        <span class="openbotauth-status-badge <?php echo $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
+                            <?php echo $llms_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="openbotauth-url-row">
+                    <div class="openbotauth-url-label"><?php _e('llms.txt (well-known)', 'openbotauth'); ?></div>
+                    <div class="openbotauth-url-value"><?php echo esc_html(esc_url($llms_wellknown_url)); ?></div>
+                    <div class="openbotauth-url-status">
+                        <span class="openbotauth-status-badge <?php echo $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
+                            <?php echo $llms_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="openbotauth-url-row">
+                    <div class="openbotauth-url-label"><?php _e('JSON Feed', 'openbotauth'); ?></div>
+                    <div class="openbotauth-url-value"><?php echo esc_html(esc_url($feed_url)); ?></div>
+                    <div class="openbotauth-url-status">
+                        <span class="openbotauth-status-badge <?php echo $feed_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
+                            <?php echo $feed_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
+                        </span>
+                    </div>
+                </div>
+                
+                <?php if ($sample_md_url): ?>
+                <div class="openbotauth-url-row">
+                    <div class="openbotauth-url-label"><?php _e('Example Markdown', 'openbotauth'); ?></div>
+                    <div class="openbotauth-url-value"><?php echo esc_html(esc_url($sample_md_url)); ?></div>
+                    <div class="openbotauth-url-status">
+                        <span class="openbotauth-status-badge <?php echo $feed_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
+                            <?php echo $feed_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
+                        </span>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+            
+            <!-- Settings Form -->
+            <div class="openbotauth-settings-card">
+                <h3>
+                    <span class="dashicons dashicons-admin-settings" style="color: #646970;"></span>
+                    <?php _e('Endpoint Settings', 'openbotauth'); ?>
+                </h3>
+                
+                <form method="post" action="options.php">
+                    <?php settings_fields('openbotauth'); ?>
+                    
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><?php _e('Enable llms.txt', 'openbotauth'); ?></th>
+                            <td>
+                                <label>
+                                    <input type="hidden" name="openbotauth_llms_enabled" value="0">
+                                    <input type="checkbox" name="openbotauth_llms_enabled" value="1" <?php checked($llms_enabled); ?>>
+                                    <?php _e('Serve /llms.txt and /.well-known/llms.txt endpoints', 'openbotauth'); ?>
+                                </label>
+                                <p class="description">
+                                    <?php _e('Provides an index of your content for AI systems.', 'openbotauth'); ?>
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row"><?php _e('Enable Feed + Markdown', 'openbotauth'); ?></th>
+                            <td>
+                                <label>
+                                    <input type="hidden" name="openbotauth_feed_enabled" value="0">
+                                    <input type="checkbox" name="openbotauth_feed_enabled" value="1" <?php checked($feed_enabled); ?>>
+                                    <?php _e('Serve JSON feed and per-post markdown endpoints', 'openbotauth'); ?>
+                                </label>
+                                <p class="description">
+                                    <?php _e('Provides structured content for AI indexing and retrieval.', 'openbotauth'); ?>
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row"><?php _e('Feed Limit', 'openbotauth'); ?></th>
+                            <td>
+                                <input type="number" name="openbotauth_feed_limit" value="<?php echo esc_attr($feed_limit); ?>" min="1" max="500" class="small-text">
+                                <p class="description">
+                                    <?php _e('Maximum number of posts in the feed (1-500). Posts are ordered by last modified date.', 'openbotauth'); ?>
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row"><?php _e('Post Types', 'openbotauth'); ?></th>
+                            <td>
+                                <?php foreach ($available_post_types as $post_type): ?>
+                                <label style="display: block; margin-bottom: 6px;">
+                                    <input type="checkbox" 
+                                           name="openbotauth_feed_post_types[]" 
+                                           value="<?php echo esc_attr($post_type->name); ?>"
+                                           <?php checked(in_array($post_type->name, $feed_post_types)); ?>>
+                                    <?php echo esc_html($post_type->label); ?>
+                                </label>
+                                <?php endforeach; ?>
+                                <p class="description">
+                                    <?php _e('Which post types to include in the feed.', 'openbotauth'); ?>
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <?php submit_button(__('Save AI Settings', 'openbotauth')); ?>
+                </form>
+            </div>
+            
+            <!-- Info Box -->
+            <div class="notice notice-info" style="margin-top: 20px;">
+                <p>
+                    <strong><?php _e('Privacy Note:', 'openbotauth'); ?></strong>
+                    <?php _e('All endpoints serve content from your local WordPress database. No data is sent to external servers.', 'openbotauth'); ?>
+                </p>
+                <p>
+                    <strong><?php _e('Security:', 'openbotauth'); ?></strong>
+                    <?php _e('Only published, non-password-protected posts are exposed. Draft, private, and password-protected content is never included.', 'openbotauth'); ?>
+                </p>
             </div>
         </div>
         <?php

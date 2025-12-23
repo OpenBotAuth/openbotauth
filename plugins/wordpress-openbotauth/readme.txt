@@ -4,7 +4,7 @@ Tags: bot authentication, ai agents, http signatures, rfc 9421, access control
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.0
-Stable tag: 0.1.1
+Stable tag: 0.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -30,6 +30,17 @@ Instead of blocking all bots or allowing unrestricted access, you can:
 * **Rate Limiting** - Per-agent rate limits with configurable time windows
 * **Access Control** - Whitelist/blacklist with wildcard pattern matching
 * **Local Analytics** - Track decision counts locally (no external tracking)
+* **AI-Ready Endpoints** - Serve llms.txt, JSON feed, and markdown for AI crawlers
+
+= AI-Ready Endpoints =
+
+OpenBotAuth provides machine-readable endpoints for AI systems:
+
+* **/llms.txt** - Standardized AI feed discovery (also at /.well-known/llms.txt)
+* **/.well-known/openbotauth-feed.json** - JSON list of all published posts
+* **/.well-known/openbotauth/posts/{ID}.md** - Per-post markdown content
+
+All data is served locally from your WordPress database. No external tracking or telemetry. Only published, non-password-protected posts are exposed.
 
 = How It Works =
 
@@ -100,6 +111,18 @@ No. All analytics (decision counts) are stored locally in your WordPress databas
 
 == Changelog ==
 
+= 0.1.2 =
+* Added llms.txt endpoint for AI discovery (/llms.txt and /.well-known/llms.txt)
+* Added JSON feed at /.well-known/openbotauth-feed.json
+* Added per-post markdown at /.well-known/openbotauth/posts/{ID}.md
+* Added metadata provider abstraction for future Yoast/SEO plugin integration
+* Supports subdirectory WordPress installs
+* Implements HTTP conditional GET (304 Not Modified responses)
+* Added AI Artifacts settings tab in admin
+* No rewrite rules - uses early request interception
+* Filter hooks for endpoint customization: openbotauth_should_serve_llms_txt, openbotauth_should_serve_feed, openbotauth_should_serve_markdown
+* Content filters: openbotauth_feed_item, openbotauth_markdown_content
+
 = 0.1.1 =
 * Added local-only analytics dashboard
 * Added openbotauth_policy filter for custom policy logic
@@ -121,6 +144,9 @@ No. All analytics (decision counts) are stored locally in your WordPress databas
 * REST API for policy retrieval
 
 == Upgrade Notice ==
+
+= 0.1.2 =
+New AI-ready endpoints: llms.txt, JSON feed, and per-post markdown. Makes your content discoverable by AI systems without any external dependencies.
 
 = 0.1.1 =
 Important security and correctness fixes. Human visitors now correctly bypass gating. Whitelist-only mode now properly denies non-whitelisted agents.
@@ -154,4 +180,36 @@ Triggered when 402 is returned:
 `add_action('openbotauth_payment_required', function($agent, $post, $price) {
     // Track payment requests
 }, 10, 3);`
+
+= AI Endpoint Filters (v0.1.2+) =
+
+**openbotauth_should_serve_llms_txt**
+Disable llms.txt endpoint (e.g., when using Yoast):
+
+`add_filter('openbotauth_should_serve_llms_txt', '__return_false');`
+
+**openbotauth_should_serve_feed**
+Disable JSON feed endpoint:
+
+`add_filter('openbotauth_should_serve_feed', '__return_false');`
+
+**openbotauth_should_serve_markdown**
+Disable markdown endpoints:
+
+`add_filter('openbotauth_should_serve_markdown', '__return_false');`
+
+**openbotauth_feed_item**
+Modify feed items:
+
+`add_filter('openbotauth_feed_item', function($item, $post) {
+    $item['custom_field'] = get_post_meta($post->ID, 'my_field', true);
+    return $item;
+}, 10, 2);`
+
+**openbotauth_markdown_content**
+Post-process markdown output:
+
+`add_filter('openbotauth_markdown_content', function($markdown, $post) {
+    return $markdown . "\n\n---\nCopyright notice here";
+}, 10, 2);`
 
