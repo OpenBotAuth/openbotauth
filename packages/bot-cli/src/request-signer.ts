@@ -32,9 +32,10 @@ export class RequestSigner {
     }
 
     // Build signature base
+    // RFC 9421 Section 2.2.3: @path is the target path EXCLUDING query string
     const signatureBase = this.buildSignatureBase(params, {
       method: method.toUpperCase(),
-      path: urlObj.pathname + urlObj.search,
+      path: urlObj.pathname,
       authority: urlObj.host,
       contentType: body ? 'application/json' : undefined,
     });
