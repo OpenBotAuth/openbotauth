@@ -104,50 +104,76 @@ class Admin {
             return;
         }
         
+        // Get current tab
+        $current_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'config';
+        $tabs = [
+            'config' => [
+                'label' => __('Configuration', 'openbotauth'),
+                'icon' => 'dashicons-admin-settings'
+            ],
+            'analytics' => [
+                'label' => __('Analytics', 'openbotauth'),
+                'icon' => 'dashicons-chart-area'
+            ],
+        ];
+        
         ?>
         <div class="wrap">
             <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
             
-            <div class="notice notice-info">
-                <p>
-                    <strong><?php _e('OpenBotAuth', 'openbotauth'); ?></strong> - 
-                    <?php _e('Secure bot authentication using RFC 9421 HTTP signatures.', 'openbotauth'); ?>
-                </p>
-                <p>
-                    <?php _e('Control bot access with granular policies, teasers, and 402 payment flows.', 'openbotauth'); ?>
-                    <a href="https://github.com/OpenBotAuth/openbotauth" target="_blank"><?php _e('Documentation', 'openbotauth'); ?></a>
-                </p>
-            </div>
+            <!-- Tab Navigation -->
+            <nav class="nav-tab-wrapper wp-clearfix" style="margin-bottom: 20px;">
+                <?php foreach ($tabs as $tab_id => $tab): ?>
+                    <a href="<?php echo esc_url(add_query_arg('tab', $tab_id, admin_url('options-general.php?page=openbotauth'))); ?>" 
+                       class="nav-tab <?php echo $current_tab === $tab_id ? 'nav-tab-active' : ''; ?>">
+                        <span class="dashicons <?php echo esc_attr($tab['icon']); ?>" style="margin-right: 4px; line-height: 1.6;"></span>
+                        <?php echo esc_html($tab['label']); ?>
+                    </a>
+                <?php endforeach; ?>
+            </nav>
             
-            <form action="options.php" method="post">
-                <?php
-                settings_fields('openbotauth');
-                do_settings_sections('openbotauth');
-                submit_button(__('Save Settings', 'openbotauth'));
-                ?>
-            </form>
-            
-            <hr>
-            
-            <h2><?php _e('Advanced Policy Configuration', 'openbotauth'); ?></h2>
-            <p><?php _e('For advanced policy configuration (whitelists, blacklists, rate limits), edit the policy JSON directly:', 'openbotauth'); ?></p>
-            
-            <textarea id="openbotauth-policy-json" rows="15" style="width: 100%; font-family: monospace;">
+            <?php if ($current_tab === 'config'): ?>
+                <!-- Configuration Tab -->
+                <div class="notice notice-info">
+                    <p>
+                        <strong><?php _e('OpenBotAuth', 'openbotauth'); ?></strong> - 
+                        <?php _e('Secure bot authentication using RFC 9421 HTTP signatures.', 'openbotauth'); ?>
+                    </p>
+                    <p>
+                        <?php _e('Control bot access with granular policies, teasers, and 402 payment flows.', 'openbotauth'); ?>
+                        <a href="https://github.com/OpenBotAuth/openbotauth" target="_blank"><?php _e('Documentation', 'openbotauth'); ?></a>
+                    </p>
+                </div>
+                
+                <form action="options.php" method="post">
+                    <?php
+                    settings_fields('openbotauth');
+                    do_settings_sections('openbotauth');
+                    submit_button(__('Save Settings', 'openbotauth'));
+                    ?>
+                </form>
+                
+                <hr>
+                
+                <h2><?php _e('Advanced Policy Configuration', 'openbotauth'); ?></h2>
+                <p><?php _e('For advanced policy configuration (whitelists, blacklists, rate limits), edit the policy JSON directly:', 'openbotauth'); ?></p>
+                
+                <textarea id="openbotauth-policy-json" rows="15" style="width: 100%; font-family: monospace;">
 <?php echo esc_textarea(get_option('openbotauth_policy', '{}')); ?>
-            </textarea>
-            
-            <p>
-                <button type="button" class="button button-primary" id="openbotauth-save-policy">
-                    <?php _e('Save Policy JSON', 'openbotauth'); ?>
-                </button>
-                <button type="button" class="button" id="openbotauth-validate-policy">
-                    <?php _e('Validate JSON', 'openbotauth'); ?>
-                </button>
-            </p>
-            
-            <details>
-                <summary><?php _e('Policy JSON Schema', 'openbotauth'); ?></summary>
-                <pre style="background: #f5f5f5; padding: 15px; overflow: auto;">
+                </textarea>
+                
+                <p>
+                    <button type="button" class="button button-primary" id="openbotauth-save-policy">
+                        <?php _e('Save Policy JSON', 'openbotauth'); ?>
+                    </button>
+                    <button type="button" class="button" id="openbotauth-validate-policy">
+                        <?php _e('Validate JSON', 'openbotauth'); ?>
+                    </button>
+                </p>
+                
+                <details>
+                    <summary><?php _e('Policy JSON Schema', 'openbotauth'); ?></summary>
+                    <pre style="background: #f5f5f5; padding: 15px; overflow: auto;">
 {
   "default": {
     "effect": "allow|deny|teaser",
@@ -162,12 +188,14 @@ class Admin {
     }
   }
 }
-                </pre>
-            </details>
-            
-            <hr>
-            
-            <?php $this->render_analytics_section(); ?>
+                    </pre>
+                </details>
+                
+            <?php elseif ($current_tab === 'analytics'): ?>
+                <!-- Analytics Tab -->
+                <?php $this->render_analytics_section(); ?>
+                
+            <?php endif; ?>
         </div>
         <?php
     }
@@ -180,47 +208,265 @@ class Admin {
     private function render_analytics_section() {
         $stats = Analytics::get_stats(7);
         $totals = Analytics::get_totals(7);
+        $meta_totals = Analytics::getMetaTotals(7);
+        $meta_stats = Analytics::getMetaStats(7);
+        
+        $signed = $meta_totals['signed_total'];
+        $verified = $meta_totals['verified_total'];
+        $percent = $signed > 0 ? round(($verified / $signed) * 100) : 0;
+        
+        // Calculate grand total of all decisions
+        $total_decisions = array_sum($totals);
+        
+        // Prepare data for chart (reverse to show oldest first)
+        $chart_dates = array_keys($stats);
+        $chart_data = [];
+        foreach ($chart_dates as $date) {
+            $day_total = 0;
+            foreach ($stats[$date] as $count) {
+                $day_total += intval($count);
+            }
+            $chart_data[] = $day_total;
+        }
+        $chart_data = array_reverse($chart_data);
+        $chart_dates = array_reverse($chart_dates);
+        $max_value = max(1, max($chart_data));
         
         ?>
-        <h2><?php _e('Agent Request Analytics', 'openbotauth'); ?></h2>
-        <p class="description">
-            <?php _e('Local-only analytics for signed agent requests (last 7 days). No data is sent to external servers.', 'openbotauth'); ?>
-        </p>
+        <style>
+            .openbotauth-analytics { max-width: 900px; }
+            .openbotauth-stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 16px;
+                margin-bottom: 24px;
+            }
+            .openbotauth-stat-card {
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-radius: 4px;
+                padding: 16px 20px;
+                position: relative;
+            }
+            .openbotauth-stat-card.highlight {
+                border-left: 4px solid #2271b1;
+            }
+            .openbotauth-stat-label {
+                font-size: 12px;
+                color: #646970;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-bottom: 4px;
+            }
+            .openbotauth-stat-value {
+                font-size: 28px;
+                font-weight: 600;
+                color: #1d2327;
+                line-height: 1.2;
+            }
+            .openbotauth-stat-value.success { color: #00a32a; }
+            .openbotauth-stat-value.warning { color: #dba617; }
+            .openbotauth-stat-value.info { color: #2271b1; }
+            .openbotauth-stat-subtitle {
+                font-size: 12px;
+                color: #646970;
+                margin-top: 4px;
+            }
+            .openbotauth-progress-bar {
+                height: 8px;
+                background: #dcdcde;
+                border-radius: 4px;
+                overflow: hidden;
+                margin-top: 8px;
+            }
+            .openbotauth-progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #2271b1, #00a32a);
+                border-radius: 4px;
+                transition: width 0.3s ease;
+            }
+            .openbotauth-chart-container {
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-radius: 4px;
+                padding: 20px;
+                margin-bottom: 24px;
+            }
+            .openbotauth-chart-title {
+                font-size: 14px;
+                font-weight: 600;
+                color: #1d2327;
+                margin-bottom: 16px;
+            }
+            .openbotauth-chart-svg {
+                width: 100%;
+                height: 120px;
+            }
+            .openbotauth-table-section {
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-radius: 4px;
+                overflow: hidden;
+            }
+            .openbotauth-table-section table {
+                margin: 0;
+                border: none;
+            }
+            .openbotauth-table-header {
+                padding: 12px 16px;
+                background: #f6f7f7;
+                border-bottom: 1px solid #c3c4c7;
+                font-weight: 600;
+            }
+            .openbotauth-decision-badge {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 3px;
+                font-size: 11px;
+                font-weight: 500;
+            }
+            .openbotauth-badge-allow { background: #d1fae5; color: #065f46; }
+            .openbotauth-badge-teaser { background: #dbeafe; color: #1e40af; }
+            .openbotauth-badge-deny { background: #fee2e2; color: #991b1b; }
+            .openbotauth-badge-pay { background: #fef3c7; color: #92400e; }
+            .openbotauth-badge-rate_limit { background: #f3e8ff; color: #6b21a8; }
+        </style>
         
-        <table class="widefat striped" style="max-width: 800px;">
-            <thead>
-                <tr>
-                    <th><?php _e('Date', 'openbotauth'); ?></th>
-                    <th style="text-align: center;"><?php _e('Allow', 'openbotauth'); ?></th>
-                    <th style="text-align: center;"><?php _e('Teaser', 'openbotauth'); ?></th>
-                    <th style="text-align: center;"><?php _e('Deny', 'openbotauth'); ?></th>
-                    <th style="text-align: center;"><?php _e('Pay', 'openbotauth'); ?></th>
-                    <th style="text-align: center;"><?php _e('Rate Limit', 'openbotauth'); ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($stats as $date => $day_stats): ?>
-                <tr>
-                    <td><?php echo esc_html($date); ?></td>
-                    <td style="text-align: center;"><?php echo intval($day_stats['allow']); ?></td>
-                    <td style="text-align: center;"><?php echo intval($day_stats['teaser']); ?></td>
-                    <td style="text-align: center;"><?php echo intval($day_stats['deny']); ?></td>
-                    <td style="text-align: center;"><?php echo intval($day_stats['pay']); ?></td>
-                    <td style="text-align: center;"><?php echo intval($day_stats['rate_limit']); ?></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-            <tfoot>
-                <tr style="font-weight: bold;">
-                    <td><?php _e('Total', 'openbotauth'); ?></td>
-                    <td style="text-align: center;"><?php echo intval($totals['allow']); ?></td>
-                    <td style="text-align: center;"><?php echo intval($totals['teaser']); ?></td>
-                    <td style="text-align: center;"><?php echo intval($totals['deny']); ?></td>
-                    <td style="text-align: center;"><?php echo intval($totals['pay']); ?></td>
-                    <td style="text-align: center;"><?php echo intval($totals['rate_limit']); ?></td>
-                </tr>
-            </tfoot>
-        </table>
+        <div class="openbotauth-analytics">
+            <h2><?php _e('Agent Request Analytics', 'openbotauth'); ?></h2>
+            <p class="description" style="margin-bottom: 20px;">
+                <?php _e('Local-only analytics for signed agent requests (last 7 days). No data is sent to external servers.', 'openbotauth'); ?>
+            </p>
+            
+            <!-- Stats Cards -->
+            <div class="openbotauth-stats-grid">
+                <div class="openbotauth-stat-card highlight">
+                    <div class="openbotauth-stat-label"><?php _e('Signed Requests', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-value info"><?php echo number_format($signed); ?></div>
+                    <div class="openbotauth-stat-subtitle"><?php _e('Total agent requests', 'openbotauth'); ?></div>
+                </div>
+                
+                <div class="openbotauth-stat-card">
+                    <div class="openbotauth-stat-label"><?php _e('Verified', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-value success"><?php echo number_format($verified); ?></div>
+                    <div class="openbotauth-stat-subtitle"><?php echo $percent; ?>% <?php _e('success rate', 'openbotauth'); ?></div>
+                    <div class="openbotauth-progress-bar">
+                        <div class="openbotauth-progress-fill" style="width: <?php echo $percent; ?>%;"></div>
+                    </div>
+                </div>
+                
+                <div class="openbotauth-stat-card">
+                    <div class="openbotauth-stat-label"><?php _e('Policy Decisions', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-value"><?php echo number_format($total_decisions); ?></div>
+                    <div class="openbotauth-stat-subtitle"><?php _e('Allow, deny, teaser, etc.', 'openbotauth'); ?></div>
+                </div>
+                
+                <div class="openbotauth-stat-card">
+                    <div class="openbotauth-stat-label"><?php _e('Allowed', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-value success"><?php echo number_format($totals['allow']); ?></div>
+                    <div class="openbotauth-stat-subtitle"><?php _e('Full content access', 'openbotauth'); ?></div>
+                </div>
+            </div>
+            
+            <!-- Chart -->
+            <div class="openbotauth-chart-container">
+                <div class="openbotauth-chart-title">
+                    <span class="dashicons dashicons-chart-area" style="color: #2271b1;"></span>
+                    <?php _e('Daily Policy Decisions (7 Days)', 'openbotauth'); ?>
+                </div>
+                <svg class="openbotauth-chart-svg" viewBox="0 0 700 120" preserveAspectRatio="xMidYMid meet">
+                    <!-- Grid lines -->
+                    <line x1="40" y1="10" x2="680" y2="10" stroke="#e0e0e0" stroke-width="1"/>
+                    <line x1="40" y1="50" x2="680" y2="50" stroke="#e0e0e0" stroke-width="1"/>
+                    <line x1="40" y1="90" x2="680" y2="90" stroke="#e0e0e0" stroke-width="1"/>
+                    
+                    <!-- Y-axis labels -->
+                    <text x="35" y="14" text-anchor="end" fill="#646970" font-size="10"><?php echo $max_value; ?></text>
+                    <text x="35" y="54" text-anchor="end" fill="#646970" font-size="10"><?php echo round($max_value / 2); ?></text>
+                    <text x="35" y="94" text-anchor="end" fill="#646970" font-size="10">0</text>
+                    
+                    <!-- Bars and labels -->
+                    <?php 
+                    $bar_width = 70;
+                    $gap = 20;
+                    $start_x = 60;
+                    foreach ($chart_data as $i => $value): 
+                        $bar_height = ($value / $max_value) * 80;
+                        $x = $start_x + ($i * ($bar_width + $gap));
+                        $y = 90 - $bar_height;
+                        $date_parts = explode('-', $chart_dates[$i]);
+                        $display_date = $date_parts[1] . '/' . $date_parts[2];
+                    ?>
+                    <rect x="<?php echo $x; ?>" y="<?php echo $y; ?>" width="<?php echo $bar_width; ?>" height="<?php echo $bar_height; ?>" 
+                          fill="url(#gradient)" rx="3"/>
+                    <text x="<?php echo $x + $bar_width/2; ?>" y="105" text-anchor="middle" fill="#646970" font-size="10"><?php echo $display_date; ?></text>
+                    <?php if ($value > 0): ?>
+                    <text x="<?php echo $x + $bar_width/2; ?>" y="<?php echo max($y - 5, 8); ?>" text-anchor="middle" fill="#1d2327" font-size="11" font-weight="600"><?php echo $value; ?></text>
+                    <?php endif; ?>
+                    <?php endforeach; ?>
+                    
+                    <!-- Gradient definition -->
+                    <defs>
+                        <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#2271b1;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#135e96;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            
+            <!-- Decision Breakdown Table -->
+            <div class="openbotauth-table-section">
+                <div class="openbotauth-table-header">
+                    <span class="dashicons dashicons-editor-table" style="color: #646970;"></span>
+                    <?php _e('Decision Breakdown by Date', 'openbotauth'); ?>
+                </div>
+                <table class="widefat" style="border: none;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 12px;"><?php _e('Date', 'openbotauth'); ?></th>
+                            <th style="text-align: center; padding: 12px;">
+                                <span class="openbotauth-decision-badge openbotauth-badge-allow"><?php _e('Allow', 'openbotauth'); ?></span>
+                            </th>
+                            <th style="text-align: center; padding: 12px;">
+                                <span class="openbotauth-decision-badge openbotauth-badge-teaser"><?php _e('Teaser', 'openbotauth'); ?></span>
+                            </th>
+                            <th style="text-align: center; padding: 12px;">
+                                <span class="openbotauth-decision-badge openbotauth-badge-deny"><?php _e('Deny', 'openbotauth'); ?></span>
+                            </th>
+                            <th style="text-align: center; padding: 12px;">
+                                <span class="openbotauth-decision-badge openbotauth-badge-pay"><?php _e('Pay', 'openbotauth'); ?></span>
+                            </th>
+                            <th style="text-align: center; padding: 12px;">
+                                <span class="openbotauth-decision-badge openbotauth-badge-rate_limit"><?php _e('Rate Limit', 'openbotauth'); ?></span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($stats as $date => $day_stats): ?>
+                        <tr>
+                            <td style="padding: 10px 12px; font-weight: 500;"><?php echo esc_html($date); ?></td>
+                            <td style="text-align: center; padding: 10px 12px;"><?php echo intval($day_stats['allow']); ?></td>
+                            <td style="text-align: center; padding: 10px 12px;"><?php echo intval($day_stats['teaser']); ?></td>
+                            <td style="text-align: center; padding: 10px 12px;"><?php echo intval($day_stats['deny']); ?></td>
+                            <td style="text-align: center; padding: 10px 12px;"><?php echo intval($day_stats['pay']); ?></td>
+                            <td style="text-align: center; padding: 10px 12px;"><?php echo intval($day_stats['rate_limit']); ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                    <tfoot style="background: #f6f7f7;">
+                        <tr>
+                            <td style="padding: 12px; font-weight: 600;"><?php _e('Total', 'openbotauth'); ?></td>
+                            <td style="text-align: center; padding: 12px; font-weight: 600; color: #00a32a;"><?php echo intval($totals['allow']); ?></td>
+                            <td style="text-align: center; padding: 12px; font-weight: 600; color: #2271b1;"><?php echo intval($totals['teaser']); ?></td>
+                            <td style="text-align: center; padding: 12px; font-weight: 600; color: #d63638;"><?php echo intval($totals['deny']); ?></td>
+                            <td style="text-align: center; padding: 12px; font-weight: 600; color: #dba617;"><?php echo intval($totals['pay']); ?></td>
+                            <td style="text-align: center; padding: 12px; font-weight: 600; color: #6b21a8;"><?php echo intval($totals['rate_limit']); ?></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
         <?php
     }
     

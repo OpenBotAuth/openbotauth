@@ -234,6 +234,118 @@ After implementation:
    - Visit profile page at `/{username}`
    - Verify stats card appears with correct data
 
+## Radar: Ecosystem-Wide Telemetry
+
+The Radar dashboard provides a global view of OpenBotAuth ecosystem activity, similar to Cloudflare Radar. It tracks all signed requests (verified and failed) separately from the per-user karma system.
+
+### Design Principle: Separation of Concerns
+
+- **Karma stats** (`verification_logs`, `stats:{username}:*`) - Only verified successes, used for reputation
+- **Radar stats** (`signed_attempt_logs`, `stats:global:*`) - All signed attempts, used for ecosystem insights
+
+This separation ensures that failed verification attempts don't pollute karma scores.
+
+### Radar Database Schema
+
+```sql
+-- signed_attempt_logs (all signed requests - verified + failed)
+CREATE TABLE signed_attempt_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  signature_agent TEXT,           -- Claimed Signature-Agent header
+  target_origin TEXT NOT NULL,    -- Origin only (scheme+host)
+  method TEXT NOT NULL,
+  verified BOOLEAN NOT NULL,
+  failure_reason TEXT,            -- NULL if verified, else: missing_headers, bad_signature, etc.
+  username TEXT,                  -- Extracted if parseable, NULL otherwise
+  jwks_url TEXT,
+  client_name TEXT,
+  timestamp TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+);
+```
+
+### Radar Redis Keys
+
+Global counters (daily granularity):
+- `stats:global:signed:YYYY-MM-DD` - All signed requests
+- `stats:global:verified:YYYY-MM-DD` - Verified requests
+- `stats:global:failed:YYYY-MM-DD` - Failed requests
+
+### Radar API Endpoints
+
+#### GET /telemetry/overview?window=today|7d
+
+Returns ecosystem-wide stats.
+
+```json
+{
+  "window": "7d",
+  "signed": 1690,
+  "verified": 1234,
+  "failed": 456,
+  "unique_origins": 98,
+  "unique_agents": 41
+}
+```
+
+#### GET /telemetry/timeseries?metric=verified|failed&window=7d
+
+Returns daily counts for charting.
+
+```json
+{
+  "metric": "verified",
+  "window": "7d",
+  "points": [
+    {"date": "2025-12-19", "count": 150},
+    {"date": "2025-12-18", "count": 120}
+  ]
+}
+```
+
+#### GET /telemetry/top/agents?window=7d&limit=20
+
+Top agents by verified count.
+
+```json
+[
+  {"agent_id": "openai", "client_name": "ChatGPT Agent", "verified_count": 523, "failed_count": 12}
+]
+```
+
+#### GET /telemetry/top/origins?window=7d&limit=20
+
+Top publisher origins.
+
+```json
+[
+  {"origin": "https://example.com", "verified_count": 90, "failed_count": 10}
+]
+```
+
+### Failure Reasons
+
+Coarse categories for failed verification attempts:
+- `missing_headers` - Required signature headers incomplete
+- `bad_signature` - Signature verification failed
+- `untrusted_directory` - JWKS URL not in trusted list
+- `jwks_fetch_failed` - Could not fetch JWKS
+- `expired` - Signature timestamp expired
+- `nonce_reuse` - Replay attack detected
+
+### Portal: /radar Page
+
+The Radar page at `/radar` shows:
+- Big numbers: Signed, Verified, Failed, Unique Agents
+- Line chart: Verified vs Failed over 7 days
+- Top Agents table
+- Top Origins table
+
+### WordPress Plugin Counters
+
+The WordPress plugin tracks local counters separately:
+- `openbotauth_meta_stats_{date}` with `signed_total` and `verified_total`
+- Displayed in admin UI: "Signed Agent Requests: X | Verified: Y (Z%)"
+
 ## Future Enhancements
 
 - Separate agent identities from user accounts

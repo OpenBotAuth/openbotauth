@@ -100,7 +100,8 @@ export function buildSignatureBase(
           lines.push(`"@method": ${request.method.toUpperCase()}`);
           break;
         case '@path':
-          lines.push(`"@path": ${url.pathname}`);
+          // RFC 9421: @path includes pathname + query string
+          lines.push(`"@path": ${url.pathname}${url.search}`);
           break;
         case '@authority':
           lines.push(`"@authority": ${url.host}`);

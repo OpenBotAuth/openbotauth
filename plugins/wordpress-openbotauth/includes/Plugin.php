@@ -76,10 +76,18 @@ class Plugin {
             return;
         }
         
+        // Increment signed_total - request has signature headers
+        Analytics::incrementMeta('signed_total');
+        
         global $post;
         
         // Get cached verification (to avoid duplicate verification)
         $verification = $this->get_verification();
+        
+        // Increment verified_total if verification succeeded
+        if (!empty($verification['verified'])) {
+            Analytics::incrementMeta('verified_total');
+        }
         
         /**
          * Fires when a bot request has been verified.
