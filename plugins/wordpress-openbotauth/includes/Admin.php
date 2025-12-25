@@ -158,7 +158,7 @@ class Admin {
                 'icon' => 'dashicons-admin-settings'
             ],
             'ai-artifacts' => [
-                'label' => __('AI Artifacts', 'openbotauth'),
+                'label' => __('AI Endpoints', 'openbotauth'),
                 'icon' => 'dashicons-rest-api'
             ],
             'analytics' => [
@@ -634,9 +634,9 @@ class Admin {
         </style>
         
         <div class="openbotauth-ai-section">
-            <h2><?php _e('AI-Ready Endpoints', 'openbotauth'); ?></h2>
+            <h2><?php _e('AI Endpoints', 'openbotauth'); ?></h2>
             <p class="description" style="margin-bottom: 20px;">
-                <?php _e('Machine-readable endpoints for AI systems and crawlers. All data is served locally from your site.', 'openbotauth'); ?>
+                <?php _e('llms.txt + JSON feed + Markdown pages', 'openbotauth'); ?>
             </p>
             
             <?php if ($yoast_active): ?>
