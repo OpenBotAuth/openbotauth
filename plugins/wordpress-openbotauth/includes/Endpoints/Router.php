@@ -197,18 +197,21 @@ class Router {
         $output .= "\n# Machine-readable JSON feed:\n";
         $output .= "{$feed_url}\n\n";
 
-        $output .= "# Markdown endpoint pattern (replace {ID} with post ID):\n";
-        $output .= "# {$md_pattern}\n\n";
+        // Only include markdown URLs if markdown endpoint is enabled
+        if ($this->is_markdown_enabled()) {
+            $output .= "# Markdown endpoint pattern (replace {ID} with post ID):\n";
+            $output .= "# {$md_pattern}\n\n";
 
-        // Get posts for listing
-        $posts = $this->get_feed_posts();
-        $limit = count($posts);
+            // Get posts for listing
+            $posts = $this->get_feed_posts();
+            $limit = count($posts);
 
-        $output .= "# Latest {$limit} posts (markdown):\n";
+            $output .= "# Latest {$limit} posts (markdown):\n";
 
-        foreach ($posts as $post) {
-            $md_url = home_url('/.well-known/openbotauth/posts/' . $post->ID . '.md');
-            $output .= "{$md_url}\n";
+            foreach ($posts as $post) {
+                $md_url = home_url('/.well-known/openbotauth/posts/' . $post->ID . '.md');
+                $output .= "{$md_url}\n";
+            }
         }
 
         echo $output;
@@ -292,6 +295,7 @@ class Router {
         header('Content-Type: text/markdown; charset=UTF-8');
         header('Cache-Control: public, max-age=300');
         header('Last-Modified: ' . $lastmod_http);
+        header('X-Robots-Tag: noindex'); // Prevent search engine indexing of raw markdown
 
         echo $this->render_post_markdown($post);
         exit;
