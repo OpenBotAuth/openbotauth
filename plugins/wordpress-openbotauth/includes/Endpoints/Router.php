@@ -366,6 +366,11 @@ class Router {
             $post_types = ['post', 'page'];
         }
 
+        // If no post types are enabled, return empty array
+        if (empty($post_types)) {
+            return [];
+        }
+
         $query = new \WP_Query([
             'post_type'           => $post_types,
             'post_status'         => 'publish',
