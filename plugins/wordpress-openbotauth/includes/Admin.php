@@ -702,6 +702,12 @@ class Admin {
                                 <p class="description">
                                     <?php _e('Provides an index of your content for AI systems.', 'openbotauth'); ?>
                                 </p>
+                                <?php if ($yoast_active && $prefer_yoast): ?>
+                                <p class="description" style="color: #1e40af; margin-top: 8px;">
+                                    <span class="dashicons dashicons-info" style="font-size: 14px; width: 14px; height: 14px; vertical-align: middle;"></span>
+                                    <?php _e('Yoast is currently serving llms.txt. Disable "Use Yoast llms.txt" below to let OpenBotAuth serve it.', 'openbotauth'); ?>
+                                </p>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         
