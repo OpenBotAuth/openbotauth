@@ -278,6 +278,18 @@ class Router {
             exit;
         }
 
+        // Validate: post type must be in allowed list
+        $allowed_types = get_option('openbotauth_feed_post_types', ['post', 'page']);
+        if (!is_array($allowed_types)) {
+            $allowed_types = ['post', 'page'];
+        }
+        if (!in_array($post->post_type, $allowed_types, true)) {
+            status_header(404);
+            header('Content-Type: text/plain; charset=UTF-8');
+            echo "Post not found";
+            exit;
+        }
+
         // Conditional GET: check If-Modified-Since
         $lastmod = $this->metadata->getLastModifiedTimestamp($post);
         $lastmod_http = gmdate('D, d M Y H:i:s', $lastmod) . ' GMT';
