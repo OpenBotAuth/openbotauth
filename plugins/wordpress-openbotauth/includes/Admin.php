@@ -832,6 +832,11 @@ class Admin {
      * Sanitize policy settings
      */
     public function sanitize_policy($value) {
+        // If empty value (e.g., from another tab's form submission), keep existing
+        if (empty($value) && !isset($_POST['openbotauth_default_effect']) && !isset($_POST['openbotauth_teaser_words'])) {
+            return get_option('openbotauth_policy', '{}');
+        }
+        
         // If we have individual field submissions, build the policy JSON
         if (isset($_POST['openbotauth_default_effect']) || isset($_POST['openbotauth_teaser_words'])) {
             $policy = json_decode($value, true) ?: [];
