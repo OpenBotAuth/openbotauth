@@ -51,13 +51,9 @@ class Plugin {
         $this->metadata_provider = Content\MetadataProviderFactory::make();
         $this->router = new Endpoints\Router($this->metadata_provider);
         
-        // Yoast compatibility: let Yoast own llms.txt if detected (unless force override is on)
-        $yoast_active = self::yoast_is_active();
-        $force_llms = (bool) get_option('openbotauth_force_llms', false);
-        
-        if ($yoast_active && !$force_llms) {
-            add_filter('openbotauth_should_serve_llms_txt', '__return_false', 100);
-        }
+        // Yoast compatibility: show warning in admin, but DON'T auto-disable llms.txt
+        // Users must explicitly disable if they want Yoast to handle it
+        // (Yoast's llms.txt may not be configured, leaving users with nothing)
         
         // Admin interface
         if (is_admin()) {

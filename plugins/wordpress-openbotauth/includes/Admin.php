@@ -116,13 +116,6 @@ class Admin {
             'default' => ['post', 'page'],
             'sanitize_callback' => [$this, 'sanitize_feed_post_types'],
         ]);
-        
-        // Yoast compatibility: force llms.txt override (v0.1.3+)
-        register_setting('openbotauth', 'openbotauth_force_llms', [
-            'type' => 'boolean',
-            'default' => false,
-            'sanitize_callback' => 'rest_sanitize_boolean',
-        ]);
     }
     
     /**
@@ -534,10 +527,8 @@ class Admin {
         $feed_limit = get_option('openbotauth_feed_limit', 50);
         $feed_post_types = get_option('openbotauth_feed_post_types', ['post', 'page']);
         
-        // Yoast detection (v0.1.3+)
+        // Yoast detection (v0.1.3+) - informational only, no auto-disable
         $yoast_active = Plugin::yoast_is_active();
-        $force_llms = (bool) get_option('openbotauth_force_llms', false);
-        $yoast_owns_llms = $yoast_active && !$force_llms;
         
         // Get available post types
         $available_post_types = get_post_types(['public' => true], 'objects');
@@ -595,8 +586,6 @@ class Admin {
             }
             .openbotauth-badge-enabled { background: #d1fae5; color: #065f46; }
             .openbotauth-badge-disabled { background: #fee2e2; color: #991b1b; }
-            .openbotauth-badge-yoast { background: #dbeafe; color: #1e40af; }
-            .openbotauth-badge-override { background: #fef3c7; color: #92400e; }
             .openbotauth-yoast-notice {
                 background: #dbeafe;
                 border: 1px solid #93c5fd;
@@ -606,10 +595,6 @@ class Admin {
                 display: flex;
                 align-items: flex-start;
                 gap: 12px;
-            }
-            .openbotauth-yoast-notice.openbotauth-yoast-warning {
-                background: #fef3c7;
-                border-color: #fcd34d;
             }
             .openbotauth-yoast-notice .dashicons {
                 font-size: 20px;
@@ -645,17 +630,12 @@ class Admin {
             </p>
             
             <?php if ($yoast_active): ?>
-            <!-- Yoast Detection Notice -->
-            <div class="openbotauth-yoast-notice <?php echo $force_llms ? 'openbotauth-yoast-warning' : ''; ?>">
-                <span class="dashicons <?php echo $force_llms ? 'dashicons-warning' : 'dashicons-info'; ?>" style="color: <?php echo $force_llms ? '#d97706' : '#2563eb'; ?>;"></span>
+            <!-- Yoast Detection Notice - Informational only -->
+            <div class="openbotauth-yoast-notice">
+                <span class="dashicons dashicons-info" style="color: #2563eb;"></span>
                 <div class="openbotauth-yoast-notice-content">
-                    <?php if ($force_llms): ?>
-                        <h4><?php _e('Yoast SEO Detected - Override Active', 'openbotauth'); ?></h4>
-                        <p><?php _e('Both OpenBotAuth and Yoast may serve /llms.txt. This could cause conflicts.', 'openbotauth'); ?></p>
-                    <?php else: ?>
-                        <h4><?php _e('Yoast SEO Detected', 'openbotauth'); ?></h4>
-                        <p><?php _e('Yoast manages /llms.txt on this site. OpenBotAuth provides the JSON feed and markdown endpoints as additional AI-ready resources.', 'openbotauth'); ?></p>
-                    <?php endif; ?>
+                    <h4><?php _e('Yoast SEO Detected', 'openbotauth'); ?></h4>
+                    <p><?php _e('Yoast may also serve /llms.txt if configured. If you want Yoast to handle llms.txt instead, disable it below. OpenBotAuth\'s feed and markdown endpoints are unique and work alongside any SEO plugin.', 'openbotauth'); ?></p>
                 </div>
             </div>
             <?php endif; ?>
@@ -674,19 +654,9 @@ class Admin {
                     <div class="openbotauth-url-label"><?php _e('llms.txt', 'openbotauth'); ?></div>
                     <div class="openbotauth-url-value"><?php echo esc_html(esc_url($llms_url)); ?></div>
                     <div class="openbotauth-url-status">
-                        <?php if ($yoast_owns_llms): ?>
-                            <span class="openbotauth-status-badge openbotauth-badge-yoast">
-                                <?php _e('Managed by Yoast', 'openbotauth'); ?>
-                            </span>
-                        <?php elseif ($yoast_active && $force_llms): ?>
-                            <span class="openbotauth-status-badge openbotauth-badge-override">
-                                <?php _e('Override Active', 'openbotauth'); ?>
-                            </span>
-                        <?php else: ?>
-                            <span class="openbotauth-status-badge <?php echo $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
-                                <?php echo $llms_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
-                            </span>
-                        <?php endif; ?>
+                        <span class="openbotauth-status-badge <?php echo $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
+                            <?php echo $llms_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
+                        </span>
                     </div>
                 </div>
                 
@@ -694,19 +664,9 @@ class Admin {
                     <div class="openbotauth-url-label"><?php _e('llms.txt (well-known)', 'openbotauth'); ?></div>
                     <div class="openbotauth-url-value"><?php echo esc_html(esc_url($llms_wellknown_url)); ?></div>
                     <div class="openbotauth-url-status">
-                        <?php if ($yoast_owns_llms): ?>
-                            <span class="openbotauth-status-badge openbotauth-badge-yoast">
-                                <?php _e('Managed by Yoast', 'openbotauth'); ?>
-                            </span>
-                        <?php elseif ($yoast_active && $force_llms): ?>
-                            <span class="openbotauth-status-badge openbotauth-badge-override">
-                                <?php _e('Override Active', 'openbotauth'); ?>
-                            </span>
-                        <?php else: ?>
-                            <span class="openbotauth-status-badge <?php echo $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
-                                <?php echo $llms_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
-                            </span>
-                        <?php endif; ?>
+                        <span class="openbotauth-status-badge <?php echo $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
+                            <?php echo $llms_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
+                        </span>
                     </div>
                 </div>
                 
@@ -749,36 +709,17 @@ class Admin {
                             <td>
                                 <label>
                                     <input type="hidden" name="openbotauth_llms_enabled" value="0">
-                                    <input type="checkbox" name="openbotauth_llms_enabled" value="1" <?php checked($llms_enabled); ?> <?php echo $yoast_owns_llms ? 'disabled' : ''; ?>>
+                                    <input type="checkbox" name="openbotauth_llms_enabled" value="1" <?php checked($llms_enabled); ?>>
                                     <?php _e('Serve /llms.txt and /.well-known/llms.txt endpoints', 'openbotauth'); ?>
                                 </label>
-                                <?php if ($yoast_owns_llms): ?>
-                                <p class="description" style="color: #2563eb;">
-                                    <?php _e('This setting is managed by Yoast SEO. Use the override below if you need OpenBotAuth to serve llms.txt.', 'openbotauth'); ?>
-                                </p>
-                                <?php else: ?>
                                 <p class="description">
                                     <?php _e('Provides an index of your content for AI systems.', 'openbotauth'); ?>
-                                </p>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        
-                        <?php if ($yoast_active): ?>
-                        <tr>
-                            <th scope="row"><?php _e('Yoast Override', 'openbotauth'); ?></th>
-                            <td>
-                                <label>
-                                    <input type="hidden" name="openbotauth_force_llms" value="0">
-                                    <input type="checkbox" name="openbotauth_force_llms" value="1" <?php checked($force_llms); ?>>
-                                    <?php _e('Force OpenBotAuth to serve llms.txt', 'openbotauth'); ?>
-                                </label>
-                                <p class="description" style="color: #d97706;">
-                                    <?php _e('May conflict with Yoast; recommended OFF unless you specifically need OpenBotAuth llms.txt features.', 'openbotauth'); ?>
+                                    <?php if ($yoast_active): ?>
+                                    <br><em><?php _e('Note: If Yoast SEO is configured to serve llms.txt, disable this to avoid conflicts.', 'openbotauth'); ?></em>
+                                    <?php endif; ?>
                                 </p>
                             </td>
                         </tr>
-                        <?php endif; ?>
                         
                         <tr>
                             <th scope="row"><?php _e('Enable Feed + Markdown', 'openbotauth'); ?></th>
