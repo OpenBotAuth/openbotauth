@@ -66,7 +66,7 @@ class Router {
 
         // markdown posts
         if (preg_match('#^/\.well-known/openbotauth/posts/(\d+)\.md$#', $route, $matches)) {
-            if ($this->is_feed_enabled()) {
+            if ($this->is_markdown_enabled()) {
                 $this->serve_post_markdown((int) $matches[1]);
             }
             return;
@@ -105,10 +105,16 @@ class Router {
             if ($route === '' || $route === false) {
                 $route = '/';
             }
-            return $route;
+        } else {
+            $route = $request_uri;
         }
 
-        return $request_uri;
+        // Ensure route always starts with /
+        if ($route === '' || $route[0] !== '/') {
+            $route = '/' . ltrim($route, '/');
+        }
+
+        return $route;
     }
 
     /**
@@ -132,7 +138,7 @@ class Router {
     }
 
     /**
-     * Check if feed/markdown endpoints are enabled.
+     * Check if feed endpoint is enabled.
      *
      * @return bool
      */
@@ -146,26 +152,37 @@ class Router {
          *
          * @param bool $should_serve Whether to serve the endpoint.
          */
-        $feed_enabled = apply_filters('openbotauth_should_serve_feed', true);
+        return apply_filters('openbotauth_should_serve_feed', true);
+    }
+
+    /**
+     * Check if markdown endpoint is enabled.
+     *
+     * @return bool
+     */
+    private function is_markdown_enabled(): bool {
+        if (!get_option('openbotauth_feed_enabled', true)) {
+            return false;
+        }
 
         /**
          * Filter whether to serve markdown endpoints.
          *
          * @param bool $should_serve Whether to serve the endpoint.
          */
-        $markdown_enabled = apply_filters('openbotauth_should_serve_markdown', true);
-
-        return $feed_enabled && $markdown_enabled;
+        return apply_filters('openbotauth_should_serve_markdown', true);
     }
 
     /**
      * Serve llms.txt content.
      */
     private function serve_llms_txt(): void {
-        $this->send_headers('text/plain; charset=UTF-8');
+        // llms.txt should be discoverable by crawlers, so don't set noindex
+        $this->send_headers('text/plain; charset=UTF-8', false);
 
         $site_url = home_url();
-        $site_name = get_bloginfo('name');
+        // Decode HTML entities for plain text output
+        $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
         $feed_url = home_url('/.well-known/openbotauth-feed.json');
         $md_pattern = home_url('/.well-known/openbotauth/posts/{ID}.md');
 
@@ -232,7 +249,8 @@ class Router {
         $feed = [
             'generated_at' => gmdate('c'),
             'site'         => home_url(),
-            'site_name'    => get_bloginfo('name'),
+            // Decode HTML entities for clean JSON output
+            'site_name'    => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
             'total_items'  => count($items),
             'items'        => $items,
         ];
@@ -359,12 +377,15 @@ class Router {
      * Send common response headers.
      *
      * @param string $content_type The Content-Type header value.
+     * @param bool   $noindex      Whether to set X-Robots-Tag: noindex (default true).
      */
-    private function send_headers(string $content_type): void {
+    private function send_headers(string $content_type, bool $noindex = true): void {
         status_header(200);
         header('Content-Type: ' . $content_type);
         header('Cache-Control: public, max-age=300');
-        header('X-Robots-Tag: noindex'); // Prevent search engine indexing of raw data
+        if ($noindex) {
+            header('X-Robots-Tag: noindex'); // Prevent search engine indexing of raw data
+        }
     }
 }
 
