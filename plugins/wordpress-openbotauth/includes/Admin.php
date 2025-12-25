@@ -596,30 +596,6 @@ class Admin {
             .openbotauth-badge-enabled { background: #d1fae5; color: #065f46; }
             .openbotauth-badge-disabled { background: #fee2e2; color: #991b1b; }
             .openbotauth-badge-yoast { background: #dbeafe; color: #1e40af; }
-            .openbotauth-yoast-notice {
-                background: #dbeafe;
-                border: 1px solid #93c5fd;
-                border-radius: 4px;
-                padding: 16px 20px;
-                margin-bottom: 24px;
-                display: flex;
-                align-items: flex-start;
-                gap: 12px;
-            }
-            .openbotauth-yoast-notice .dashicons {
-                font-size: 20px;
-                width: 20px;
-                height: 20px;
-                margin-top: 2px;
-            }
-            .openbotauth-yoast-notice-content h4 {
-                margin: 0 0 6px 0;
-                font-size: 14px;
-            }
-            .openbotauth-yoast-notice-content p {
-                margin: 0;
-                color: #4b5563;
-            }
             .openbotauth-settings-card {
                 background: #fff;
                 border: 1px solid #c3c4c7;
@@ -638,21 +614,6 @@ class Admin {
             <p class="description" style="margin-bottom: 20px;">
                 <?php _e('llms.txt + JSON feed + Markdown pages', 'openbotauth'); ?>
             </p>
-            
-            <?php if ($yoast_active): ?>
-            <!-- Yoast Detection Notice -->
-            <div class="openbotauth-yoast-notice">
-                <span class="dashicons dashicons-info" style="color: #2563eb;"></span>
-                <div class="openbotauth-yoast-notice-content">
-                    <h4><?php _e('Yoast SEO Detected', 'openbotauth'); ?></h4>
-                    <?php if ($prefer_yoast): ?>
-                    <p><?php _e('You\'ve chosen to let Yoast manage /llms.txt. OpenBotAuth\'s feed and markdown endpoints remain active.', 'openbotauth'); ?></p>
-                    <?php else: ?>
-                    <p><?php _e('Both plugins can serve /llms.txt. If you enable Yoast\'s llms.txt feature, use the toggle below to avoid conflicts.', 'openbotauth'); ?></p>
-                    <?php endif; ?>
-                </div>
-            </div>
-            <?php endif; ?>
             
             <!-- Copy URLs Section -->
             <div class="openbotauth-urls-card">
@@ -735,32 +696,26 @@ class Admin {
                             <td>
                                 <label>
                                     <input type="hidden" name="openbotauth_llms_enabled" value="0">
-                                    <input type="checkbox" name="openbotauth_llms_enabled" value="1" <?php checked($llms_enabled); ?> <?php echo $yoast_manages_llms ? 'disabled' : ''; ?>>
+                                    <input type="checkbox" name="openbotauth_llms_enabled" value="1" <?php checked($llms_enabled); ?>>
                                     <?php _e('Serve /llms.txt and /.well-known/llms.txt endpoints', 'openbotauth'); ?>
                                 </label>
-                                <?php if ($yoast_manages_llms): ?>
-                                <p class="description" style="color: #2563eb;">
-                                    <?php _e('Disabled because you\'ve chosen to let Yoast manage llms.txt.', 'openbotauth'); ?>
-                                </p>
-                                <?php else: ?>
                                 <p class="description">
                                     <?php _e('Provides an index of your content for AI systems.', 'openbotauth'); ?>
                                 </p>
-                                <?php endif; ?>
                             </td>
                         </tr>
                         
-                        <?php if ($yoast_active): ?>
+                        <?php if ($yoast_active && $llms_enabled): ?>
                         <tr>
                             <th scope="row"><?php _e('Use Yoast llms.txt', 'openbotauth'); ?></th>
                             <td>
                                 <label>
                                     <input type="hidden" name="openbotauth_prefer_yoast_llms" value="0">
                                     <input type="checkbox" name="openbotauth_prefer_yoast_llms" value="1" <?php checked($prefer_yoast); ?>>
-                                    <?php _e('Let Yoast SEO serve /llms.txt instead of OpenBotAuth', 'openbotauth'); ?>
+                                    <?php _e('Let Yoast SEO serve /llms.txt instead', 'openbotauth'); ?>
                                 </label>
                                 <p class="description">
-                                    <?php _e('Enable this if you\'ve configured Yoast\'s llms.txt feature. OpenBotAuth\'s feed and markdown endpoints will remain active.', 'openbotauth'); ?>
+                                    <?php _e('Yoast SEO detected. Check this if you want Yoast to handle llms.txt.', 'openbotauth'); ?>
                                 </p>
                             </td>
                         </tr>
