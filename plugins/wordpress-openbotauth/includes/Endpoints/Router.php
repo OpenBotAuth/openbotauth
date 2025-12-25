@@ -52,6 +52,8 @@ class Router {
         if (in_array($route, ['/llms.txt', '/.well-known/llms.txt'], true)) {
             if ($this->is_llms_enabled()) {
                 $this->serve_llms_txt();
+            } else {
+                $this->serve_disabled_endpoint();
             }
             return;
         }
@@ -60,6 +62,8 @@ class Router {
         if ($route === '/.well-known/openbotauth-feed.json') {
             if ($this->is_feed_enabled()) {
                 $this->serve_feed_json();
+            } else {
+                $this->serve_disabled_endpoint();
             }
             return;
         }
@@ -68,6 +72,8 @@ class Router {
         if (preg_match('#^/\.well-known/openbotauth/posts/(\d+)\.md$#', $route, $matches)) {
             if ($this->is_markdown_enabled()) {
                 $this->serve_post_markdown((int) $matches[1]);
+            } else {
+                $this->serve_disabled_endpoint();
             }
             return;
         }
@@ -100,10 +106,18 @@ class Router {
         $base = rtrim($base_path, '/');
 
         // If we have a base path and request starts with it, strip it
+        // Must check directory boundary to avoid /blog matching /blog2
         if ($base !== '' && strpos($request_uri, $base) === 0) {
-            $route = substr($request_uri, strlen($base));
-            if ($route === '' || $route === false) {
-                $route = '/';
+            $next_char = substr($request_uri, strlen($base), 1);
+            // Only match if next char is '/' (directory boundary) or empty (exact match)
+            if ($next_char === '/' || $next_char === '' || $next_char === false) {
+                $route = substr($request_uri, strlen($base));
+                if ($route === '' || $route === false) {
+                    $route = '/';
+                }
+            } else {
+                // Not a directory boundary match (e.g., /blog2 when base is /blog)
+                $route = $request_uri;
             }
         } else {
             $route = $request_uri;
@@ -392,6 +406,26 @@ class Router {
         }
 
         return $posts;
+    }
+
+    /**
+     * Send common response headers.
+     *
+     * @param string $content_type The Content-Type header value.
+     * @param bool   $noindex      Whether to set X-Robots-Tag: noindex (default true).
+     */
+    /**
+     * Serve a 404 response for disabled endpoints.
+     *
+     * Called when a route matches but the endpoint is disabled.
+     * Exits immediately to prevent WordPress from continuing routing.
+     */
+    private function serve_disabled_endpoint(): void {
+        status_header(404);
+        header('Content-Type: text/plain; charset=UTF-8');
+        header('X-Robots-Tag: noindex');
+        echo "Not found";
+        exit;
     }
 
     /**
