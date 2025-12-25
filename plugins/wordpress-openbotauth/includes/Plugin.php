@@ -53,7 +53,7 @@ class Plugin {
         
         // Yoast compatibility: only disable OUR llms.txt if user explicitly opts in
         // Default: OpenBotAuth llms.txt stays enabled (always works, no silent failures)
-        if (self::yoast_is_active() && get_option('openbotauth_prefer_yoast_llms', false)) {
+        if (self::yoast_is_active() && (bool) get_option('openbotauth_prefer_yoast_llms', false)) {
             add_filter('openbotauth_should_serve_llms_txt', '__return_false', 100);
         }
         
