@@ -30,6 +30,17 @@ class Plugin {
         // Singleton
     }
     
+    /**
+     * Check if Yoast SEO is active.
+     *
+     * Used to gracefully defer llms.txt ownership to Yoast when detected.
+     *
+     * @return bool True if Yoast SEO is active.
+     */
+    public static function yoast_is_active(): bool {
+        return defined('WPSEO_VERSION') || class_exists('WPSEO_Meta');
+    }
+    
     public function init() {
         // Initialize components
         $this->verifier = new Verifier();
@@ -39,6 +50,14 @@ class Plugin {
         // AI Artifacts: Initialize metadata provider and router
         $this->metadata_provider = Content\MetadataProviderFactory::make();
         $this->router = new Endpoints\Router($this->metadata_provider);
+        
+        // Yoast compatibility: let Yoast own llms.txt if detected (unless force override is on)
+        $yoast_active = self::yoast_is_active();
+        $force_llms = (bool) get_option('openbotauth_force_llms', false);
+        
+        if ($yoast_active && !$force_llms) {
+            add_filter('openbotauth_should_serve_llms_txt', '__return_false', 100);
+        }
         
         // Admin interface
         if (is_admin()) {

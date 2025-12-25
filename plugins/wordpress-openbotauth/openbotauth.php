@@ -3,7 +3,7 @@
  * Plugin Name: OpenBotAuth
  * Plugin URI: https://github.com/OpenBotAuth/openbotauth
  * Description: Secure bot authentication using RFC 9421 HTTP signatures. Control bot access with granular policies, teasers, and 402 payment flows.
- * Version: 0.1.2
+ * Version: 0.1.3
  * Author: OpenBotAuth
  * Author URI: https://github.com/OpenBotAuth/openbotauth
  * License: GPLv2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 
 // Plugin constants (defensive definitions)
 if (!defined('OPENBOTAUTH_VERSION')) {
-    define('OPENBOTAUTH_VERSION', '0.1.2');
+    define('OPENBOTAUTH_VERSION', '0.1.3');
 }
 if (!defined('OPENBOTAUTH_PLUGIN_DIR')) {
     define('OPENBOTAUTH_PLUGIN_DIR', plugin_dir_path(__FILE__));
