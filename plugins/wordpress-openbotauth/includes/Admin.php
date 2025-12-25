@@ -705,7 +705,7 @@ class Admin {
                                 <?php if ($yoast_active && $prefer_yoast): ?>
                                 <p class="description" style="color: #1e40af; margin-top: 8px;">
                                     <span class="dashicons dashicons-info" style="font-size: 14px; width: 14px; height: 14px; vertical-align: middle;"></span>
-                                    <?php _e('Yoast is currently serving llms.txt. Disable "Use Yoast llms.txt" below to let OpenBotAuth serve it.', 'openbotauth'); ?>
+                                    <?php _e('Yoast is serving llms.txt. Uncheck "Use Yoast llms.txt" to let OpenBotAuth serve it.', 'openbotauth'); ?>
                                 </p>
                                 <?php endif; ?>
                             </td>
