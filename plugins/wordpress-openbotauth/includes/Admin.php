@@ -136,10 +136,18 @@ class Admin {
      * Sanitize feed post types array
      */
     public function sanitize_feed_post_types($value) {
+        // Handle empty case (no checkboxes selected)
+        if (empty($value) || $value === '') {
+            return [];
+        }
         if (!is_array($value)) {
             return ['post', 'page'];
         }
-        return array_filter($value, 'post_type_exists');
+        // Filter out the empty hidden field marker and validate post types
+        $value = array_filter($value, function($type) {
+            return $type !== '' && post_type_exists($type);
+        });
+        return array_values($value);
     }
     
     /**
@@ -754,6 +762,8 @@ class Admin {
                         <tr>
                             <th scope="row"><?php _e('Post Types', 'openbotauth'); ?></th>
                             <td>
+                                <!-- Hidden input ensures empty array is sent when no checkboxes are checked -->
+                                <input type="hidden" name="openbotauth_feed_post_types[]" value="">
                                 <?php foreach ($available_post_types as $post_type): ?>
                                 <label style="display: block; margin-bottom: 6px;">
                                     <input type="checkbox" 
