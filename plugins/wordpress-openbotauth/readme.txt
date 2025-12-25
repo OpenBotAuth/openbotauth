@@ -29,8 +29,9 @@ Instead of blocking all bots or allowing unrestricted access, you can:
 * **Payment Flow Stub** - Return 402 Payment Required for premium content (actual payment integration requires custom implementation)
 * **Rate Limiting** - Per-agent rate limits with configurable time windows
 * **Access Control** - Whitelist/blacklist with wildcard pattern matching
-* **Local Analytics** - Track decision counts locally (no external tracking)
+* **Local Analytics** - Visual dashboard with charts, stats cards, and decision breakdowns (no external tracking)
 * **AI-Ready Endpoints** - Serve llms.txt, JSON feed, and markdown for AI crawlers
+* **Tabbed Admin Interface** - Clean organization with Configuration, AI Endpoints, and Analytics tabs
 
 = AI-Ready Endpoints =
 
@@ -40,7 +41,7 @@ OpenBotAuth provides machine-readable endpoints for AI systems:
 * **/.well-known/openbotauth-feed.json** - JSON list of all published posts
 * **/.well-known/openbotauth/posts/{ID}.md** - Per-post markdown content
 
-All data is served locally from your WordPress database. No external tracking or telemetry. Only published, non-password-protected posts are exposed.
+Configure which post types to include (posts, pages, or custom types) and set the feed limit (up to 500 items). All data is served locally from your WordPress database. No external tracking or telemetry. Only published, non-password-protected posts are exposed.
 
 = How It Works =
 
@@ -105,13 +106,22 @@ No. All analytics (decision counts) are stored locally in your WordPress databas
 
 = Does OpenBotAuth work with Yoast SEO? =
 
-Yes. OpenBotAuth works alongside Yoast SEO without conflicts. By default, OpenBotAuth serves llms.txt (works standalone). If Yoast is installed and you've enabled Yoast's llms.txt feature, use the "Use Yoast llms.txt" toggle in AI Artifacts settings to let Yoast handle it. OpenBotAuth's unique feed and markdown endpoints remain active either way.
+Yes. OpenBotAuth works alongside Yoast SEO without conflicts. By default, OpenBotAuth serves llms.txt (works standalone). If Yoast is installed and you've enabled Yoast's llms.txt feature, use the "Use Yoast llms.txt" toggle in AI Endpoints settings to let Yoast handle it. OpenBotAuth's unique feed and markdown endpoints remain active either way.
+
+= How is the admin interface organized? =
+
+The settings page has three tabs:
+
+* **Configuration** - Verifier URL, default policy, whitelist/blacklist, rate limits
+* **AI Endpoints** - llms.txt, JSON feed, markdown settings with copyable URLs
+* **Analytics** - Visual dashboard with charts, stats cards, and decision breakdown
 
 == Screenshots ==
 
-1. Settings page - Configure verifier URL and default policy
-2. Per-post policy override in the post editor
-3. Local analytics dashboard showing decision counts
+1. Configuration tab - Configure verifier URL, default policy, and access controls
+2. AI Endpoints tab - Enable llms.txt, JSON feed, and markdown with copyable URLs
+3. Analytics tab - Visual dashboard with charts, stats cards, and decision breakdown
+4. Per-post policy override in the post editor
 
 == Changelog ==
 
@@ -121,6 +131,13 @@ Yes. OpenBotAuth works alongside Yoast SEO without conflicts. By default, OpenBo
 * Added "Use Yoast llms.txt" toggle when Yoast is detected (OFF by default)
 * Shows "Managed by Yoast" badge when toggle is enabled
 * Feed + markdown endpoints work alongside Yoast (OpenBotAuth's unique value)
+* Renamed "AI Artifacts" tab to "AI Endpoints" for clarity
+* Configurable post types for AI endpoints (posts, pages, custom types)
+* Empty post types setting now correctly returns empty feed
+* Markdown endpoint respects post types setting
+* Fixed disabled endpoints returning proper 404 (not falling through to WordPress)
+* Fixed subdirectory install routing to prevent /blog matching /blog2
+* Visual analytics dashboard with charts and stats cards
 
 = 0.1.2 =
 * Added llms.txt endpoint for AI discovery (/llms.txt and /.well-known/llms.txt)
@@ -157,7 +174,7 @@ Yes. OpenBotAuth works alongside Yoast SEO without conflicts. By default, OpenBo
 == Upgrade Notice ==
 
 = 0.1.3 =
-Yoast SEO compatibility: OpenBotAuth now works gracefully alongside Yoast. Use the "Use Yoast llms.txt" toggle if you want Yoast to manage llms.txt. By default, OpenBotAuth serves llms.txt (always works standalone).
+Yoast SEO compatibility, visual analytics dashboard, and configurable AI endpoints. Use the "Use Yoast llms.txt" toggle if you want Yoast to manage llms.txt. Configure which post types appear in your AI endpoints. New tabbed admin interface for better organization.
 
 = 0.1.2 =
 New AI-ready endpoints: llms.txt, JSON feed, and per-post markdown. Makes your content discoverable by AI systems without any external dependencies.
