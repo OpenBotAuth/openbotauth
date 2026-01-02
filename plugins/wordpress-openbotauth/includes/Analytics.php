@@ -135,6 +135,9 @@ class Analytics {
                 '1'
             )
         );
+        
+        // Clear object cache to prevent stale reads on hosts with persistent caching
+        wp_cache_delete($option_name, 'options');
     }
     
     /**
@@ -217,6 +220,9 @@ class Analytics {
                 '1'
             )
         );
+        
+        // Clear object cache to prevent stale reads on hosts with persistent caching
+        wp_cache_delete($option_name, 'options');
     }
     
     /**
