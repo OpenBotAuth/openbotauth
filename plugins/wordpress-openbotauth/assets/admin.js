@@ -82,11 +82,12 @@
         
         // Telemetry: "Send now" button handler
         $('#openbotauth-send-telemetry-now').on('click', function() {
-            const $btn = $(this);
-            const $status = $('#openbotauth-telemetry-status-message');
-            const originalText = $btn.text();
+            var $btn = $(this);
+            var $status = $('#openbotauth-telemetry-status-message');
+            var originalText = $btn.text();
+            var i18n = openbotauth.i18n || {};
             
-            $btn.prop('disabled', true).text(openbotauth.i18n?.sending || 'Sending...');
+            $btn.prop('disabled', true).text(i18n.sending || 'Sending...');
             $status.html('').removeClass('notice-success notice-error');
             
             $.ajax({
@@ -99,24 +100,24 @@
                 success: function(response) {
                     if (response.success) {
                         // Update last sent display
-                        const data = response.data;
-                        let statusText = openbotauth.i18n?.just_now || 'Just now';
+                        var data = response.data;
+                        var statusText = i18n.just_now || 'Just now';
                         if (data.last_status) {
-                            const color = data.last_status === '200' ? '#00a32a' : '#d63638';
+                            var color = data.last_status === '200' ? '#00a32a' : '#d63638';
                             statusText += ' <span style="color: ' + color + ';">(' + data.last_status + ')</span>';
                         }
                         $('#openbotauth-telemetry-last-sent').html(statusText);
-                        $status.html('<span style="color: #00a32a;">✓ ' + (openbotauth.i18n?.sent_success || 'Sent successfully') + '</span>');
+                        $status.html('<span style="color: #00a32a;">✓ ' + (i18n.sent_success || 'Sent successfully') + '</span>');
                     } else {
-                        $status.html('<span style="color: #d63638;">✗ ' + (response.data || openbotauth.i18n?.error || 'Error') + '</span>');
+                        $status.html('<span style="color: #d63638;">✗ ' + (response.data || i18n.error || 'Error') + '</span>');
                     }
                 },
                 error: function() {
-                    $status.html('<span style="color: #d63638;">✗ ' + (openbotauth.i18n?.send_error || 'Error sending. Please try again.') + '</span>');
+                    $status.html('<span style="color: #d63638;">✗ ' + (i18n.send_error || 'Error sending. Please try again.') + '</span>');
                 },
                 complete: function() {
                     // Re-enable only if checkbox is still checked
-                    const isChecked = $('#openbotauth_share_telemetry').prop('checked');
+                    var isChecked = $('#openbotauth_share_telemetry').prop('checked');
                     $btn.prop('disabled', !isChecked).text(originalText);
                 }
             });

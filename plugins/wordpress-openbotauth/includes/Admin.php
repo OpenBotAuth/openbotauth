@@ -121,26 +121,12 @@ class Admin {
         ]);
         
         // Telemetry settings (v0.1.4+) - SEPARATE option group to avoid wiping other settings
-        // All default OFF, explicit opt-in
+        // Only register the user-editable option. Internal options (install_id, last_sent, last_status)
+        // are managed via get_option/update_option and don't need Settings API registration.
         register_setting('openbotauth_telemetry', 'openbotauth_share_telemetry', [
             'type' => 'boolean',
             'default' => false,
             'sanitize_callback' => 'rest_sanitize_boolean',
-        ]);
-        register_setting('openbotauth_telemetry', 'openbotauth_telemetry_install_id', [
-            'type' => 'string',
-            'default' => '',
-            'sanitize_callback' => 'sanitize_text_field',
-        ]);
-        register_setting('openbotauth_telemetry', 'openbotauth_telemetry_last_sent', [
-            'type' => 'integer',
-            'default' => 0,
-            'sanitize_callback' => 'absint',
-        ]);
-        register_setting('openbotauth_telemetry', 'openbotauth_telemetry_last_status', [
-            'type' => 'string',
-            'default' => '',
-            'sanitize_callback' => 'sanitize_text_field',
         ]);
     }
     
