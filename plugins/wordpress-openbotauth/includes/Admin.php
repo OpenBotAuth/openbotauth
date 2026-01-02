@@ -570,7 +570,7 @@ class Admin {
                 <p style="margin: 4px 0 0 0; font-size: 12px;"><?php _e('Bot visits will appear here when AI crawlers access your site.', 'openbotauth'); ?></p>
             </div>
             <?php else: ?>
-            <table class="widefat" style="border: none;">
+            <table class="widefat striped" style="border: none;">
                 <thead>
                     <tr>
                         <th style="padding: 12px;"><?php _e('Bot', 'openbotauth'); ?></th>
@@ -587,6 +587,8 @@ class Admin {
                         $rate = $bot['signed_total'] > 0 
                             ? round(($bot['verified_total'] / $bot['signed_total']) * 100) . '%'
                             : '—';
+                        $verified_color = ($bot['verified_total'] > 0) ? '#00a32a' : '#646970';
+                        $rate_color = ($rate !== '—') ? '#2271b1' : '#646970';
                     ?>
                     <tr>
                         <td style="padding: 10px 12px; font-weight: 500;"><?php echo esc_html($bot['name']); ?></td>
@@ -598,10 +600,10 @@ class Admin {
                         </td>
                         <td style="text-align: center; padding: 10px 12px; font-weight: 600;"><?php echo number_format_i18n($bot['requests_total']); ?></td>
                         <td style="text-align: center; padding: 10px 12px;"><?php echo number_format_i18n($bot['signed_total']); ?></td>
-                        <td style="text-align: center; padding: 10px 12px; color: <?php echo $bot['verified_total'] > 0 ? '#00a32a' : '#646970'; ?>;">
+                        <td style="<?php echo esc_attr('text-align: center; padding: 10px 12px; color: ' . $verified_color . ';'); ?>">
                             <?php echo number_format_i18n($bot['verified_total']); ?>
                         </td>
-                        <td style="text-align: center; padding: 10px 12px; color: <?php echo $rate !== '—' ? '#2271b1' : '#646970'; ?>;">
+                        <td style="<?php echo esc_attr('text-align: center; padding: 10px 12px; color: ' . $rate_color . ';'); ?>">
                             <?php echo esc_html($rate); ?>
                         </td>
                     </tr>

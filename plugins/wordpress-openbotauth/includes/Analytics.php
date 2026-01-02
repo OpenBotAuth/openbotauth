@@ -229,16 +229,23 @@ class Analytics {
     public static function getBotTotals(int $days = 7): array {
         $bots = BotDetector::get_known_bots();
         $result = [];
+        $now = current_time('timestamp');
         
         foreach ($bots as $bot_id => $bot) {
+            // Sanitize bot_id consistently with incrementBotStat()
+            $safe_id = sanitize_key($bot_id);
+            if (empty($safe_id)) {
+                continue;
+            }
+            
             $requests_total = 0;
             $signed_total = 0;
             $verified_total = 0;
             
             // Sum counts for each day
             for ($i = 0; $i < $days; $i++) {
-                $date = date('Y-m-d', strtotime("-{$i} days", current_time('timestamp')));
-                $base = self::BOT_STATS_PREFIX . $date . '__' . $bot_id . '__';
+                $date = date('Y-m-d', strtotime("-{$i} days", $now));
+                $base = self::BOT_STATS_PREFIX . $date . '__' . $safe_id . '__';
                 
                 $requests_total += intval(get_option($base . 'requests_total', 0));
                 $signed_total += intval(get_option($base . 'signed_total', 0));
