@@ -76,5 +76,18 @@ register_activation_hook(__FILE__, function() {
     add_option('openbotauth_feed_enabled', true);
     add_option('openbotauth_feed_limit', 50);
     add_option('openbotauth_feed_post_types', ['post', 'page']);
+    
+    // Telemetry options (v0.1.4+) - all OFF by default, explicit opt-in
+    // Using 'no' for autoload to avoid bloating autoloaded options
+    add_option('openbotauth_share_telemetry', false, '', 'no');
+    add_option('openbotauth_telemetry_install_id', '', '', 'no');
+    add_option('openbotauth_telemetry_last_sent', 0, '', 'no');
+    add_option('openbotauth_telemetry_last_status', '', '', 'no');
+});
+
+// Deactivation hook
+register_deactivation_hook(__FILE__, function() {
+    // Clear telemetry cron schedule
+    wp_clear_scheduled_hook('openbotauth_send_daily_telemetry');
 });
 

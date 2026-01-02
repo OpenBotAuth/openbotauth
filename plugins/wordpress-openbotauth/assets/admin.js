@@ -74,6 +74,49 @@
                 // Ignore formatting errors
             }
         });
+        
+        // Telemetry: toggle "Send now" button based on checkbox state
+        $('#openbotauth_share_telemetry').on('change', function() {
+            $('#openbotauth-send-telemetry-now').prop('disabled', !this.checked);
+        });
+        
+        // Telemetry: "Send now" button handler
+        $('#openbotauth-send-telemetry-now').on('click', function() {
+            const $btn = $(this);
+            const originalText = $btn.text();
+            
+            $btn.prop('disabled', true).text('Sending...');
+            
+            $.ajax({
+                url: openbotauth.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'openbotauth_send_telemetry_now',
+                    nonce: openbotauth.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Update last sent display
+                        const data = response.data;
+                        let statusText = 'Just now';
+                        if (data.last_status) {
+                            const color = data.last_status === '200' ? '#00a32a' : '#d63638';
+                            statusText += ' <span style="color: ' + color + ';">(' + data.last_status + ')</span>';
+                        }
+                        $('#openbotauth-telemetry-last-sent').html(statusText);
+                        alert('Telemetry sent successfully!');
+                    } else {
+                        alert('Error: ' + (response.data || 'Unknown error'));
+                    }
+                },
+                error: function() {
+                    alert('Error sending telemetry. Please try again.');
+                },
+                complete: function() {
+                    $btn.prop('disabled', false).text(originalText);
+                }
+            });
+        });
     });
     
 })(jQuery);

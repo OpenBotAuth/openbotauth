@@ -65,7 +65,32 @@ You can:
 * Self-host the verifier service (see documentation)
 * The verifier service may log requests server-side depending on your configuration
 
-**Analytics are local-only.** Decision counts (allow/teaser/deny/pay/rate_limit) and bot traffic observations (User-Agent based) are stored in your WordPress database. No analytics data is sent to external servers.
+**Analytics are local-only.** Decision counts (allow/teaser/deny/pay/rate_limit) and bot traffic observations (User-Agent based) are stored in your WordPress database. No analytics data is sent to external servers unless you explicitly enable telemetry (see below).
+
+**Optional Telemetry (OpenBotAuth Radar)**
+
+This plugin includes an optional telemetry feature that is **OFF by default** and requires explicit opt-in.
+
+When enabled, once per day the plugin sends anonymized aggregate counts to `https://openbotauth.org/radar/ingest`. Telemetry is sent via WP-Cron (once per day when the site receives traffic).
+
+**What IS sent:**
+
+* A random install ID (UUID, not linked to your site)
+* Plugin version
+* Daily aggregate counts: bot IDs + request/signed/verified counts
+* Daily referrer source totals (e.g., "chatgpt": 5)
+
+**What is NOT sent:**
+
+* Your site URL or domain
+* Page URLs or content
+* IP addresses
+* Full User-Agent strings
+* Any personal or identifiable data
+
+To enable, go to Settings > OpenBotAuth > Configuration and check "Share anonymized stats with OpenBotAuth Radar".
+
+**Privacy policy:** https://openbotauth.org/privacy
 
 == Installation ==
 
@@ -102,7 +127,15 @@ Only signature verification requests are sent to your configured verifier URL. T
 
 = Are analytics sent to external servers? =
 
-No. All analytics (decision counts and bot traffic observations) are stored locally in your WordPress database. No tracking pixels, install pings, or external analytics are used.
+By default, no. All analytics (decision counts and bot traffic observations) are stored locally in your WordPress database. No tracking pixels or install pings are used.
+
+There is an optional "OpenBotAuth Radar" feature (off by default) that, when enabled, sends anonymized daily aggregate counts. See "External Service Disclosure" for details.
+
+= Does the plugin send any data to external servers? =
+
+By default, the only external call is signature verification (if configured). No telemetry is sent unless you explicitly enable it.
+
+The optional "OpenBotAuth Radar" telemetry feature sends only anonymized daily aggregates (bot IDs + counts, referrer totals). It does NOT send your site URL, page URLs, IP addresses, or personal data.
 
 = Does OpenBotAuth work with Yoast SEO? =
 

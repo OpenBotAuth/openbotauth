@@ -24,6 +24,11 @@ class Analytics {
     const BOT_STATS_PREFIX = 'openbotauth_bot_stats_';
     
     /**
+     * Option name prefix for referrer stats (e.g., ChatGPT, Perplexity traffic)
+     */
+    const REF_STATS_PREFIX = 'openbotauth_ref_stats_';
+    
+    /**
      * Valid decision types to track
      */
     const DECISION_TYPES = ['allow', 'teaser', 'deny', 'pay', 'rate_limit'];
@@ -271,6 +276,78 @@ class Analytics {
         return $result;
     }
     
+    // =========================================================================
+    // Referrer Stats (traffic from AI chat sources) - separate namespace
+    // =========================================================================
+    
+    /**
+     * Known referrer sources to track
+     */
+    const KNOWN_REF_SOURCES = ['chatgpt', 'perplexity'];
+    
+    /**
+     * Increment a referrer source counter for today
+     * Uses atomic INSERT ... ON DUPLICATE KEY UPDATE for race-condition safety.
+     * Option name format: openbotauth_ref_stats_YYYY-MM-DD__{source_key}__total
+     *
+     * @param string $source_key The referrer source key (e.g., 'chatgpt', 'perplexity')
+     */
+    public static function incrementRefStat(string $source_key): void {
+        // Sanitize source_key to safe key
+        $source_key = sanitize_key($source_key);
+        if (empty($source_key)) {
+            return;
+        }
+        
+        global $wpdb;
+        
+        $date = current_time('Y-m-d');
+        $option_name = self::REF_STATS_PREFIX . $date . '__' . $source_key . '__total';
+        
+        // Atomic upsert: insert 1 or increment existing value
+        $wpdb->query(
+            $wpdb->prepare(
+                "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
+                 VALUES (%s, %s, 'no')
+                 ON DUPLICATE KEY UPDATE option_value = CAST(option_value AS UNSIGNED) + 1",
+                $option_name,
+                '1'
+            )
+        );
+        
+        // Clear object cache to prevent stale reads on hosts with persistent caching
+        wp_cache_delete($option_name, 'options');
+        // Clear negative cache as well (prevents "still 0" bugs on some hosts)
+        wp_cache_delete('notoptions', 'options');
+    }
+    
+    /**
+     * Get referrer totals across the last N days
+     * Returns array keyed by source with total counts
+     *
+     * @param int $days Number of days to sum (default 7)
+     * @return array Referrer totals keyed by source (e.g., ['chatgpt' => 12, 'perplexity' => 3])
+     */
+    public static function getRefTotals(int $days = 7): array {
+        $result = [];
+        $now = current_time('timestamp');
+        
+        foreach (self::KNOWN_REF_SOURCES as $source_key) {
+            $total = 0;
+            
+            // Sum counts for each day
+            for ($i = 0; $i < $days; $i++) {
+                $date = date('Y-m-d', strtotime("-{$i} days", $now));
+                $option_name = self::REF_STATS_PREFIX . $date . '__' . $source_key . '__total';
+                $total += intval(get_option($option_name, 0));
+            }
+            
+            $result[$source_key] = $total;
+        }
+        
+        return $result;
+    }
+    
     /**
      * Clean up old stats (older than 30 days)
      * Throttled to run at most once per day via transient.
@@ -288,7 +365,7 @@ class Analytics {
         $cutoff_date = date('Y-m-d', strtotime('-30 days', current_time('timestamp')));
         
         // Clean up ALL stat prefixes
-        $prefixes = [self::OPTION_PREFIX, self::META_STATS_PREFIX, self::BOT_STATS_PREFIX];
+        $prefixes = [self::OPTION_PREFIX, self::META_STATS_PREFIX, self::BOT_STATS_PREFIX, self::REF_STATS_PREFIX];
         
         foreach ($prefixes as $prefix) {
             $options = $wpdb->get_col(
