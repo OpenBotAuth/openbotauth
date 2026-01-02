@@ -3,14 +3,14 @@
  * Plugin Name: OpenBotAuth
  * Plugin URI: https://github.com/OpenBotAuth/openbotauth
  * Description: Secure bot authentication using RFC 9421 HTTP signatures. Control bot access with granular policies, teasers, and 402 payment flows.
- * Version: 0.1.1
+ * Version: 0.1.3
  * Author: OpenBotAuth
  * Author URI: https://github.com/OpenBotAuth/openbotauth
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: openbotauth
  * Requires at least: 6.0
- * Requires PHP: 7.4.33
+ * Requires PHP: 7.4
  */
 
 // Prevent direct access
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 
 // Plugin constants (defensive definitions)
 if (!defined('OPENBOTAUTH_VERSION')) {
-    define('OPENBOTAUTH_VERSION', '0.1.1');
+    define('OPENBOTAUTH_VERSION', '0.1.3');
 }
 if (!defined('OPENBOTAUTH_PLUGIN_DIR')) {
     define('OPENBOTAUTH_PLUGIN_DIR', plugin_dir_path(__FILE__));
@@ -70,5 +70,11 @@ register_activation_hook(__FILE__, function() {
             'teaser_words' => 100
         ]
     ]));
+    
+    // AI Artifacts options (v0.1.2+)
+    add_option('openbotauth_llms_enabled', true);
+    add_option('openbotauth_feed_enabled', true);
+    add_option('openbotauth_feed_limit', 50);
+    add_option('openbotauth_feed_post_types', ['post', 'page']);
 });
 

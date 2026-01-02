@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![WordPress](https://img.shields.io/badge/WordPress-6.0%2B-blue.svg)](https://wordpress.org/)
-[![PHP](https://img.shields.io/badge/PHP-8.0%2B-blue.svg)](https://www.php.net/)
+[![PHP](https://img.shields.io/badge/PHP-7.4%2B-blue.svg)](https://www.php.net/)
 
 ---
 
@@ -126,7 +126,7 @@ This plugin is part of the [OpenBotAuth project](https://github.com/OpenBotAuth/
 
 ### Prerequisites
 
-1. **WordPress 6.0+** with PHP 8.0+
+1. **WordPress 6.0+** with PHP 7.4+
 2. **OpenBotAuth Verifier Service** running (see [main README](../../README.md))
 3. **OpenBotAuth Registry** for bot registration (see [main README](../../README.md))
 
