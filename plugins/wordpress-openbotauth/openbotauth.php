@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenBotAuth
  * Plugin URI: https://github.com/OpenBotAuth/openbotauth
- * Description: Secure bot authentication using RFC 9421 HTTP signatures. Control bot access with granular policies, teasers, and 402 payment flows.
+ * Description: AI bot analytics + signed agent verification (RFC 9421) with local-only stats and AI endpoints (llms.txt, feed, markdown).
  * Version: 0.1.3
  * Author: OpenBotAuth
  * Author URI: https://github.com/OpenBotAuth/openbotauth

@@ -8,7 +8,7 @@ Stable tag: 0.1.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Secure bot authentication using RFC 9421 HTTP signatures. Control bot access with granular policies, teasers, and 402 payment flows.
+AI bot analytics + signed agent verification (RFC 9421) with local-only stats and AI endpoints (llms.txt, feed, markdown).
 
 == Description ==
 
@@ -16,22 +16,22 @@ Secure bot authentication using RFC 9421 HTTP signatures. Control bot access wit
 
 Instead of blocking all bots or allowing unrestricted access, you can:
 
+* **See AI bot traffic** - Local-only analytics showing which bots are crawling your site
 * **Verify bot identity** using cryptographic signatures (RFC 9421)
 * **Show teasers** to unverified bots (first N words)
-* **Require payment** for premium content (402 Payment Required stub)
 * **Rate limit** bot access per agent
 * **Whitelist/blacklist** specific bots
 
 = Key Features =
 
+* **Bot Traffic Analytics** - See which AI bots (GPTBot, ClaudeBot, PerplexityBot, etc.) are visiting your site
 * **Signature Verification** - Verifies RFC 9421 HTTP Message Signatures using Ed25519 cryptography
 * **Content Teasers** - Show first N words to unverified bots with customizable per-post settings
-* **Payment Flow Stub** - Return 402 Payment Required for premium content (actual payment integration requires custom implementation)
 * **Rate Limiting** - Per-agent rate limits with configurable time windows
 * **Access Control** - Whitelist/blacklist with wildcard pattern matching
 * **Local Analytics** - Visual dashboard with charts, stats cards, and decision breakdowns (no external tracking)
 * **AI-Ready Endpoints** - Serve llms.txt, JSON feed, and markdown for AI crawlers
-* **Tabbed Admin Interface** - Clean organization with Configuration, AI Endpoints, and Analytics tabs
+* **Tabbed Admin Interface** - Clean organization with Analytics, AI Endpoints, and Configuration tabs
 
 = AI-Ready Endpoints =
 
@@ -112,20 +112,22 @@ Yes. OpenBotAuth works alongside Yoast SEO without conflicts. By default, OpenBo
 
 The settings page has three tabs:
 
-* **Configuration** - Verifier URL, default policy, whitelist/blacklist, rate limits
+* **Analytics** - Visual dashboard showing bot traffic, charts, stats cards, and decision breakdown
 * **AI Endpoints** - llms.txt, JSON feed, markdown settings with copyable URLs
-* **Analytics** - Visual dashboard with charts, stats cards, and decision breakdown
+* **Configuration** - Verifier URL, default policy, whitelist/blacklist, rate limits
 
 == Screenshots ==
 
-1. Configuration tab - Configure verifier URL, default policy, and access controls
+1. Analytics tab - Visual dashboard showing bot traffic, charts, stats cards, and decision breakdown
 2. AI Endpoints tab - Enable llms.txt, JSON feed, and markdown with copyable URLs
-3. Analytics tab - Visual dashboard with charts, stats cards, and decision breakdown
+3. Configuration tab - Configure verifier URL, default policy, and access controls
 4. Per-post policy override in the post editor
 
 == Changelog ==
 
 = 0.1.3 =
+* Analytics is now the default tab (see bot traffic immediately on first visit)
+* Bot traffic tracking: see which AI bots (GPTBot, ClaudeBot, PerplexityBot, etc.) are crawling your site
 * Yoast SEO compatibility: user-controlled toggle to let Yoast manage llms.txt
 * Default: OpenBotAuth llms.txt stays ON (no silent failures if Yoast llms.txt not configured)
 * Added "Use Yoast llms.txt" toggle when Yoast is detected (OFF by default)
@@ -138,6 +140,7 @@ The settings page has three tabs:
 * Fixed disabled endpoints returning proper 404 (not falling through to WordPress)
 * Fixed subdirectory install routing to prevent /blog matching /blog2
 * Visual analytics dashboard with charts and stats cards
+* Improved first-run UX and WP-admin-friendly copy
 
 = 0.1.2 =
 * Added llms.txt endpoint for AI discovery (/llms.txt and /.well-known/llms.txt)
@@ -174,7 +177,7 @@ The settings page has three tabs:
 == Upgrade Notice ==
 
 = 0.1.3 =
-Yoast SEO compatibility, visual analytics dashboard, and configurable AI endpoints. Use the "Use Yoast llms.txt" toggle if you want Yoast to manage llms.txt. Configure which post types appear in your AI endpoints. New tabbed admin interface for better organization.
+Yoast SEO compatibility, visual analytics dashboard (now the default tab), and configurable AI endpoints. See which AI bots are crawling your site. Use the "Use Yoast llms.txt" toggle if you want Yoast to manage llms.txt. Configure which post types appear in your AI endpoints.
 
 = 0.1.2 =
 New AI-ready endpoints: llms.txt, JSON feed, and per-post markdown. Makes your content discoverable by AI systems without any external dependencies.

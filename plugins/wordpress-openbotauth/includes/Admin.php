@@ -64,13 +64,8 @@ class Admin {
             'openbotauth_general'
         );
         
-        add_settings_field(
-            'payment_url',
-            __('Payment Service URL (optional)', 'openbotauth'),
-            [$this, 'render_payment_url_field'],
-            'openbotauth',
-            'openbotauth_general'
-        );
+        // Payment URL field hidden for WP.org release (stub feature)
+        // The option registration is kept for backwards compatibility
         
         add_settings_section(
             'openbotauth_policy',
@@ -158,22 +153,24 @@ class Admin {
             return;
         }
         
-        // Get current tab
-        $current_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'config';
+        // Get current tab (default to analytics for immediate value on first visit)
         $tabs = [
-            'config' => [
-                'label' => __('Configuration', 'openbotauth'),
-                'icon' => 'dashicons-admin-settings'
+            'analytics' => [
+                'label' => __('Analytics', 'openbotauth'),
+                'icon' => 'dashicons-chart-area'
             ],
             'ai-artifacts' => [
                 'label' => __('AI Endpoints', 'openbotauth'),
                 'icon' => 'dashicons-rest-api'
             ],
-            'analytics' => [
-                'label' => __('Analytics', 'openbotauth'),
-                'icon' => 'dashicons-chart-area'
+            'config' => [
+                'label' => __('Configuration', 'openbotauth'),
+                'icon' => 'dashicons-admin-settings'
             ],
         ];
+        $current_tab = isset($_GET['tab']) && array_key_exists(sanitize_key($_GET['tab']), $tabs) 
+            ? sanitize_key($_GET['tab']) 
+            : 'analytics';
         
         ?>
         <div class="wrap">
@@ -194,11 +191,11 @@ class Admin {
                 <!-- Configuration Tab -->
                 <div class="notice notice-info">
                     <p>
-                        <strong><?php _e('OpenBotAuth', 'openbotauth'); ?></strong> - 
-                        <?php _e('Secure bot authentication using RFC 9421 HTTP signatures.', 'openbotauth'); ?>
+                        <strong><?php _e('OpenBotAuth', 'openbotauth'); ?></strong> — 
+                        <?php _e('See AI bots crawling your site and verify signed agent requests (RFC 9421).', 'openbotauth'); ?>
                     </p>
                     <p>
-                        <?php _e('Control bot access with granular policies, teasers, and 402 payment flows.', 'openbotauth'); ?>
+                        <?php _e('Local-only analytics + AI endpoints (llms.txt, feed, markdown). Optional verifier for signature checks.', 'openbotauth'); ?>
                         <a href="https://github.com/OpenBotAuth/openbotauth" target="_blank"><?php _e('Documentation', 'openbotauth'); ?></a>
                     </p>
                 </div>
@@ -395,10 +392,12 @@ class Admin {
         </style>
         
         <div class="openbotauth-analytics">
-            <h2><?php _e('Agent Request Analytics', 'openbotauth'); ?></h2>
+            <h2><?php _e('AI Crawler/Agent Request Analytics', 'openbotauth'); ?></h2>
             <p class="description" style="margin-bottom: 20px;">
-                <?php _e('Local-only analytics for bot traffic and signed agent requests (last 7 days). No data is sent to external servers.', 'openbotauth'); ?>
+                <?php _e('Local-only stats for AI bot visits and signed agent requests (last 7 days). No data is sent to external servers.', 'openbotauth'); ?>
             </p>
+            
+            <?php $this->render_observed_bots_table(); ?>
             
             <!-- Stats Cards -->
             <div class="openbotauth-stats-grid">
@@ -528,8 +527,6 @@ class Admin {
                     </tfoot>
                 </table>
             </div>
-            
-            <?php $this->render_observed_bots_table(); ?>
         </div>
         <?php
     }
@@ -550,16 +547,19 @@ class Admin {
         });
         
         ?>
-        <div class="openbotauth-table-section" style="margin-top: 24px;">
+        <div class="openbotauth-table-section" style="margin-bottom: 24px;">
             <div class="openbotauth-table-header">
                 <span class="dashicons dashicons-visibility" style="color: #646970;"></span>
-                <?php _e('Observed Bots (User-Agent claims)', 'openbotauth'); ?>
+                <?php _e('Bots crawling your site (last 7 days)', 'openbotauth'); ?>
             </div>
             
             <div style="padding: 12px 16px; background: #fff8e5; border-bottom: 1px solid #c3c4c7;">
-                <p style="margin: 0; font-size: 12px; color: #646970;">
+                <p style="margin: 0 0 6px 0; font-size: 12px; color: #646970;">
                     <span class="dashicons dashicons-info" style="font-size: 14px; width: 14px; height: 14px; vertical-align: text-top;"></span>
-                    <?php _e('User-Agent matching is based on self-declared claims and can be spoofed. Cryptographic verification (Signed/Verified columns) provides stronger identity assurance.', 'openbotauth'); ?>
+                    <?php _e('These counts come from the bot\'s User-Agent (can be spoofed). If a bot supports cryptographic signatures, Signed/Verified provides stronger proof.', 'openbotauth'); ?>
+                </p>
+                <p style="margin: 0; font-size: 11px; color: #8c8f94; padding-left: 18px;">
+                    <?php _e('Many bots don\'t sign yet—zeros in Signed/Verified are normal.', 'openbotauth'); ?>
                 </p>
             </div>
             
