@@ -125,17 +125,11 @@ No. The 402 response is a stub that returns the configured price and payment URL
 
 Only signature verification requests are sent to your configured verifier URL. The request includes the URL being accessed and the signature headers. No personal data, cookies, or user information is transmitted.
 
-= Are analytics sent to external servers? =
-
-By default, no. All analytics (decision counts and bot traffic observations) are stored locally in your WordPress database. No tracking pixels or install pings are used.
-
-There is an optional "OpenBotAuth Radar" feature (off by default) that, when enabled, sends anonymized daily aggregate counts. See "External Service Disclosure" for details.
-
 = Does the plugin send any data to external servers? =
 
-By default, the only external call is signature verification (if configured). No telemetry is sent unless you explicitly enable it.
+By default, the only external call is signature verification (if configured). All analytics are stored locally in your WordPress database - no tracking pixels or install pings are used.
 
-The optional "OpenBotAuth Radar" telemetry feature sends only anonymized daily aggregates (bot IDs + counts, referrer totals). It does NOT send your site URL, page URLs, IP addresses, or personal data.
+There is an optional "OpenBotAuth Radar" telemetry feature (off by default) that, when enabled, sends anonymized daily aggregate counts (bot IDs + request counts, referrer totals). It does NOT send your site URL, page URLs, IP addresses, or personal data. See "External Service Disclosure" for details.
 
 = Does OpenBotAuth work with Yoast SEO? =
 

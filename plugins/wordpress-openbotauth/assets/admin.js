@@ -83,9 +83,11 @@
         // Telemetry: "Send now" button handler
         $('#openbotauth-send-telemetry-now').on('click', function() {
             const $btn = $(this);
+            const $status = $('#openbotauth-telemetry-status-message');
             const originalText = $btn.text();
             
-            $btn.prop('disabled', true).text('Sending...');
+            $btn.prop('disabled', true).text(openbotauth.i18n?.sending || 'Sending...');
+            $status.html('').removeClass('notice-success notice-error');
             
             $.ajax({
                 url: openbotauth.ajax_url,
@@ -98,22 +100,24 @@
                     if (response.success) {
                         // Update last sent display
                         const data = response.data;
-                        let statusText = 'Just now';
+                        let statusText = openbotauth.i18n?.just_now || 'Just now';
                         if (data.last_status) {
                             const color = data.last_status === '200' ? '#00a32a' : '#d63638';
                             statusText += ' <span style="color: ' + color + ';">(' + data.last_status + ')</span>';
                         }
                         $('#openbotauth-telemetry-last-sent').html(statusText);
-                        alert('Telemetry sent successfully!');
+                        $status.html('<span style="color: #00a32a;">✓ ' + (openbotauth.i18n?.sent_success || 'Sent successfully') + '</span>');
                     } else {
-                        alert('Error: ' + (response.data || 'Unknown error'));
+                        $status.html('<span style="color: #d63638;">✗ ' + (response.data || openbotauth.i18n?.error || 'Error') + '</span>');
                     }
                 },
                 error: function() {
-                    alert('Error sending telemetry. Please try again.');
+                    $status.html('<span style="color: #d63638;">✗ ' + (openbotauth.i18n?.send_error || 'Error sending. Please try again.') + '</span>');
                 },
                 complete: function() {
-                    $btn.prop('disabled', false).text(originalText);
+                    // Re-enable only if checkbox is still checked
+                    const isChecked = $('#openbotauth_share_telemetry').prop('checked');
+                    $btn.prop('disabled', !isChecked).text(originalText);
                 }
             });
         });

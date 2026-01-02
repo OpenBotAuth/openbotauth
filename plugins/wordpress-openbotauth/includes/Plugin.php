@@ -79,15 +79,18 @@ class Plugin {
         add_action('openbotauth_send_daily_telemetry', [$this, 'send_daily_telemetry']);
         add_action('update_option_openbotauth_share_telemetry', [$this, 'handle_telemetry_toggle'], 10, 3);
         
-        // Telemetry: safety check - ensure schedule is consistent with option
-        $this->ensure_telemetry_schedule_consistent();
+        // Telemetry: safety check - only run on admin to avoid front-end perf hit
+        if (is_admin()) {
+            add_action('admin_init', [$this, 'ensure_telemetry_schedule_consistent']);
+        }
     }
     
     /**
      * Ensure telemetry cron schedule is consistent with the option.
      * Handles edge cases like migration or database restore.
+     * Called via admin_init hook to avoid front-end performance impact.
      */
-    private function ensure_telemetry_schedule_consistent(): void {
+    public function ensure_telemetry_schedule_consistent(): void {
         $hook = 'openbotauth_send_daily_telemetry';
         $enabled = (bool) get_option('openbotauth_share_telemetry', false);
         $scheduled = wp_next_scheduled($hook);

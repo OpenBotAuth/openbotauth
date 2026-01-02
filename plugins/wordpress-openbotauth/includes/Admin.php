@@ -120,23 +120,24 @@ class Admin {
             'sanitize_callback' => 'rest_sanitize_boolean',
         ]);
         
-        // Telemetry settings (v0.1.4+) - all default OFF, explicit opt-in
-        register_setting('openbotauth', 'openbotauth_share_telemetry', [
+        // Telemetry settings (v0.1.4+) - SEPARATE option group to avoid wiping other settings
+        // All default OFF, explicit opt-in
+        register_setting('openbotauth_telemetry', 'openbotauth_share_telemetry', [
             'type' => 'boolean',
             'default' => false,
             'sanitize_callback' => 'rest_sanitize_boolean',
         ]);
-        register_setting('openbotauth', 'openbotauth_telemetry_install_id', [
+        register_setting('openbotauth_telemetry', 'openbotauth_telemetry_install_id', [
             'type' => 'string',
             'default' => '',
             'sanitize_callback' => 'sanitize_text_field',
         ]);
-        register_setting('openbotauth', 'openbotauth_telemetry_last_sent', [
+        register_setting('openbotauth_telemetry', 'openbotauth_telemetry_last_sent', [
             'type' => 'integer',
             'default' => 0,
             'sanitize_callback' => 'absint',
         ]);
-        register_setting('openbotauth', 'openbotauth_telemetry_last_status', [
+        register_setting('openbotauth_telemetry', 'openbotauth_telemetry_last_status', [
             'type' => 'string',
             'default' => '',
             'sanitize_callback' => 'sanitize_text_field',
@@ -218,7 +219,7 @@ class Admin {
                 </p>
                 <p>
                     <?php _e('Local-only analytics + AI endpoints (llms.txt, feed, markdown). Optional verifier for signature checks.', 'openbotauth'); ?>
-                    <a href="https://github.com/OpenBotAuth/openbotauth" target="_blank"><?php _e('Documentation', 'openbotauth'); ?></a>
+                    <a href="https://github.com/OpenBotAuth/openbotauth" target="_blank" rel="noopener noreferrer"><?php _e('Documentation', 'openbotauth'); ?></a>
                 </p>
             </div>
             
@@ -734,7 +735,7 @@ class Admin {
             </p>
             
             <form method="post" action="options.php">
-                <?php settings_fields('openbotauth'); ?>
+                <?php settings_fields('openbotauth_telemetry'); ?>
                 
                 <p>
                     <label>
@@ -790,7 +791,7 @@ class Admin {
             
             <p style="margin: 16px 0 8px 0;">
                 <strong><?php _e('Privacy policy:', 'openbotauth'); ?></strong>
-                <a href="https://openbotauth.org/privacy" target="_blank">https://openbotauth.org/privacy</a>
+                <a href="https://openbotauth.org/privacy" target="_blank" rel="noopener noreferrer">https://openbotauth.org/privacy</a>
             </p>
             
             <hr style="margin: 20px 0;">
@@ -817,6 +818,7 @@ class Admin {
                         <?php echo $telemetry_enabled ? '' : 'disabled'; ?>>
                     <?php _e('Send now', 'openbotauth'); ?>
                 </button>
+                <span id="openbotauth-telemetry-status-message"></span>
                 <span style="font-size: 12px; color: #646970;">
                     <?php _e('Use this to test telemetry. This will send the same type of anonymized aggregate payload.', 'openbotauth'); ?>
                 </span>
@@ -1396,6 +1398,13 @@ class Admin {
         wp_localize_script('openbotauth-admin', 'openbotauth', [
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('openbotauth_admin'),
+            'i18n' => [
+                'sending' => __('Sending...', 'openbotauth'),
+                'just_now' => __('Just now', 'openbotauth'),
+                'sent_success' => __('Sent successfully', 'openbotauth'),
+                'error' => __('Error', 'openbotauth'),
+                'send_error' => __('Error sending. Please try again.', 'openbotauth'),
+            ],
         ]);
     }
     
