@@ -10,7 +10,7 @@
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: openbotauth
  * Requires at least: 6.0
- * Requires PHP: 7.4.33
+ * Requires PHP: 7.4
  */
 
 // Prevent direct access

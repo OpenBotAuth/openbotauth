@@ -66,6 +66,8 @@ class Plugin {
         // AI Artifacts: Early interception for llms.txt, feed.json, markdown endpoints
         add_action('parse_request', [$this->router, 'handle_request'], 0);
         
+        // Bot traffic tracking (UA-based) runs before access check
+        add_action('template_redirect', [$this, 'track_bot_traffic'], 0);
         add_action('template_redirect', [$this, 'check_access'], 0);
         add_filter('the_content', [$this->content_filter, 'filter_content'], 10);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_styles']);
@@ -82,6 +84,35 @@ class Plugin {
             $this->verification_cache = $this->verifier->verify_request();
         }
         return $this->verification_cache;
+    }
+    
+    /**
+     * Track bot traffic based on User-Agent
+     * Only counts requests_total here; signed/verified tracked in check_access()
+     */
+    public function track_bot_traffic() {
+        // Skip for admin, logged-in users, AJAX, REST
+        if (is_admin() || is_user_logged_in()) {
+            return;
+        }
+        
+        if (wp_doing_ajax()) {
+            return;
+        }
+        
+        if (defined('REST_REQUEST') && REST_REQUEST) {
+            return;
+        }
+        
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        if (empty($ua)) {
+            return;
+        }
+        
+        $bot_id = BotDetector::detect_bot_id_from_user_agent($ua);
+        if ($bot_id) {
+            Analytics::incrementBotStat($bot_id, 'requests_total');
+        }
     }
     
     /**
@@ -107,6 +138,13 @@ class Plugin {
         // Increment signed_total - request has signature headers
         Analytics::incrementMeta('signed_total');
         
+        // Track per-bot signed count
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $bot_id = BotDetector::detect_bot_id_from_user_agent($ua);
+        if ($bot_id) {
+            Analytics::incrementBotStat($bot_id, 'signed_total');
+        }
+        
         global $post;
         
         // Get cached verification (to avoid duplicate verification)
@@ -115,6 +153,10 @@ class Plugin {
         // Increment verified_total if verification succeeded
         if (!empty($verification['verified'])) {
             Analytics::incrementMeta('verified_total');
+            // Track per-bot verified count
+            if ($bot_id) {
+                Analytics::incrementBotStat($bot_id, 'verified_total');
+            }
         }
         
         /**

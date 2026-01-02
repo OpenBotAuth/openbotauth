@@ -3,7 +3,7 @@ Contributors: openbotauth
 Tags: bot authentication, ai agents, http signatures, rfc 9421, access control
 Requires at least: 6.0
 Tested up to: 6.9
-Requires PHP: 8.0
+Requires PHP: 7.4
 Stable tag: 0.1.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -65,7 +65,7 @@ You can:
 * Self-host the verifier service (see documentation)
 * The verifier service may log requests server-side depending on your configuration
 
-**Analytics are local-only.** Decision counts (allow/teaser/deny/pay/rate_limit) are stored in your WordPress database. No analytics data is sent to external servers.
+**Analytics are local-only.** Decision counts (allow/teaser/deny/pay/rate_limit) and bot traffic observations (User-Agent based) are stored in your WordPress database. No analytics data is sent to external servers.
 
 == Installation ==
 
@@ -102,7 +102,7 @@ Only signature verification requests are sent to your configured verifier URL. T
 
 = Are analytics sent to external servers? =
 
-No. All analytics (decision counts) are stored locally in your WordPress database. No tracking pixels, install pings, or external analytics are used.
+No. All analytics (decision counts and bot traffic observations) are stored locally in your WordPress database. No tracking pixels, install pings, or external analytics are used.
 
 = Does OpenBotAuth work with Yoast SEO? =
 

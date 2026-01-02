@@ -397,7 +397,7 @@ class Admin {
         <div class="openbotauth-analytics">
             <h2><?php _e('Agent Request Analytics', 'openbotauth'); ?></h2>
             <p class="description" style="margin-bottom: 20px;">
-                <?php _e('Local-only analytics for signed agent requests (last 7 days). No data is sent to external servers.', 'openbotauth'); ?>
+                <?php _e('Local-only analytics for bot traffic and signed agent requests (last 7 days). No data is sent to external servers.', 'openbotauth'); ?>
             </p>
             
             <!-- Stats Cards -->
@@ -528,6 +528,87 @@ class Admin {
                     </tfoot>
                 </table>
             </div>
+            
+            <?php $this->render_observed_bots_table(); ?>
+        </div>
+        <?php
+    }
+    
+    /**
+     * Render Observed Bots table
+     * Shows bot traffic detected via User-Agent token matching.
+     */
+    private function render_observed_bots_table() {
+        $bot_totals = Analytics::getBotTotals(7);
+        
+        // Filter to only show bots with requests > 0 and sort by requests descending
+        $active_bots = array_filter($bot_totals, function($bot) {
+            return $bot['requests_total'] > 0;
+        });
+        uasort($active_bots, function($a, $b) {
+            return $b['requests_total'] - $a['requests_total'];
+        });
+        
+        ?>
+        <div class="openbotauth-table-section" style="margin-top: 24px;">
+            <div class="openbotauth-table-header">
+                <span class="dashicons dashicons-visibility" style="color: #646970;"></span>
+                <?php _e('Observed Bots (User-Agent claims)', 'openbotauth'); ?>
+            </div>
+            
+            <div style="padding: 12px 16px; background: #fff8e5; border-bottom: 1px solid #c3c4c7;">
+                <p style="margin: 0; font-size: 12px; color: #646970;">
+                    <span class="dashicons dashicons-info" style="font-size: 14px; width: 14px; height: 14px; vertical-align: text-top;"></span>
+                    <?php _e('User-Agent matching is based on self-declared claims and can be spoofed. Cryptographic verification (Signed/Verified columns) provides stronger identity assurance.', 'openbotauth'); ?>
+                </p>
+            </div>
+            
+            <?php if (empty($active_bots)): ?>
+            <div style="padding: 40px 20px; text-align: center; color: #646970;">
+                <span class="dashicons dashicons-admin-generic" style="font-size: 48px; width: 48px; height: 48px; color: #dcdcde;"></span>
+                <p style="margin: 12px 0 0 0;"><?php _e('No bot traffic detected in the last 7 days.', 'openbotauth'); ?></p>
+                <p style="margin: 4px 0 0 0; font-size: 12px;"><?php _e('Bot visits will appear here when AI crawlers access your site.', 'openbotauth'); ?></p>
+            </div>
+            <?php else: ?>
+            <table class="widefat" style="border: none;">
+                <thead>
+                    <tr>
+                        <th style="padding: 12px;"><?php _e('Bot', 'openbotauth'); ?></th>
+                        <th style="padding: 12px;"><?php _e('Vendor', 'openbotauth'); ?></th>
+                        <th style="padding: 12px;"><?php _e('Category', 'openbotauth'); ?></th>
+                        <th style="text-align: center; padding: 12px;"><?php _e('Requests (7d)', 'openbotauth'); ?></th>
+                        <th style="text-align: center; padding: 12px;" title="<?php esc_attr_e('Signed requests on posts/pages only', 'openbotauth'); ?>"><?php _e('Signed', 'openbotauth'); ?></th>
+                        <th style="text-align: center; padding: 12px;" title="<?php esc_attr_e('Verified requests on posts/pages only', 'openbotauth'); ?>"><?php _e('Verified', 'openbotauth'); ?></th>
+                        <th style="text-align: center; padding: 12px;"><?php _e('Rate', 'openbotauth'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($active_bots as $bot_id => $bot): 
+                        $rate = $bot['signed_total'] > 0 
+                            ? round(($bot['verified_total'] / $bot['signed_total']) * 100) . '%'
+                            : '—';
+                    ?>
+                    <tr>
+                        <td style="padding: 10px 12px; font-weight: 500;"><?php echo esc_html($bot['name']); ?></td>
+                        <td style="padding: 10px 12px;"><?php echo esc_html($bot['vendor']); ?></td>
+                        <td style="padding: 10px 12px;">
+                            <span class="openbotauth-decision-badge" style="background: #e5e7eb; color: #374151;">
+                                <?php echo esc_html($bot['category']); ?>
+                            </span>
+                        </td>
+                        <td style="text-align: center; padding: 10px 12px; font-weight: 600;"><?php echo number_format_i18n($bot['requests_total']); ?></td>
+                        <td style="text-align: center; padding: 10px 12px;"><?php echo number_format_i18n($bot['signed_total']); ?></td>
+                        <td style="text-align: center; padding: 10px 12px; color: <?php echo $bot['verified_total'] > 0 ? '#00a32a' : '#646970'; ?>;">
+                            <?php echo number_format_i18n($bot['verified_total']); ?>
+                        </td>
+                        <td style="text-align: center; padding: 10px 12px; color: <?php echo $rate !== '—' ? '#2271b1' : '#646970'; ?>;">
+                            <?php echo esc_html($rate); ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php endif; ?>
         </div>
         <?php
     }

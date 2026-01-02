@@ -19,6 +19,11 @@ class Analytics {
     const META_STATS_PREFIX = 'openbotauth_meta_stats_';
     
     /**
+     * Option name prefix for bot-specific stats
+     */
+    const BOT_STATS_PREFIX = 'openbotauth_bot_stats_';
+    
+    /**
      * Valid decision types to track
      */
     const DECISION_TYPES = ['allow', 'teaser', 'deny', 'pay', 'rate_limit'];
@@ -173,10 +178,90 @@ class Analytics {
         return $totals;
     }
     
+    // =========================================================================
+    // Bot Stats (per-bot request/signed/verified counts) - separate namespace
+    // =========================================================================
+    
+    /**
+     * Increment a bot-specific counter for today
+     * Uses atomic INSERT ... ON DUPLICATE KEY UPDATE for race-condition safety.
+     * Option name format: openbotauth_bot_stats_YYYY-MM-DD__{bot_id}__{key}
+     *
+     * @param string $bot_id The bot identifier (e.g., 'gptbot', 'perplexitybot')
+     * @param string $key The counter key (requests_total, signed_total, verified_total)
+     */
+    public static function incrementBotStat(string $bot_id, string $key): void {
+        $valid_keys = ['requests_total', 'signed_total', 'verified_total'];
+        if (!in_array($key, $valid_keys, true)) {
+            return;
+        }
+        
+        // Sanitize bot_id to safe key
+        $bot_id = sanitize_key($bot_id);
+        if (empty($bot_id)) {
+            return;
+        }
+        
+        global $wpdb;
+        
+        $date = current_time('Y-m-d');
+        $option_name = self::BOT_STATS_PREFIX . $date . '__' . $bot_id . '__' . $key;
+        
+        // Atomic upsert: insert 1 or increment existing value
+        $wpdb->query(
+            $wpdb->prepare(
+                "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
+                 VALUES (%s, %s, 'no')
+                 ON DUPLICATE KEY UPDATE option_value = CAST(option_value AS UNSIGNED) + 1",
+                $option_name,
+                '1'
+            )
+        );
+    }
+    
+    /**
+     * Get bot totals across the last N days
+     * Returns array keyed by bot_id with metadata and counts
+     *
+     * @param int $days Number of days to sum (default 7)
+     * @return array Bot totals with metadata
+     */
+    public static function getBotTotals(int $days = 7): array {
+        $bots = BotDetector::get_known_bots();
+        $result = [];
+        
+        foreach ($bots as $bot_id => $bot) {
+            $requests_total = 0;
+            $signed_total = 0;
+            $verified_total = 0;
+            
+            // Sum counts for each day
+            for ($i = 0; $i < $days; $i++) {
+                $date = date('Y-m-d', strtotime("-{$i} days", current_time('timestamp')));
+                $base = self::BOT_STATS_PREFIX . $date . '__' . $bot_id . '__';
+                
+                $requests_total += intval(get_option($base . 'requests_total', 0));
+                $signed_total += intval(get_option($base . 'signed_total', 0));
+                $verified_total += intval(get_option($base . 'verified_total', 0));
+            }
+            
+            $result[$bot_id] = [
+                'name' => $bot['name'],
+                'vendor' => $bot['vendor'],
+                'category' => $bot['category'],
+                'requests_total' => $requests_total,
+                'signed_total' => $signed_total,
+                'verified_total' => $verified_total,
+            ];
+        }
+        
+        return $result;
+    }
+    
     /**
      * Clean up old stats (older than 30 days)
      * Throttled to run at most once per day via transient.
-     * Cleans both OPTION_PREFIX and META_STATS_PREFIX options.
+     * Cleans OPTION_PREFIX, META_STATS_PREFIX, and BOT_STATS_PREFIX options.
      */
     public static function cleanup_old_stats() {
         // Throttle: only run once per day
@@ -189,8 +274,8 @@ class Analytics {
         
         $cutoff_date = date('Y-m-d', strtotime('-30 days', current_time('timestamp')));
         
-        // Clean up BOTH prefixes
-        $prefixes = [self::OPTION_PREFIX, self::META_STATS_PREFIX];
+        // Clean up ALL stat prefixes
+        $prefixes = [self::OPTION_PREFIX, self::META_STATS_PREFIX, self::BOT_STATS_PREFIX];
         
         foreach ($prefixes as $prefix) {
             $options = $wpdb->get_col(
