@@ -64,7 +64,7 @@ register_activation_hook(__FILE__, function() {
     // Verifier URL is empty by default - admin must explicitly configure or enable hosted verifier
     add_option('openbotauth_verifier_url', '');
     add_option('openbotauth_use_hosted_verifier', false);
-    add_option('openbotauth_policy', json_encode([
+    add_option('openbotauth_policy', wp_json_encode([
         'default' => [
             'effect' => 'teaser',
             'teaser_words' => 100
