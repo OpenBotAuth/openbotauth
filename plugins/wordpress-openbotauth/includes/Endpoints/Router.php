@@ -16,6 +16,7 @@
 namespace OpenBotAuth\Endpoints;
 
 use OpenBotAuth\Content\MetadataProviderInterface;
+use OpenBotAuth\Plugin;
 
 /**
  * Router for AI-ready endpoints.
@@ -50,6 +51,7 @@ class Router {
 
         // llms.txt (both paths)
         if (in_array($route, ['/llms.txt', '/.well-known/llms.txt'], true)) {
+            Plugin::track_referrer_stat();
             if ($this->is_llms_enabled()) {
                 $this->serve_llms_txt();
             } else {
@@ -60,6 +62,7 @@ class Router {
 
         // feed.json
         if ($route === '/.well-known/openbotauth-feed.json') {
+            Plugin::track_referrer_stat();
             if ($this->is_feed_enabled()) {
                 $this->serve_feed_json();
             } else {
@@ -70,6 +73,7 @@ class Router {
 
         // markdown posts
         if (preg_match('#^/\.well-known/openbotauth/posts/(\d+)\.md$#', $route, $matches)) {
+            Plugin::track_referrer_stat();
             if ($this->is_markdown_enabled()) {
                 $this->serve_post_markdown((int) $matches[1]);
             } else {

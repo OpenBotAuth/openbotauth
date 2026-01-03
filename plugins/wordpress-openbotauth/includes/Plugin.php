@@ -113,6 +113,31 @@ class Plugin {
         if ($bot_id) {
             Analytics::incrementBotStat($bot_id, 'requests_total');
         }
+        
+        // Also track referrer stats
+        self::track_referrer_stat();
+    }
+    
+    /**
+     * Track referrer stat if request comes from known AI chat sources.
+     * Static + pure: just parses referer, matches known hosts, increments stat.
+     * Called from track_bot_traffic() and Router (for AI endpoints).
+     */
+    public static function track_referrer_stat(): void {
+        $ref = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
+        if (empty($ref)) {
+            return;
+        }
+        
+        $host = wp_parse_url($ref, PHP_URL_HOST);
+        $host = strtolower($host ? $host : '');
+        
+        // Match ChatGPT hosts
+        if (in_array($host, ['chatgpt.com', 'www.chatgpt.com', 'chat.openai.com'], true)) {
+            Analytics::incrementRefStat('chatgpt');
+        } elseif (in_array($host, ['perplexity.ai', 'www.perplexity.ai'], true)) {
+            Analytics::incrementRefStat('perplexity');
+        }
     }
     
     /**

@@ -1,10 +1,10 @@
 <?php
+namespace OpenBotAuth;
+
 // Prevent direct access
 if (!defined('ABSPATH')) {
     exit;
 }
-
-namespace OpenBotAuth;
 
 /**
  * Bot Detector
