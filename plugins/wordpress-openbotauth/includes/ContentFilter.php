@@ -60,8 +60,12 @@ class ContentFilter {
             // since Plugin::check_access() exits on 402 before content filtering runs.
             case 'pay':
                 status_header(402);
-                if (!empty($result['pay_url'])) {
-                    header('Link: <' . $result['pay_url'] . '>; rel="payment"');
+                if (!empty($result['pay_url']) && !headers_sent()) {
+                    $safe_url = esc_url_raw($result['pay_url'], array('http', 'https'));
+                    $safe_url = trim(str_replace(array("\r", "\n", '<', '>'), '', $safe_url));
+                    if (!empty($safe_url)) {
+                        header('Link: <' . $safe_url . '>; rel="payment"', false);
+                    }
                 }
                 return '<p>Payment required to access this content.</p>';
                 
@@ -109,9 +113,11 @@ class ContentFilter {
         $teaser_words = array_slice($words, 0, $word_count);
         $teaser_text = implode(' ', $teaser_words);
         
-        // Build teaser HTML
+        // Build teaser HTML (escape text to prevent XSS from literal < or > in content)
+        // Use wp_specialchars_decode first to avoid double-encoding entities (e.g., &amp; → &amp;amp;)
+        $decoded = wp_specialchars_decode($teaser_text . '...', ENT_QUOTES);
         $teaser = '<div class="openbotauth-teaser">';
-        $teaser .= '<div class="teaser-content">' . wpautop($teaser_text) . '...</div>';
+        $teaser .= '<div class="teaser-content">' . wpautop(esc_html($decoded)) . '</div>';
         $teaser .= '<div class="teaser-notice">';
         $teaser .= '<p><strong>' . __('Content Preview', 'openbotauth') . '</strong></p>';
         $teaser .= '<p>' . __('This is a preview. Authenticated bots can access the full content.', 'openbotauth') . '</p>';

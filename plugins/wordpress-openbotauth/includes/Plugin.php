@@ -249,7 +249,10 @@ class Plugin {
      */
     private function send_402_response($result, $post) {
         status_header(402);
-        header('Content-Type: application/json');
+        if (!headers_sent()) {
+            header('X-OBA-Decision: pay');
+            header('Content-Type: application/json');
+        }
         
         $response = [
             'error' => 'Payment required',
@@ -259,24 +262,34 @@ class Plugin {
             'post_title' => $post->post_title,
         ];
         
-        // Add payment link if available
+        // Add payment link if available (sanitized to prevent header injection)
         if (!empty($result['pay_url'])) {
-            header('Link: <' . $result['pay_url'] . '>; rel="payment"');
-            $response['pay_url'] = $result['pay_url'];
+            $safe_url = esc_url_raw($result['pay_url'], array('http', 'https'));
+            $safe_url = trim(str_replace(array("\r", "\n", '<', '>'), '', $safe_url));
+            if (!empty($safe_url)) {
+                if (!headers_sent()) {
+                    header('Link: <' . $safe_url . '>; rel="payment"', false);
+                }
+                $response['pay_url'] = $safe_url;
+            }
         }
         
-        echo json_encode($response);
+        echo wp_json_encode($response);
         exit;
     }
     
     /**
      * Register REST API routes
+     * Note: Policy endpoint is admin-only as it returns full policy including
+     * whitelist/blacklist/rate_limit which may be sensitive.
      */
     public function register_rest_routes() {
         register_rest_route('openbotauth/v1', '/policy', [
             'methods' => 'GET',
             'callback' => [$this, 'get_policy_rest'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => function() {
+                return current_user_can('manage_options');
+            },
         ]);
     }
     

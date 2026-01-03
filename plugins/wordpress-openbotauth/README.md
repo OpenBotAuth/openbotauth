@@ -2,7 +2,7 @@
 
 **Secure bot authentication using RFC 9421 HTTP signatures. Control bot access with granular policies, teasers, and 402 payment flows.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](https://www.gnu.org/licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-7.4%2B-blue.svg)](https://www.php.net/)
 
@@ -386,7 +386,10 @@ Patterns can be:
 
 ### REST Endpoints
 
-**Get Policy**
+**Get Policy (Admin Only)**
+
+> **Note:** This endpoint requires `manage_options` capability (admin users only) as it returns the full policy including whitelist, blacklist, and rate limit configuration.
+
 ```
 GET /wp-json/openbotauth/v1/policy?post_id=123
 ```
@@ -634,7 +637,7 @@ phpunit
 
 ## 📄 License
 
-MIT License - see [LICENSE](../../LICENSE) for details
+GPLv2 or later - see [LICENSE.txt](LICENSE.txt) for details
 
 ---
 

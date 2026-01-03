@@ -57,10 +57,16 @@ class Verifier {
             'headers' => $headers,
         ];
         
+        // Encode request body (with fallback for encoding failure)
+        $body = wp_json_encode($verify_request);
+        if (false === $body) {
+            $body = '{}';
+        }
+        
         // Call verifier service
         $response = wp_remote_post($this->verifier_url, [
             'headers' => ['Content-Type' => 'application/json'],
-            'body' => json_encode($verify_request),
+            'body' => $body,
             'timeout' => 5,
         ]);
         
@@ -149,12 +155,15 @@ class Verifier {
     
     /**
      * Get current full URL
+     * Uses WordPress home_url() with site-configured host (not request header)
+     * to prevent Host header injection attacks.
      */
     private function get_current_url() {
-        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'];
-        $uri = $_SERVER['REQUEST_URI'];
-        return $protocol . '://' . $host . $uri;
+        // Use wp_unslash to handle magic quotes on older PHP/WP setups
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '/';
+        // Preserve request scheme to avoid proxy setup issues
+        $scheme = is_ssl() ? 'https' : 'http';
+        return home_url($request_uri, $scheme);
     }
 }
 

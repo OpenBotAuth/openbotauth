@@ -973,7 +973,7 @@ class Admin {
                 $policy['default']['teaser_words'] = intval($_POST['openbotauth_teaser_words']);
             }
             
-            return json_encode($policy);
+            return wp_json_encode($policy);
         }
         
         // Otherwise, validate and return the JSON as-is
@@ -1212,7 +1212,7 @@ class Admin {
                 'price_cents' => intval($_POST['openbotauth_price_cents'] ?? 0),
             ];
             
-            update_post_meta($post_id, '_openbotauth_policy', json_encode($policy));
+            update_post_meta($post_id, '_openbotauth_policy', wp_json_encode($policy));
         } else {
             delete_post_meta($post_id, '_openbotauth_policy');
         }
