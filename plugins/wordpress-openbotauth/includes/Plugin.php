@@ -265,7 +265,7 @@ class Plugin {
         // Add payment link if available (sanitized to prevent header injection)
         if (!empty($result['pay_url'])) {
             $safe_url = esc_url_raw($result['pay_url'], array('http', 'https'));
-            $safe_url = str_replace(array("\r", "\n", '<', '>'), '', $safe_url);
+            $safe_url = trim(str_replace(array("\r", "\n", '<', '>'), '', $safe_url));
             if (!empty($safe_url)) {
                 if (!headers_sent()) {
                     header('Link: <' . $safe_url . '>; rel="payment"', false);
