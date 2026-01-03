@@ -49,6 +49,18 @@ const Footer = () => {
                 Discord
                 <ExternalLink className="h-3 w-3" />
               </a>
+              <a
+                href="/privacy"
+                className="text-sm hover:text-primary transition-colors flex items-center gap-1"
+              >
+                Privacy
+              </a>
+              <a
+                href="/contact"
+                className="text-sm hover:text-primary transition-colors flex items-center gap-1"
+              >
+                Contact
+              </a>
             </div>
           </div>
         </div>
