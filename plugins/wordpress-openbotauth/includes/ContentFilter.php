@@ -1,6 +1,11 @@
 <?php
 namespace OpenBotAuth;
 
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Content Filter
  * Filters post content based on policy (e.g., teasers)

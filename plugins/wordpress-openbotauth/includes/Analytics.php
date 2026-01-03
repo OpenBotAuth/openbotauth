@@ -1,6 +1,11 @@
 <?php
 namespace OpenBotAuth;
 
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Local-only Analytics
  * Tracks daily decision counts stored in WordPress options.

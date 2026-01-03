@@ -1,6 +1,11 @@
 <?php
 namespace OpenBotAuth;
 
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Admin Interface
  * Settings page and post meta boxes

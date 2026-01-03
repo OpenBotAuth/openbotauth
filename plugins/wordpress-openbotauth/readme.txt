@@ -116,6 +116,16 @@ The settings page has three tabs:
 * **AI Endpoints** - llms.txt, JSON feed, markdown settings with copyable URLs
 * **Configuration** - Verifier URL, default policy, whitelist/blacklist, rate limits
 
+= Do AI endpoints bypass membership or paywall plugins? =
+
+The AI endpoints (llms.txt, JSON feed, markdown) serve content directly on early request interception and only check if content is published and not password-protected. If you use a membership or paywall plugin that restricts content via later WordPress hooks, that content may still be accessible via AI endpoints.
+
+To control this, you can:
+
+* Disable specific AI endpoints in Settings > OpenBotAuth > AI Endpoints
+* Use the `openbotauth_should_serve_feed`, `openbotauth_should_serve_llms_txt`, or `openbotauth_should_serve_markdown` filters to add custom logic
+* Exclude specific post types from AI endpoints using the post types setting
+
 == Screenshots ==
 
 1. Analytics tab - Visual dashboard showing bot traffic, charts, stats cards, and decision breakdown

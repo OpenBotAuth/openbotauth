@@ -1,6 +1,11 @@
 <?php
 namespace OpenBotAuth;
 
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Signature Verifier
  * Communicates with the Node.js verifier service

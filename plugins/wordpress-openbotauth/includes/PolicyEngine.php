@@ -1,6 +1,11 @@
 <?php
 namespace OpenBotAuth;
 
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Policy Engine
  * Evaluates policies and determines access control

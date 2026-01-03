@@ -1,4 +1,9 @@
 <?php
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * AI Endpoints Router
  *
