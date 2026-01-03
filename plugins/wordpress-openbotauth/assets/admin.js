@@ -74,54 +74,6 @@
                 // Ignore formatting errors
             }
         });
-        
-        // Telemetry: toggle "Send now" button based on checkbox state
-        $('#openbotauth_share_telemetry').on('change', function() {
-            $('#openbotauth-send-telemetry-now').prop('disabled', !this.checked);
-        });
-        
-        // Telemetry: "Send now" button handler
-        $('#openbotauth-send-telemetry-now').on('click', function() {
-            var $btn = $(this);
-            var $status = $('#openbotauth-telemetry-status-message');
-            var originalText = $btn.text();
-            var i18n = openbotauth.i18n || {};
-            
-            $btn.prop('disabled', true).text(i18n.sending || 'Sending...');
-            $status.html('').removeClass('notice-success notice-error');
-            
-            $.ajax({
-                url: openbotauth.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'openbotauth_send_telemetry_now',
-                    nonce: openbotauth.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        // Update last sent display
-                        var data = response.data;
-                        var statusText = i18n.just_now || 'Just now';
-                        if (data.last_status) {
-                            var color = data.last_status === '200' ? '#00a32a' : '#d63638';
-                            statusText += ' <span style="color: ' + color + ';">(' + data.last_status + ')</span>';
-                        }
-                        $('#openbotauth-telemetry-last-sent').html(statusText);
-                        $status.html('<span style="color: #00a32a;">✓ ' + (i18n.sent_success || 'Sent successfully') + '</span>');
-                    } else {
-                        $status.html('<span style="color: #d63638;">✗ ' + (response.data || i18n.error || 'Error') + '</span>');
-                    }
-                },
-                error: function() {
-                    $status.html('<span style="color: #d63638;">✗ ' + (i18n.send_error || 'Error sending. Please try again.') + '</span>');
-                },
-                complete: function() {
-                    // Re-enable only if checkbox is still checked
-                    var isChecked = $('#openbotauth_share_telemetry').prop('checked');
-                    $btn.prop('disabled', !isChecked).text(originalText);
-                }
-            });
-        });
     });
     
 })(jQuery);

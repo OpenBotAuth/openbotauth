@@ -14,7 +14,6 @@ class Admin {
         add_action('save_post', [$this, 'save_post_meta']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_scripts']);
         add_action('wp_ajax_openbotauth_save_policy', [$this, 'ajax_save_policy']);
-        add_action('wp_ajax_openbotauth_send_telemetry_now', [$this, 'ajax_send_telemetry_now']);
         
         // Clean up old analytics data (older than 30 days)
         add_action('admin_init', [Analytics::class, 'cleanup_old_stats']);
@@ -119,15 +118,6 @@ class Admin {
             'default' => false,
             'sanitize_callback' => 'rest_sanitize_boolean',
         ]);
-        
-        // Telemetry settings (v0.1.4+) - SEPARATE option group to avoid wiping other settings
-        // Only register the user-editable option. Internal options (install_id, last_sent, last_status)
-        // are managed via get_option/update_option and don't need Settings API registration.
-        register_setting('openbotauth_telemetry', 'openbotauth_share_telemetry', [
-            'type' => 'boolean',
-            'default' => false,
-            'sanitize_callback' => 'rest_sanitize_boolean',
-        ]);
     }
     
     /**
@@ -219,27 +209,32 @@ class Admin {
                     ?>
                 </form>
                 
-                <hr>
-                
-                <h2><?php _e('Advanced Policy Configuration', 'openbotauth'); ?></h2>
-                <p><?php _e('For advanced policy configuration (whitelists, blacklists, rate limits), edit the policy JSON directly:', 'openbotauth'); ?></p>
-                
-                <textarea id="openbotauth-policy-json" rows="15" style="width: 100%; font-family: monospace;">
+                <details class="openbotauth-advanced-section" style="margin-top: 30px;">
+                    <summary style="cursor: pointer; font-size: 14px; font-weight: 600; color: #1d2327; padding: 12px 0;">
+                        <span class="dashicons dashicons-admin-generic" style="margin-right: 6px; color: #646970;"></span>
+                        <?php _e('Advanced Policy Configuration', 'openbotauth'); ?>
+                        <span style="font-weight: normal; color: #646970; font-size: 12px; margin-left: 8px;"><?php _e('(JSON editor for power users)', 'openbotauth'); ?></span>
+                    </summary>
+                    
+                    <div style="padding: 16px 0;">
+                        <p style="margin-top: 0;"><?php _e('For advanced policy configuration (whitelists, blacklists, rate limits), edit the policy JSON directly:', 'openbotauth'); ?></p>
+                        
+                        <textarea id="openbotauth-policy-json" rows="12" style="width: 100%; font-family: monospace; font-size: 13px;">
 <?php echo esc_textarea(get_option('openbotauth_policy', '{}')); ?>
-                </textarea>
-                
-                <p>
-                    <button type="button" class="button button-primary" id="openbotauth-save-policy">
-                        <?php _e('Save Policy JSON', 'openbotauth'); ?>
-                    </button>
-                    <button type="button" class="button" id="openbotauth-validate-policy">
-                        <?php _e('Validate JSON', 'openbotauth'); ?>
-                    </button>
-                </p>
-                
-                <details>
-                    <summary><?php _e('Policy JSON Schema', 'openbotauth'); ?></summary>
-                    <pre style="background: #f5f5f5; padding: 15px; overflow: auto;">
+                        </textarea>
+                        
+                        <p>
+                            <button type="button" class="button button-primary" id="openbotauth-save-policy">
+                                <?php _e('Save Policy JSON', 'openbotauth'); ?>
+                            </button>
+                            <button type="button" class="button" id="openbotauth-validate-policy">
+                                <?php _e('Validate JSON', 'openbotauth'); ?>
+                            </button>
+                        </p>
+                        
+                        <details style="margin-top: 16px;">
+                            <summary style="cursor: pointer; color: #2271b1;"><?php _e('Policy JSON Schema', 'openbotauth'); ?></summary>
+                            <pre style="background: #f5f5f5; padding: 15px; overflow: auto; margin-top: 10px; font-size: 12px;">
 {
   "default": {
     "effect": "allow|deny|teaser",
@@ -254,10 +249,10 @@ class Admin {
     }
   }
 }
-                    </pre>
+                            </pre>
+                        </details>
+                    </div>
                 </details>
-                
-                <?php $this->render_telemetry_section(); ?>
                 
             <?php elseif ($current_tab === 'ai-artifacts'): ?>
                 <!-- AI Artifacts Tab -->
@@ -682,148 +677,6 @@ class Admin {
                     <?php _e('Referrer can be hidden by browsers/privacy settings, so this may undercount.', 'openbotauth'); ?>
                 </p>
             </div>
-        </div>
-        <?php
-    }
-    
-    /**
-     * Render Telemetry section for Configuration tab.
-     * Explicit opt-in to share anonymized aggregates with OpenBotAuth Radar.
-     */
-    private function render_telemetry_section(): void {
-        $telemetry_enabled = (bool) get_option('openbotauth_share_telemetry', false);
-        $last_sent = get_option('openbotauth_telemetry_last_sent', 0);
-        $last_status = get_option('openbotauth_telemetry_last_status', '');
-        
-        $display_time = $last_sent > 0 
-            ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $last_sent) 
-            : __('Never', 'openbotauth');
-        
-        // Get preview payload if telemetry is enabled
-        $preview_json = '';
-        if ($telemetry_enabled) {
-            $plugin = Plugin::get_instance();
-            $payload = $plugin->build_telemetry_payload(false); // false = don't persist install_id
-            $preview_json = wp_json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        }
-        
-        ?>
-        <hr style="margin: 30px 0;">
-        
-        <div style="background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; max-width: 800px;">
-            <h2 style="margin-top: 0;">
-                <span class="dashicons dashicons-chart-pie" style="color: #646970;"></span>
-                <?php _e('OpenBotAuth Radar (optional)', 'openbotauth'); ?>
-            </h2>
-            
-            <p style="margin-bottom: 16px;">
-                <?php _e('Help improve the public OpenBotAuth Radar by sharing anonymized daily aggregates. This is off by default.', 'openbotauth'); ?>
-            </p>
-            
-            <form method="post" action="options.php">
-                <?php settings_fields('openbotauth_telemetry'); ?>
-                
-                <p>
-                    <label>
-                        <input type="hidden" name="openbotauth_share_telemetry" value="0">
-                        <input type="checkbox" 
-                               name="openbotauth_share_telemetry" 
-                               id="openbotauth_share_telemetry"
-                               value="1" 
-                               <?php checked($telemetry_enabled); ?>>
-                        <strong><?php _e('Share anonymized daily aggregates with OpenBotAuth Radar', 'openbotauth'); ?></strong>
-                    </label>
-                </p>
-                <p class="description" style="margin-left: 24px;">
-                    <?php _e('When enabled, the plugin will send one request per day to our endpoint with aggregate counts only. No data is sent unless you enable this.', 'openbotauth'); ?>
-                </p>
-                
-                <?php submit_button(__('Save Telemetry Settings', 'openbotauth'), 'secondary', 'submit', false); ?>
-            </form>
-            
-            <hr style="margin: 20px 0;">
-            
-            <p style="margin-bottom: 8px;">
-                <strong><?php _e('Endpoint:', 'openbotauth'); ?></strong>
-                <code>https://openbotauth.org/radar/ingest</code>
-            </p>
-            
-            <div style="display: flex; gap: 40px; margin: 16px 0;">
-                <div>
-                    <p style="margin: 0 0 8px 0; font-weight: 600; color: #00a32a;">
-                        <?php _e('What is sent:', 'openbotauth'); ?>
-                    </p>
-                    <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #1d2327;">
-                        <li><?php _e('A random install ID (not linked to your site)', 'openbotauth'); ?></li>
-                        <li><?php _e('Plugin version', 'openbotauth'); ?></li>
-                        <li><?php _e('Daily aggregate counts (bot IDs + request/signed/verified counts)', 'openbotauth'); ?></li>
-                        <li><?php _e('Daily referrer source totals (e.g., ChatGPT/Perplexity)', 'openbotauth'); ?></li>
-                    </ul>
-                </div>
-                <div>
-                    <p style="margin: 0 0 8px 0; font-weight: 600; color: #d63638;">
-                        <?php _e('What is not sent:', 'openbotauth'); ?>
-                    </p>
-                    <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #1d2327;">
-                        <li><?php _e('Your site URL or domain', 'openbotauth'); ?></li>
-                        <li><?php _e('Page URLs, content, or post titles', 'openbotauth'); ?></li>
-                        <li><?php _e('IP addresses', 'openbotauth'); ?></li>
-                        <li><?php _e('Full User-Agent strings', 'openbotauth'); ?></li>
-                        <li><?php _e('Vendor/category metadata', 'openbotauth'); ?></li>
-                        <li><?php _e('Any personal data', 'openbotauth'); ?></li>
-                    </ul>
-                </div>
-            </div>
-            
-            <p style="margin: 16px 0 8px 0;">
-                <strong><?php _e('Privacy policy:', 'openbotauth'); ?></strong>
-                <a href="https://openbotauth.org/privacy" target="_blank" rel="noopener noreferrer">https://openbotauth.org/privacy</a>
-            </p>
-            
-            <hr style="margin: 20px 0;">
-            
-            <details style="margin-bottom: 16px;">
-                <summary style="cursor: pointer; font-weight: 500;">
-                    <?php _e('Preview the data that will be sent', 'openbotauth'); ?>
-                </summary>
-                <div style="margin-top: 12px;">
-                    <?php if ($telemetry_enabled && $preview_json): ?>
-                    <pre style="background: #f6f7f7; padding: 12px; border-radius: 4px; overflow: auto; font-size: 12px; max-height: 300px;"><?php echo esc_html($preview_json); ?></pre>
-                    <?php else: ?>
-                    <p style="color: #646970; font-style: italic;">
-                        <?php _e('Enable telemetry to preview the exact payload.', 'openbotauth'); ?>
-                    </p>
-                    <?php endif; ?>
-                </div>
-            </details>
-            
-            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-                <button type="button" 
-                        class="button" 
-                        id="openbotauth-send-telemetry-now"
-                        <?php echo $telemetry_enabled ? '' : 'disabled'; ?>>
-                    <?php _e('Send now', 'openbotauth'); ?>
-                </button>
-                <span id="openbotauth-telemetry-status-message"></span>
-                <span style="font-size: 12px; color: #646970;">
-                    <?php _e('Use this to test telemetry. This will send the same type of anonymized aggregate payload.', 'openbotauth'); ?>
-                </span>
-            </div>
-            
-            <p style="margin: 0; font-size: 13px;">
-                <strong><?php _e('Last attempt:', 'openbotauth'); ?></strong>
-                <span id="openbotauth-telemetry-last-sent"><?php echo esc_html($display_time); ?></span>
-                <?php if ($last_status): ?>
-                <span style="margin-left: 8px; color: <?php echo $last_status === '200' ? '#00a32a' : '#d63638'; ?>;">
-                    (<?php echo esc_html($last_status); ?>)
-                </span>
-                <?php endif; ?>
-            </p>
-            
-            <p style="margin: 12px 0 0 0; font-size: 11px; color: #8c8f94;">
-                <span class="dashicons dashicons-info" style="font-size: 14px; width: 14px; height: 14px; vertical-align: text-top;"></span>
-                <?php _e('Referrer can be hidden by browsers/privacy settings, so referrer totals may undercount.', 'openbotauth'); ?>
-            </p>
         </div>
         <?php
     }
@@ -1384,13 +1237,6 @@ class Admin {
         wp_localize_script('openbotauth-admin', 'openbotauth', [
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('openbotauth_admin'),
-            'i18n' => [
-                'sending' => __('Sending...', 'openbotauth'),
-                'just_now' => __('Just now', 'openbotauth'),
-                'sent_success' => __('Sent successfully', 'openbotauth'),
-                'error' => __('Error', 'openbotauth'),
-                'send_error' => __('Error sending. Please try again.', 'openbotauth'),
-            ],
         ]);
     }
     
@@ -1418,32 +1264,6 @@ class Admin {
         update_option('openbotauth_policy', $policy);
         
         wp_send_json_success('Policy saved');
-    }
-    
-    /**
-     * AJAX handler to send telemetry immediately
-     */
-    public function ajax_send_telemetry_now(): void {
-        check_ajax_referer('openbotauth_admin', 'nonce');
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(__('Insufficient permissions', 'openbotauth'));
-            return;
-        }
-        
-        // Server-side guard: don't send if telemetry is not enabled
-        if (!get_option('openbotauth_share_telemetry', false)) {
-            wp_send_json_error(__('Telemetry is not enabled. Please enable it first.', 'openbotauth'));
-            return;
-        }
-        
-        $plugin = Plugin::get_instance();
-        $plugin->send_daily_telemetry();
-        
-        wp_send_json_success([
-            'last_sent' => get_option('openbotauth_telemetry_last_sent', 0),
-            'last_status' => get_option('openbotauth_telemetry_last_status', ''),
-        ]);
     }
 }
 
