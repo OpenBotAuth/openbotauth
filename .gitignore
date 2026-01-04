@@ -42,3 +42,5 @@ temp/
 .docker/
 
 .cursor/
+CLAUDE.md
+.claude/

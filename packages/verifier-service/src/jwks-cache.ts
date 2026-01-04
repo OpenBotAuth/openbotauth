@@ -1,13 +1,14 @@
 /**
  * JWKS Cache with Redis backing
- * 
+ *
  * Fetches and caches JWKS from registry URLs
  */
 
-import type { JWKSCache } from './types.js';
+import type { JWKSCache } from "./types.js";
+import { validateSafeUrl } from "./signature-parser.js";
 
 const JWKS_CACHE_TTL = 3600; // 1 hour default
-const JWKS_CACHE_PREFIX = 'jwks:';
+const JWKS_CACHE_PREFIX = "jwks:";
 
 export class JWKSCacheManager {
   constructor(private redis: any) {}
@@ -24,14 +25,14 @@ export class JWKSCacheManager {
       try {
         const cacheData: JWKSCache = JSON.parse(cached);
         const age = Date.now() - cacheData.fetched_at;
-        
+
         // If cache is still valid, return it
         if (age < cacheData.ttl * 1000) {
           console.log(`JWKS cache hit for ${jwksUrl}`);
           return cacheData.jwks;
         }
       } catch (error) {
-        console.error('Error parsing cached JWKS:', error);
+        console.error("Error parsing cached JWKS:", error);
       }
     }
 
@@ -46,36 +47,48 @@ export class JWKSCacheManager {
       ttl: JWKS_CACHE_TTL,
     };
 
-    await this.redis.setEx(
-      cacheKey,
-      JWKS_CACHE_TTL,
-      JSON.stringify(cacheData)
-    );
+    await this.redis.setEx(cacheKey, JWKS_CACHE_TTL, JSON.stringify(cacheData));
 
     return jwks;
   }
 
   /**
-   * Fetch JWKS from URL
+   * Fetch JWKS from URL with SSRF protection
    */
   private async fetchJWKS(jwksUrl: string): Promise<any> {
     try {
+      // SSRF protection: validate URL is safe to fetch
+      validateSafeUrl(jwksUrl);
+
+      // Fetch with timeout and size limit
       const response = await fetch(jwksUrl, {
+        method: "GET",
         headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'OpenBotAuth-Verifier/0.1.0',
+          Accept: "application/json",
+          "User-Agent": "OpenBotAuth-Verifier/0.1.0",
         },
+        signal: AbortSignal.timeout(3000), // 3s timeout
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch JWKS: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch JWKS: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      // Limit response size to 1MB to prevent huge payloads
+      const contentLength = response.headers.get("content-length");
+      if (contentLength && parseInt(contentLength, 10) > 1024 * 1024) {
+        throw new Error(
+          `JWKS response too large: ${contentLength} bytes (max 1MB)`,
+        );
       }
 
       const jwks: any = await response.json();
 
       // Validate JWKS structure
       if (!jwks.keys || !Array.isArray(jwks.keys)) {
-        throw new Error('Invalid JWKS format: missing keys array');
+        throw new Error("Invalid JWKS format: missing keys array");
       }
 
       return jwks;
@@ -90,7 +103,7 @@ export class JWKSCacheManager {
    */
   async getKey(jwksUrl: string, kid: string): Promise<any> {
     const jwks: any = await this.getJWKS(jwksUrl);
-    
+
     const key = jwks.keys?.find((k: any) => k.kid === kid);
     if (!key) {
       throw new Error(`Key with kid ${kid} not found in JWKS`);
@@ -119,4 +132,3 @@ export class JWKSCacheManager {
     }
   }
 }
-

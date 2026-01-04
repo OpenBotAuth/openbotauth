@@ -57,8 +57,11 @@ Configure which post types to include (posts, pages, or custom types) and set th
 * HTTP method (GET, POST, etc.)
 * The accessed URL (including query string, if present)
 * HTTP signature headers (Signature, Signature-Input, Signature-Agent)
+* Additional HTTP header values explicitly listed in the Signature-Input header (e.g., content-type, accept, user-agent)
 
-**No WordPress user accounts, cookies, or personal data is transmitted.** Note that the URL may include query parameters depending on your site's structure.
+**Privacy protection:** Sensitive headers (cookies, authorization, proxy-authorization, www-authenticate) are NEVER forwarded, even if present in the request. If a bot's signature covers a sensitive header, verification will fail with a clear error.
+
+**No WordPress user accounts or personal data is transmitted.** Only the headers explicitly covered by the bot's signature are forwarded to enable cryptographic verification. Note that the URL may include query parameters depending on your site's structure.
 
 You can:
 * Use the hosted verifier at `https://verifier.openbotauth.org/verify`
