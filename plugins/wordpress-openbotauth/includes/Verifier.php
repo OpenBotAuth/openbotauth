@@ -44,9 +44,18 @@ class Verifier {
             ];
         }
         
-        // Extract signature headers
+        // Extract signature headers (may return error if sensitive header detected)
         $headers = $this->get_signature_headers();
-        
+
+        // Check if get_signature_headers returned an error
+        if (isset($headers['error'])) {
+            return [
+                'verified' => false,
+                'error' => $headers['error'],
+                'agent' => null,
+            ];
+        }
+
         if (empty($headers['signature']) || empty($headers['signature-input'])) {
             return [
                 'verified' => false,
@@ -87,7 +96,15 @@ class Verifier {
         
         $status_code = wp_remote_retrieve_response_code($response);
         if ($status_code !== 200) {
+            // Try to parse error from response body
+            $response_body = wp_remote_retrieve_body($response);
+            $error_details = json_decode($response_body, true);
+
             $error_msg = 'Verifier service returned status ' . $status_code;
+            if ($error_details && isset($error_details['error'])) {
+                $error_msg .= ': ' . $error_details['error'];
+            }
+
             error_log('[OpenBotAuth] ' . $error_msg);
             return [
                 'verified' => false,
@@ -130,10 +147,13 @@ class Verifier {
     
     /**
      * Get signature-related headers from current request
+     *
+     * Includes signature headers + any additional headers covered by Signature-Input.
+     * Privacy protection: excludes cookies and authorization headers.
      */
     private function get_signature_headers() {
         $headers = [];
-        
+
         // Get all headers
         if (function_exists('getallheaders')) {
             $all_headers = getallheaders();
@@ -146,16 +166,78 @@ class Verifier {
                 }
             }
         }
-        
-        // Extract signature headers (case-insensitive)
+
+        // Extract signature headers (case-insensitive) - always required
+        $signature_input_value = null;
         foreach ($all_headers as $name => $value) {
             $lower_name = strtolower($name);
             if (in_array($lower_name, ['signature', 'signature-input', 'signature-agent'])) {
                 $headers[$lower_name] = $value;
+                if ($lower_name === 'signature-input') {
+                    $signature_input_value = $value;
+                }
             }
         }
-        
+
+        // If we have Signature-Input, parse it to find covered headers
+        if ($signature_input_value) {
+            $covered_headers = $this->parse_covered_headers($signature_input_value);
+
+            // Add each covered header that's not a derived component (@-prefix)
+            // and not a sensitive header
+            $sensitive_headers = ['cookie', 'authorization', 'proxy-authorization', 'www-authenticate'];
+
+            foreach ($covered_headers as $covered_header) {
+                // Skip derived components (@method, @path, etc.)
+                if (substr($covered_header, 0, 1) === '@') {
+                    continue;
+                }
+
+                $lower_covered = strtolower($covered_header);
+
+                // Check if it's a sensitive header
+                if (in_array($lower_covered, $sensitive_headers)) {
+                    error_log('[OpenBotAuth] Cannot verify: Signature-Input covers sensitive header: ' . $covered_header);
+                    return [
+                        'error' => 'Cannot verify: Signature-Input covers sensitive header \'' . $covered_header . '\' which is not forwarded.'
+                    ];
+                }
+
+                // Find the header value (case-insensitive lookup)
+                foreach ($all_headers as $name => $value) {
+                    if (strtolower($name) === $lower_covered) {
+                        // Store with lowercase key (verifier expects lowercase)
+                        $headers[$lower_covered] = $value;
+                        break;
+                    }
+                }
+            }
+        }
+
         return $headers;
+    }
+
+    /**
+     * Parse Signature-Input header to extract covered components
+     *
+     * Example: sig1=("@method" "@path" "content-type" "accept");created=...
+     * Returns: ["@method", "@path", "content-type", "accept"]
+     */
+    private function parse_covered_headers($signature_input) {
+        // Extract the parenthesized list of headers
+        if (preg_match('/\(([^)]+)\)/', $signature_input, $matches)) {
+            $headers_str = $matches[1];
+
+            // Split by whitespace and remove quotes
+            $headers = preg_split('/\s+/', $headers_str);
+            $headers = array_map(function($h) {
+                return trim($h, '"');
+            }, $headers);
+
+            return array_filter($headers);
+        }
+
+        return [];
     }
     
     /**

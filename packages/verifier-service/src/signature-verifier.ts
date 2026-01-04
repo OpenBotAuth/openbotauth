@@ -12,16 +12,22 @@ import {
   parseSignatureInput,
   parseSignature,
   parseSignatureAgent,
+  resolveJwksUrl,
   buildSignatureBase,
 } from './signature-parser.js';
 
 export class SignatureVerifier {
+  private discoveryPaths: string[] | undefined;
+
   constructor(
     private jwksCache: JWKSCacheManager,
     private nonceManager: NonceManager,
     private trustedDirectories: string[] = [],
-    private maxSkewSec: number = 300
-  ) {}
+    private maxSkewSec: number = 300,
+    discoveryPaths?: string[]
+  ) {
+    this.discoveryPaths = discoveryPaths;
+  }
 
   /**
    * Verify an HTTP request signature
@@ -40,16 +46,33 @@ export class SignatureVerifier {
         };
       }
 
-      // 2. Parse Signature-Agent (JWKS URL)
-      const jwksUrl = parseSignatureAgent(signatureAgent);
-      if (!jwksUrl) {
+      // 2. Parse Signature-Agent (JWKS URL or identity URL)
+      const parsedAgent = parseSignatureAgent(signatureAgent);
+      if (!parsedAgent) {
         return {
           verified: false,
           error: 'Invalid Signature-Agent header',
         };
       }
 
-      // 3. Check if JWKS URL is from a trusted directory
+      // 3. Resolve JWKS URL (with discovery if needed)
+      let jwksUrl: string;
+      if (parsedAgent.isJwks) {
+        // Already a JWKS URL
+        jwksUrl = parsedAgent.url;
+      } else {
+        // Attempt JWKS discovery
+        const discoveredUrl = await resolveJwksUrl(parsedAgent.url, this.discoveryPaths);
+        if (!discoveredUrl) {
+          return {
+            verified: false,
+            error: `JWKS discovery failed for agent: ${parsedAgent.url}`,
+          };
+        }
+        jwksUrl = discoveredUrl;
+      }
+
+      // 4. Check if JWKS URL is from a trusted directory
       if (this.trustedDirectories.length > 0) {
         const trusted = this.trustedDirectories.some(dir => jwksUrl.includes(dir));
         if (!trusted) {
@@ -60,7 +83,7 @@ export class SignatureVerifier {
         }
       }
 
-      // 4. Parse signature components
+      // 5. Parse signature components
       const components = parseSignatureInput(signatureInput);
       if (!components) {
         return {
@@ -79,7 +102,7 @@ export class SignatureVerifier {
 
       components.signature = signatureValue;
 
-      // 5. Validate timestamp
+      // 6. Validate timestamp
       if (components.created) {
         const timestampCheck = this.nonceManager.checkTimestamp(
           components.created,
@@ -95,7 +118,7 @@ export class SignatureVerifier {
         }
       }
 
-      // 6. Check nonce for replay protection
+      // 7. Check nonce for replay protection
       if (components.nonce) {
         const nonceValid = await this.nonceManager.checkNonce(
           components.nonce,
@@ -111,17 +134,17 @@ export class SignatureVerifier {
         }
       }
 
-      // 7. Fetch JWKS and get the specific key
+      // 8. Fetch JWKS and get the specific key
       const jwk = await this.jwksCache.getKey(jwksUrl, components.keyId);
 
-      // 8. Build signature base
+      // 9. Build signature base
       const signatureBase = buildSignatureBase(components, {
         method: request.method,
         url: request.url,
         headers: request.headers,
       });
 
-      // 9. Verify signature
+      // 10. Verify signature
       const isValid = await this.verifyEd25519Signature(
         signatureBase,
         components.signature,
@@ -135,9 +158,9 @@ export class SignatureVerifier {
         };
       }
 
-      // 10. Success! Return verification result
+      // 11. Success! Return verification result
       const jwks = await this.jwksCache.getJWKS(jwksUrl);
-      
+
       return {
         verified: true,
         agent: {

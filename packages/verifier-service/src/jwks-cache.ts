@@ -56,19 +56,58 @@ export class JWKSCacheManager {
   }
 
   /**
-   * Fetch JWKS from URL
+   * Fetch JWKS from URL with SSRF protection
    */
   private async fetchJWKS(jwksUrl: string): Promise<any> {
     try {
+      // SSRF protection: validate URL scheme and hostname
+      const url = new URL(jwksUrl);
+
+      // Only allow http/https schemes
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        throw new Error(`Blocked JWKS fetch: invalid scheme ${url.protocol}`);
+      }
+
+      // Block localhost and private IP addresses
+      const hostname = url.hostname.toLowerCase();
+      const blockedHosts = [
+        'localhost',
+        '127.0.0.1',
+        '0.0.0.0',
+        '::1',
+        '::',
+        '[::1]',
+      ];
+
+      if (blockedHosts.includes(hostname)) {
+        throw new Error(`Blocked JWKS fetch: private address ${hostname}`);
+      }
+
+      // Block private IP ranges (basic check)
+      if (hostname.startsWith('10.') ||
+          hostname.startsWith('192.168.') ||
+          hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) {
+        throw new Error(`Blocked JWKS fetch: private IP range ${hostname}`);
+      }
+
+      // Fetch with timeout and size limit
       const response = await fetch(jwksUrl, {
+        method: 'GET',
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'OpenBotAuth-Verifier/0.1.0',
         },
+        signal: AbortSignal.timeout(3000), // 3s timeout
       });
 
       if (!response.ok) {
         throw new Error(`Failed to fetch JWKS: ${response.status} ${response.statusText}`);
+      }
+
+      // Limit response size to 1MB to prevent huge payloads
+      const contentLength = response.headers.get('content-length');
+      if (contentLength && parseInt(contentLength, 10) > 1024 * 1024) {
+        throw new Error(`JWKS response too large: ${contentLength} bytes (max 1MB)`);
       }
 
       const jwks: any = await response.json();

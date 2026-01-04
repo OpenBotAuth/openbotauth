@@ -77,11 +77,16 @@ const trustedDirectories = process.env.OB_TRUSTED_DIRECTORIES
 
 const maxSkewSec = parseInt(process.env.OB_MAX_SKEW_SEC || '300', 10);
 
+const discoveryPaths = process.env.OB_JWKS_DISCOVERY_PATHS
+  ? process.env.OB_JWKS_DISCOVERY_PATHS.split(',').map(p => p.trim())
+  : undefined;
+
 const verifier = new SignatureVerifier(
   jwksCache,
   nonceManager,
   trustedDirectories,
-  maxSkewSec
+  maxSkewSec,
+  discoveryPaths
 );
 
 // Initialize telemetry logger (only if DB is configured)
@@ -110,11 +115,20 @@ function hasSignatureHeaders(headers: Record<string, string | undefined>): boole
  */
 function mapErrorToFailureReason(error: string | undefined): string {
   if (!error) return 'unknown';
-  
+
   const errorLower = error.toLowerCase();
-  
+
   if (errorLower.includes('missing required signature headers')) {
     return 'missing_headers';
+  }
+  if (errorLower.includes('invalid signature-agent')) {
+    return 'invalid_signature_agent';
+  }
+  if (errorLower.includes('missing covered header')) {
+    return 'missing_signed_component';
+  }
+  if (errorLower.includes('jwks discovery failed')) {
+    return 'jwks_discovery_failed';
   }
   if (errorLower.includes('not from trusted directory')) {
     return 'untrusted_directory';
@@ -175,16 +189,24 @@ app.post('/authorize', async (req, res) => {
       'signature-agent': signatureAgent,
     });
 
-    // Build verification request
+    // Build verification request - forward all headers (lowercased)
+    const headers: Record<string, string> = {
+      'signature-input': req.headers['signature-input'] as string,
+      'signature': req.headers['signature'] as string,
+      'signature-agent': signatureAgent as string,
+    };
+
+    // Forward additional headers that may be signed
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (typeof value === 'string') {
+        headers[key.toLowerCase()] = value;
+      }
+    }
+
     const verificationRequest: VerificationRequest = {
       method: method.toUpperCase(),
       url,
-      headers: {
-        'signature-input': req.headers['signature-input'] as string,
-        'signature': req.headers['signature'] as string,
-        'signature-agent': signatureAgent as string,
-        'content-type': req.headers['content-type'] as string,
-      },
+      headers,
       body: req.body ? JSON.stringify(req.body) : undefined,
     };
 

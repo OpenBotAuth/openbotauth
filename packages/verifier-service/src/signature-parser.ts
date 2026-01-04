@@ -78,7 +78,7 @@ export function parseSignature(signature: string): string | null {
 
 /**
  * Build the signature base string according to RFC 9421
- * 
+ *
  * This is what gets signed by the client
  */
 export function buildSignatureBase(
@@ -118,8 +118,11 @@ export function buildSignatureBase(
     } else {
       // Regular headers
       const headerValue = request.headers[component.toLowerCase()];
-      if (headerValue) {
+      if (headerValue !== undefined) {
         lines.push(`"${component}": ${headerValue}`);
+      } else {
+        // Header is in Signature-Input but not provided in request
+        throw new Error(`Missing covered header: ${component}`);
       }
     }
   }
@@ -151,21 +154,111 @@ export function buildSignatureBase(
 
 /**
  * Extract JWKS URL from Signature-Agent header
- * 
- * Example:
- *   Signature-Agent: https://openbotregistry.example.com/jwks/hammadtq.json
+ *
+ * Handles both direct JWKS URLs and agent identity URLs that need discovery.
+ *
+ * Examples:
+ *   - Direct JWKS: https://openbotregistry.example.com/jwks/hammadtq.json
+ *   - Identity URL: https://chatgpt.com (needs discovery)
+ *   - Quoted: "https://example.com/jwks.json"
+ *   - Angle brackets: <https://example.com/jwks.json>
  */
-export function parseSignatureAgent(signatureAgent: string): string | null {
+export function parseSignatureAgent(signatureAgent: string): { url: string; isJwks: boolean } | null {
   try {
-    const url = new URL(signatureAgent);
-    // Validate it's a proper JWKS URL
-    if (url.pathname.endsWith('.json') || url.pathname.includes('/jwks/')) {
-      return signatureAgent;
+    // Trim whitespace
+    let cleaned = signatureAgent.trim();
+
+    // Strip wrapping quotes if present
+    if ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+        (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+      cleaned = cleaned.slice(1, -1);
     }
-    return null;
+
+    // Strip angle brackets if present
+    if (cleaned.startsWith('<') && cleaned.endsWith('>')) {
+      cleaned = cleaned.slice(1, -1);
+    }
+
+    // Validate URL structure
+    const url = new URL(cleaned);
+
+    // Check if it's already a JWKS URL
+    const isJwks = url.pathname.endsWith('.json') || url.pathname.includes('/jwks/');
+
+    return {
+      url: cleaned,
+      isJwks,
+    };
   } catch (error) {
     console.error('Invalid Signature-Agent URL:', error);
     return null;
   }
+}
+
+/**
+ * Resolve JWKS URL from an agent identity URL using discovery
+ *
+ * Tries a set of well-known paths in order:
+ * - /.well-known/jwks.json
+ * - /.well-known/openbotauth/jwks.json
+ * - /jwks.json
+ *
+ * Custom paths can be configured via OB_JWKS_DISCOVERY_PATHS env var.
+ */
+export async function resolveJwksUrl(
+  agentUrl: string,
+  discoveryPaths?: string[]
+): Promise<string | null> {
+  const url = new URL(agentUrl);
+  const origin = url.origin;
+
+  // Default discovery paths
+  const defaultPaths = [
+    '/.well-known/jwks.json',
+    '/.well-known/openbotauth/jwks.json',
+    '/jwks.json',
+  ];
+
+  const paths = discoveryPaths || defaultPaths;
+
+  for (const path of paths) {
+    const candidateUrl = `${origin}${path}`;
+
+    try {
+      // Try to fetch and validate JWKS
+      const response = await fetch(candidateUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'OpenBotAuth-Verifier/0.1.0',
+        },
+        signal: AbortSignal.timeout(3000), // 3s timeout
+      });
+
+      if (!response.ok) {
+        continue; // Try next path
+      }
+
+      // Limit response size to prevent huge payloads
+      const contentLength = response.headers.get('content-length');
+      if (contentLength && parseInt(contentLength, 10) > 1024 * 1024) {
+        console.warn(`JWKS discovery: ${candidateUrl} too large (${contentLength} bytes)`);
+        continue;
+      }
+
+      const jwks: any = await response.json();
+
+      // Validate JWKS structure
+      if (jwks.keys && Array.isArray(jwks.keys)) {
+        console.log(`JWKS discovered at: ${candidateUrl}`);
+        return candidateUrl;
+      }
+    } catch (error) {
+      // Continue to next path on any error
+      continue;
+    }
+  }
+
+  return null; // No valid JWKS found
 }
 
