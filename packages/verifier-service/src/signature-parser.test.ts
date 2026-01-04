@@ -42,7 +42,19 @@ describe("validateSafeUrl", () => {
 
   it("should block 127.0.0.1", () => {
     expect(() => validateSafeUrl("http://127.0.0.1:8080/jwks.json")).toThrow(
-      "private address",
+      "loopback address",
+    );
+  });
+
+  it("should block entire 127.0.0.0/8 loopback range", () => {
+    expect(() => validateSafeUrl("http://127.0.0.2/jwks.json")).toThrow(
+      "loopback address",
+    );
+    expect(() => validateSafeUrl("http://127.1.2.3/jwks.json")).toThrow(
+      "loopback address",
+    );
+    expect(() => validateSafeUrl("http://127.255.255.255/jwks.json")).toThrow(
+      "loopback address",
     );
   });
 
@@ -90,16 +102,52 @@ describe("validateSafeUrl", () => {
     expect(() => validateSafeUrl("http://172.32.0.1/jwks.json")).not.toThrow();
   });
 
-  it("should block IPv6 fc00::/7 private range", () => {
+  it("should block 169.254.x.x link-local range", () => {
+    expect(() => validateSafeUrl("http://169.254.0.1/jwks.json")).toThrow(
+      "link-local address",
+    );
+    expect(() => validateSafeUrl("http://169.254.169.254/jwks.json")).toThrow(
+      "link-local address",
+    );
+  });
+
+  it("should block IPv6 fc00::/8 private range", () => {
     expect(() => validateSafeUrl("http://[fc00::1]/jwks.json")).toThrow(
+      "IPv6 private range",
+    );
+    expect(() => validateSafeUrl("http://[fc12::1]/jwks.json")).toThrow(
+      "IPv6 private range",
+    );
+  });
+
+  it("should block IPv6 fd00::/8 private range", () => {
+    expect(() => validateSafeUrl("http://[fd00::1]/jwks.json")).toThrow(
+      "IPv6 private range",
+    );
+    expect(() => validateSafeUrl("http://[fd12:3456::1]/jwks.json")).toThrow(
       "IPv6 private range",
     );
   });
 
   it("should block IPv6 fe80::/10 link-local range", () => {
     expect(() => validateSafeUrl("http://[fe80::1]/jwks.json")).toThrow(
-      "IPv6 private range",
+      "IPv6 link-local range",
     );
+    // fe80::/10 covers fe80-febf, test edge cases
+    expect(() => validateSafeUrl("http://[fe90::1]/jwks.json")).toThrow(
+      "IPv6 link-local range",
+    );
+    expect(() => validateSafeUrl("http://[fea0::1]/jwks.json")).toThrow(
+      "IPv6 link-local range",
+    );
+    expect(() => validateSafeUrl("http://[feb0::1]/jwks.json")).toThrow(
+      "IPv6 link-local range",
+    );
+  });
+
+  it("should allow fec0:: (not in link-local range)", () => {
+    // fec0:: is outside fe80::/10
+    expect(() => validateSafeUrl("http://[fec0::1]/jwks.json")).not.toThrow();
   });
 
   it("should throw on invalid URL", () => {

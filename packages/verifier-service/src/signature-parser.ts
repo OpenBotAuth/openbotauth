@@ -11,8 +11,11 @@ import type { SignatureComponents } from "./types.js";
  *
  * Blocks:
  * - Non-HTTP(S) schemes
- * - Localhost and loopback addresses
- * - Private IP ranges (10.x, 192.168.x, 172.16-31.x)
+ * - Localhost and loopback addresses (127.0.0.0/8)
+ * - Private IPv4 ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+ * - Link-local IPv4 (169.254.0.0/16)
+ * - Private IPv6 (fc00::/7 includes fc00::/8 and fd00::/8)
+ * - Link-local IPv6 (fe80::/10)
  *
  * @throws Error if URL is unsafe
  */
@@ -29,38 +32,59 @@ export function validateSafeUrl(urlString: string): void {
     throw new Error(`Blocked fetch: invalid scheme ${url.protocol}`);
   }
 
-  // Block localhost and private IP addresses
-  const hostname = url.hostname.toLowerCase();
-  const blockedHosts = [
-    "localhost",
-    "127.0.0.1",
-    "0.0.0.0",
-    "::1",
-    "::",
-    "[::1]",
-  ];
+  // Get hostname, strip brackets for IPv6
+  let hostname = url.hostname.toLowerCase();
+  if (hostname.startsWith("[") && hostname.endsWith("]")) {
+    hostname = hostname.slice(1, -1);
+  }
 
-  if (blockedHosts.includes(hostname)) {
+  // Block localhost
+  if (hostname === "localhost") {
     throw new Error(`Blocked fetch: private address ${hostname}`);
   }
 
+  // Block special addresses
+  const blockedExact = ["0.0.0.0", "::1", "::"];
+  if (blockedExact.includes(hostname)) {
+    throw new Error(`Blocked fetch: private address ${hostname}`);
+  }
+
+  // Block entire 127.0.0.0/8 loopback range (127.0.0.1 - 127.255.255.255)
+  if (hostname.match(/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
+    throw new Error(`Blocked fetch: loopback address ${hostname}`);
+  }
+
   // Block private IPv4 ranges
-  if (
-    hostname.startsWith("10.") ||
-    hostname.startsWith("192.168.") ||
-    hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)
-  ) {
+  // 10.0.0.0/8
+  if (hostname.match(/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
+    throw new Error(`Blocked fetch: private IP range ${hostname}`);
+  }
+  // 172.16.0.0/12 (172.16.0.0 - 172.31.255.255)
+  if (hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}$/)) {
+    throw new Error(`Blocked fetch: private IP range ${hostname}`);
+  }
+  // 192.168.0.0/16
+  if (hostname.match(/^192\.168\.\d{1,3}\.\d{1,3}$/)) {
     throw new Error(`Blocked fetch: private IP range ${hostname}`);
   }
 
-  // Block private IPv6 ranges (fc00::/7, fe80::/10)
-  if (
-    hostname.startsWith("fc00:") ||
-    hostname.startsWith("fe80:") ||
-    hostname.startsWith("[fc00") ||
-    hostname.startsWith("[fe80")
-  ) {
+  // Block link-local IPv4 (169.254.0.0/16)
+  if (hostname.match(/^169\.254\.\d{1,3}\.\d{1,3}$/)) {
+    throw new Error(`Blocked fetch: link-local address ${hostname}`);
+  }
+
+  // Block private IPv6 ranges
+  // fc00::/7 covers both fc00::/8 and fd00::/8 (Unique Local Addresses)
+  // This means any address starting with fc or fd
+  if (hostname.match(/^f[cd][0-9a-f]{0,2}:/i)) {
     throw new Error(`Blocked fetch: IPv6 private range ${hostname}`);
+  }
+
+  // Block link-local IPv6 (fe80::/10)
+  // fe80::/10 covers fe80:: through febf::
+  // Binary: 1111 1110 10xx xxxx, so fe8x, fe9x, feax, febx
+  if (hostname.match(/^fe[89ab][0-9a-f]?:/i)) {
+    throw new Error(`Blocked fetch: IPv6 link-local range ${hostname}`);
   }
 }
 
