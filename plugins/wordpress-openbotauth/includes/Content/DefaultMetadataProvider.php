@@ -1,9 +1,4 @@
 <?php
-// Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
-}
-
 /**
  * Default Metadata Provider
  *
@@ -15,6 +10,11 @@ if (!defined('ABSPATH')) {
  */
 
 namespace OpenBotAuth\Content;
+
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 /**
  * Default implementation using WP core functions.

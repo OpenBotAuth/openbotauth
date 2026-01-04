@@ -1,9 +1,4 @@
 <?php
-// Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
-}
-
 /**
  * Metadata Provider Interface
  *
@@ -16,6 +11,11 @@ if (!defined('ABSPATH')) {
  */
 
 namespace OpenBotAuth\Content;
+
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 /**
  * Interface for extracting post metadata.

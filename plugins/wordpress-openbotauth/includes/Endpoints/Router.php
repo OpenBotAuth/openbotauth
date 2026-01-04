@@ -1,9 +1,4 @@
 <?php
-// Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
-}
-
 /**
  * AI Endpoints Router
  *
@@ -19,6 +14,11 @@ if (!defined('ABSPATH')) {
  */
 
 namespace OpenBotAuth\Endpoints;
+
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 use OpenBotAuth\Content\MetadataProviderInterface;
 use OpenBotAuth\Plugin;
