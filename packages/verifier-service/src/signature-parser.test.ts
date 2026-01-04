@@ -365,6 +365,60 @@ describe("resolveJwksUrl", () => {
     expect(result).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("should block HTTP redirects (SSRF protection)", async () => {
+    // Mock 302 redirect response
+    fetchMock.mockResolvedValueOnce({
+      status: 302,
+      ok: false,
+      headers: new Map([["location", "http://127.0.0.1:6379/"]]),
+    });
+
+    const result = await resolveJwksUrl("https://example.com");
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3); // Tries all 3 default paths
+  });
+
+  it("should block 301 redirects (SSRF protection)", async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 301,
+      ok: false,
+      headers: new Map([["location", "http://169.254.169.254/"]]),
+    });
+
+    const result = await resolveJwksUrl("https://example.com");
+    expect(result).toBeNull();
+  });
+
+  it("should block 307 redirects (SSRF protection)", async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 307,
+      ok: false,
+      headers: new Map([["location", "http://10.0.0.1/"]]),
+    });
+
+    const result = await resolveJwksUrl("https://example.com");
+    expect(result).toBeNull();
+  });
+
+  it("should verify redirect: manual option is set", async () => {
+    const validJwks = { keys: [{ kid: "test", kty: "OKP" }] };
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Map([["content-length", "100"]]),
+      json: async () => validJwks,
+    });
+
+    await resolveJwksUrl("https://example.com");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        redirect: "manual",
+      }),
+    );
+  });
 });
 
 describe("buildSignatureBase", () => {

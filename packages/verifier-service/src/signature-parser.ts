@@ -331,7 +331,13 @@ export async function resolveJwksUrl(
           "User-Agent": "OpenBotAuth-Verifier/0.1.0",
         },
         signal: AbortSignal.timeout(3000), // 3s timeout
+        redirect: "manual", // SSRF protection: block automatic redirects
       });
+
+      // Block redirects to prevent SSRF via redirect to internal services
+      if (response.status >= 300 && response.status < 400) {
+        continue; // Try next path if redirect encountered
+      }
 
       if (!response.ok) {
         continue; // Try next path
