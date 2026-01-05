@@ -5,7 +5,7 @@
  * Description: Verify AI crawlers with HTTP Signatures and enforce allow/deny/teaser policies; also serves llms.txt and AI-ready feeds.
  * Version: 1.0.0
  * Author: OpenBotAuth
- * Author URI: https://openbotauth.org
+ * Author URI: https://github.com/OpenBotAuth/openbotauth
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: openbotauth
@@ -49,8 +49,7 @@ spl_autoload_register(function ($class) {
 
 // Initialize plugin
 function openbotauth_init() {
-    // Load text domain
-    load_plugin_textdomain('openbotauth', false, dirname(plugin_basename(__FILE__)) . '/languages');
+    // Text domain loaded automatically by WordPress 4.6+ for plugins on WordPress.org
     
     // Initialize main plugin class
     $plugin = OpenBotAuth\Plugin::get_instance();

@@ -66,7 +66,9 @@ class Verifier {
         
         // Build verification request
         $verify_request = [
-            'method' => $_SERVER['REQUEST_METHOD'],
+            'method' => isset( $_SERVER['REQUEST_METHOD'] ) 
+                ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) 
+                : 'GET',
             'url' => $this->get_current_url(),
             'headers' => $headers,
         ];
@@ -86,7 +88,10 @@ class Verifier {
         
         if (is_wp_error($response)) {
             $error_msg = 'Verifier service error: ' . $response->get_error_message();
-            error_log('[OpenBotAuth] ' . $error_msg);
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging when WP_DEBUG enabled
+                error_log('[OpenBotAuth] ' . $error_msg);
+            }
             return [
                 'verified' => false,
                 'error' => $error_msg,
@@ -105,7 +110,10 @@ class Verifier {
                 $error_msg .= ': ' . $error_details['error'];
             }
 
-            error_log('[OpenBotAuth] ' . $error_msg);
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging when WP_DEBUG enabled
+                error_log('[OpenBotAuth] ' . $error_msg);
+            }
             return [
                 'verified' => false,
                 'error' => $error_msg,
@@ -117,7 +125,10 @@ class Verifier {
         
         if (!$body) {
             $error_msg = 'Invalid verifier response (empty or malformed JSON)';
-            error_log('[OpenBotAuth] ' . $error_msg);
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging when WP_DEBUG enabled
+                error_log('[OpenBotAuth] ' . $error_msg);
+            }
             return [
                 'verified' => false,
                 'error' => $error_msg,
@@ -197,7 +208,10 @@ class Verifier {
 
                 // Check if it's a sensitive header
                 if (in_array($lower_covered, $sensitive_headers)) {
-                    error_log('[OpenBotAuth] Cannot verify: Signature-Input covers sensitive header: ' . $covered_header);
+                    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging when WP_DEBUG enabled
+                        error_log('[OpenBotAuth] Cannot verify: Signature-Input covers sensitive header: ' . $covered_header);
+                    }
                     return [
                         'error' => 'Cannot verify: Signature-Input covers sensitive header \'' . $covered_header . '\' which is not forwarded.'
                     ];
@@ -246,8 +260,10 @@ class Verifier {
      * to prevent Host header injection attacks.
      */
     private function get_current_url() {
-        // Use wp_unslash to handle magic quotes on older PHP/WP setups
-        $request_uri = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '/';
+        // Use wp_unslash and sanitize to handle magic quotes on older PHP/WP setups
+        $request_uri = isset($_SERVER['REQUEST_URI']) 
+            ? sanitize_text_field( wp_unslash($_SERVER['REQUEST_URI']) ) 
+            : '/';
         // Preserve request scheme to avoid proxy setup issues
         $scheme = is_ssl() ? 'https' : 'http';
         return home_url($request_uri, $scheme);

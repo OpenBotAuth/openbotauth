@@ -72,7 +72,7 @@ class Analytics {
         $stats = [];
         
         for ($i = 0; $i < $days; $i++) {
-            $date = date('Y-m-d', strtotime("-{$i} days", current_time('timestamp')));
+            $date = gmdate('Y-m-d', strtotime("-{$i} days", current_time('timestamp')));
             $option_name = self::OPTION_PREFIX . $date;
             $day_stats = get_option($option_name, []);
             
@@ -135,7 +135,7 @@ class Analytics {
         // Store one option per key per day for atomic increments
         $option_name = self::META_STATS_PREFIX . $date . '__' . $key;
         
-        // Atomic upsert: insert 1 or increment existing value
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic upsert required for concurrent analytics
         $wpdb->query(
             $wpdb->prepare(
                 "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
@@ -161,7 +161,7 @@ class Analytics {
         $stats = [];
         
         for ($i = 0; $i < $days; $i++) {
-            $date = date('Y-m-d', strtotime("-{$i} days", current_time('timestamp')));
+            $date = gmdate('Y-m-d', strtotime("-{$i} days", current_time('timestamp')));
             $base = self::META_STATS_PREFIX . $date . '__';
             
             $stats[$date] = [
@@ -220,7 +220,7 @@ class Analytics {
         $date = current_time('Y-m-d');
         $option_name = self::BOT_STATS_PREFIX . $date . '__' . $bot_id . '__' . $key;
         
-        // Atomic upsert: insert 1 or increment existing value
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic upsert required for concurrent analytics
         $wpdb->query(
             $wpdb->prepare(
                 "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
@@ -260,7 +260,7 @@ class Analytics {
             
             // Sum counts for each day
             for ($i = 0; $i < $days; $i++) {
-                $date = date('Y-m-d', strtotime("-{$i} days", $now));
+                $date = gmdate('Y-m-d', strtotime("-{$i} days", $now));
                 $base = self::BOT_STATS_PREFIX . $date . '__' . $safe_id . '__';
                 
                 $requests_total += intval(get_option($base . 'requests_total', 0));
@@ -287,8 +287,9 @@ class Analytics {
     
     /**
      * Known referrer sources to track
+     * Detected via HTTP Referer header or utm_source query parameter
      */
-    const KNOWN_REF_SOURCES = ['chatgpt', 'perplexity'];
+    const KNOWN_REF_SOURCES = ['chatgpt', 'perplexity', 'claude', 'gemini', 'copilot'];
     
     /**
      * Increment a referrer source counter for today
@@ -309,7 +310,7 @@ class Analytics {
         $date = current_time('Y-m-d');
         $option_name = self::REF_STATS_PREFIX . $date . '__' . $source_key . '__total';
         
-        // Atomic upsert: insert 1 or increment existing value
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic upsert required for concurrent analytics
         $wpdb->query(
             $wpdb->prepare(
                 "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
@@ -342,7 +343,7 @@ class Analytics {
             
             // Sum counts for each day
             for ($i = 0; $i < $days; $i++) {
-                $date = date('Y-m-d', strtotime("-{$i} days", $now));
+                $date = gmdate('Y-m-d', strtotime("-{$i} days", $now));
                 $option_name = self::REF_STATS_PREFIX . $date . '__' . $source_key . '__total';
                 $total += intval(get_option($option_name, 0));
             }
@@ -367,12 +368,13 @@ class Analytics {
         
         global $wpdb;
         
-        $cutoff_date = date('Y-m-d', strtotime('-30 days', current_time('timestamp')));
+        $cutoff_date = gmdate('Y-m-d', strtotime('-30 days', current_time('timestamp')));
         
         // Clean up ALL stat prefixes
         $prefixes = [self::OPTION_PREFIX, self::META_STATS_PREFIX, self::BOT_STATS_PREFIX, self::REF_STATS_PREFIX];
         
         foreach ($prefixes as $prefix) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Cleanup query for old analytics options
             $options = $wpdb->get_col(
                 $wpdb->prepare(
                     "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
