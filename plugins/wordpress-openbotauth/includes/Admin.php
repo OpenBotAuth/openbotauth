@@ -1113,15 +1113,14 @@ class Admin {
         $use_hosted = (bool) $value;
         $hosted_url = 'https://verifier.openbotauth.org/verify';
 
-        // When checkbox is toggled, update the verifier URL accordingly
-        // This ensures the URL stays in sync with the checkbox state
+        // Directly update the verifier URL option to stay in sync with checkbox state
+        // Note: We can't rely on modifying $_POST because WordPress passes values to
+        // sanitize callbacks before they execute, so the verifier_url sanitizer
+        // already has its value. We must update the option directly here.
         if ($use_hosted) {
-            // When enabling, set to hosted URL (will be saved via the form field too)
-            // Just ensure the form field has the right value
-            $_POST['openbotauth_verifier_url'] = $hosted_url;
+            update_option('openbotauth_verifier_url', $hosted_url);
         } else {
-            // When disabling, clear the URL
-            $_POST['openbotauth_verifier_url'] = '';
+            update_option('openbotauth_verifier_url', '');
         }
 
         return $use_hosted;

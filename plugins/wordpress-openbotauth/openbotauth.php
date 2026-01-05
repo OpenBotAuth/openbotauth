@@ -71,20 +71,13 @@ register_activation_hook(__FILE__, function() {
     ]));
     
     // AI Artifacts options (v0.1.2+)
-    // Use update_option with autoload for reliable default setting on fresh installs
-    // Check if option exists and has a value before setting defaults
+    // Use add_option() which only adds if the option doesn't exist (built-in check)
+    // and properly supports autoload as the 4th parameter
+    // Note: add_option() signature is ($option, $value, $deprecated, $autoload)
     // Use boolean true (not string '1') to match register_setting type declaration in Admin.php
-    if (get_option('openbotauth_llms_enabled') === false) {
-        update_option('openbotauth_llms_enabled', true, true);
-    }
-    if (get_option('openbotauth_feed_enabled') === false) {
-        update_option('openbotauth_feed_enabled', true, true);
-    }
-    if (get_option('openbotauth_feed_limit') === false) {
-        update_option('openbotauth_feed_limit', 100, true);
-    }
-    if (get_option('openbotauth_feed_post_types') === false) {
-        update_option('openbotauth_feed_post_types', ['post', 'page'], true);
-    }
+    add_option('openbotauth_llms_enabled', true, '', true);
+    add_option('openbotauth_feed_enabled', true, '', true);
+    add_option('openbotauth_feed_limit', 100, '', true);
+    add_option('openbotauth_feed_post_types', ['post', 'page'], '', true);
 });
 
