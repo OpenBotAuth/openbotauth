@@ -47,13 +47,16 @@ class Admin {
      */
     public function register_settings() {
         // === Configuration Tab Settings (group: openbotauth_config) ===
-        register_setting('openbotauth_config', 'openbotauth_verifier_url', [
-            'sanitize_callback' => [$this, 'sanitize_verifier_url']
-        ]);
+        // IMPORTANT: Register checkbox BEFORE URL so its sanitizer runs first.
+        // The checkbox sanitizer modifies $_POST['openbotauth_verifier_url'] to sync
+        // the URL with the checkbox state, which only works if it runs before the URL sanitizer.
         register_setting('openbotauth_config', 'openbotauth_use_hosted_verifier', [
             'type' => 'boolean',
             'default' => false,
             'sanitize_callback' => [$this, 'sanitize_use_hosted_verifier']
+        ]);
+        register_setting('openbotauth_config', 'openbotauth_verifier_url', [
+            'sanitize_callback' => [$this, 'sanitize_verifier_url']
         ]);
         register_setting('openbotauth_config', 'openbotauth_policy', [
             'sanitize_callback' => [$this, 'sanitize_policy']
@@ -138,7 +141,7 @@ class Admin {
      * Sanitize verifier URL - only process if Configuration tab form was submitted
      */
     public function sanitize_verifier_url($value) {
-        // Check if this is actually a Configuration tab submission
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
         if (!isset($_POST['openbotauth_config_tab_submitted'])) {
             // Not from Configuration tab - preserve existing value
             $existing = get_option('openbotauth_verifier_url');
@@ -151,7 +154,7 @@ class Admin {
      * Sanitize payment URL - only process if Configuration tab form was submitted
      */
     public function sanitize_payment_url($value) {
-        // Check if this is actually a Configuration tab submission
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
         if (!isset($_POST['openbotauth_config_tab_submitted'])) {
             // Not from Configuration tab - preserve existing value
             $existing = get_option('openbotauth_payment_url');
@@ -165,7 +168,7 @@ class Admin {
      * This prevents the Configuration tab from resetting AI settings
      */
     public function sanitize_ai_boolean($value) {
-        // Check if this is actually an AI tab submission by looking for the AI tab marker
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
         if (!isset($_POST['openbotauth_ai_tab_submitted'])) {
             // Not from AI tab - return existing value to preserve it
             // Get the option name from the current filter
@@ -195,7 +198,7 @@ class Admin {
      * Only process if AI tab form was actually submitted
      */
     public function sanitize_feed_limit($value) {
-        // Check if this is actually an AI tab submission
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
         if (!isset($_POST['openbotauth_ai_tab_submitted'])) {
             // Not from AI tab - preserve existing value
             $existing = get_option('openbotauth_feed_limit');
@@ -209,7 +212,7 @@ class Admin {
      * Only process if AI tab form was actually submitted
      */
     public function sanitize_feed_post_types($value) {
-        // Check if this is actually an AI tab submission
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
         if (!isset($_POST['openbotauth_ai_tab_submitted'])) {
             // Not from AI tab - preserve existing value
             $existing = get_option('openbotauth_feed_post_types');
@@ -253,9 +256,11 @@ class Admin {
                 'icon' => 'dashicons-admin-settings'
             ],
         ];
-        $current_tab = isset($_GET['tab']) && array_key_exists(sanitize_key($_GET['tab']), $tabs) 
-            ? sanitize_key($_GET['tab']) 
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Reading URL param for tab navigation, not processing form data
+        $current_tab = isset($_GET['tab']) && array_key_exists(sanitize_key( wp_unslash( $_GET['tab'] ) ), $tabs) 
+            ? sanitize_key( wp_unslash( $_GET['tab'] ) ) 
             : 'analytics';
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
         
         ?>
         <div class="wrap">
@@ -275,12 +280,12 @@ class Admin {
             <!-- Plugin description (shown on all tabs) -->
             <div class="notice notice-info" style="margin-bottom: 20px;">
                 <p>
-                    <strong><?php _e('OpenBotAuth', 'openbotauth'); ?></strong> — 
-                    <?php _e('See AI bots crawling your site and verify signed agent requests (RFC 9421).', 'openbotauth'); ?>
+                    <strong><?php esc_html_e('OpenBotAuth', 'openbotauth'); ?></strong> — 
+                    <?php esc_html_e('See AI bots crawling your site and verify signed agent requests (RFC 9421).', 'openbotauth'); ?>
                 </p>
                 <p>
-                    <?php _e('Local-only analytics + AI endpoints (llms.txt, feed, markdown). Optional verifier for signature checks.', 'openbotauth'); ?>
-                    <a href="https://github.com/OpenBotAuth/openbotauth" target="_blank" rel="noopener noreferrer"><?php _e('Documentation', 'openbotauth'); ?></a>
+                    <?php esc_html_e('Local-only analytics + AI endpoints (llms.txt, feed, markdown). Optional verifier for signature checks.', 'openbotauth'); ?>
+                    <a href="https://github.com/OpenBotAuth/openbotauth" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Documentation', 'openbotauth'); ?></a>
                 </p>
             </div>
             
@@ -299,12 +304,12 @@ class Admin {
                 <details class="openbotauth-advanced-section" style="margin-top: 30px;">
                     <summary style="cursor: pointer; font-size: 14px; font-weight: 600; color: #1d2327; padding: 12px 0;">
                         <span class="dashicons dashicons-admin-generic" style="margin-right: 6px; color: #646970;"></span>
-                        <?php _e('Advanced Policy Configuration', 'openbotauth'); ?>
-                        <span style="font-weight: normal; color: #646970; font-size: 12px; margin-left: 8px;"><?php _e('(JSON editor for power users)', 'openbotauth'); ?></span>
+                        <?php esc_html_e('Advanced Policy Configuration', 'openbotauth'); ?>
+                        <span style="font-weight: normal; color: #646970; font-size: 12px; margin-left: 8px;"><?php esc_html_e('(JSON editor for power users)', 'openbotauth'); ?></span>
                     </summary>
                     
                     <div style="padding: 16px 0;">
-                        <p style="margin-top: 0;"><?php _e('For advanced policy configuration (whitelists, blacklists, rate limits), edit the policy JSON directly:', 'openbotauth'); ?></p>
+                        <p style="margin-top: 0;"><?php esc_html_e('For advanced policy configuration (whitelists, blacklists, rate limits), edit the policy JSON directly:', 'openbotauth'); ?></p>
                         
                         <textarea id="openbotauth-policy-json" rows="12" style="width: 100%; font-family: monospace; font-size: 13px;">
 <?php echo esc_textarea(get_option('openbotauth_policy', '{}')); ?>
@@ -312,15 +317,15 @@ class Admin {
                         
                         <p>
                             <button type="button" class="button button-primary" id="openbotauth-save-policy">
-                                <?php _e('Save Policy JSON', 'openbotauth'); ?>
+                                <?php esc_html_e('Save Policy JSON', 'openbotauth'); ?>
                             </button>
                             <button type="button" class="button" id="openbotauth-validate-policy">
-                                <?php _e('Validate JSON', 'openbotauth'); ?>
+                                <?php esc_html_e('Validate JSON', 'openbotauth'); ?>
                             </button>
                         </p>
                         
                         <details style="margin-top: 16px;">
-                            <summary style="cursor: pointer; color: #2271b1;"><?php _e('Policy JSON Schema', 'openbotauth'); ?></summary>
+                            <summary style="cursor: pointer; color: #2271b1;"><?php esc_html_e('Policy JSON Schema', 'openbotauth'); ?></summary>
                             <pre style="background: #f5f5f5; padding: 15px; overflow: auto; margin-top: 10px; font-size: 12px;">
 {
   "default": {
@@ -487,9 +492,9 @@ class Admin {
         </style>
         
         <div class="openbotauth-analytics">
-            <h2><?php _e('AI Bot Request Analytics', 'openbotauth'); ?></h2>
+            <h2><?php esc_html_e('AI Bot Request Analytics', 'openbotauth'); ?></h2>
             <p class="description" style="margin-bottom: 20px;">
-                <?php _e('Local-only stats for AI bot visits and signed agent requests (last 7 days). No data is sent to external servers.', 'openbotauth'); ?>
+                <?php esc_html_e('Local-only stats for AI bot visits and signed agent requests (last 7 days). No data is sent to external servers.', 'openbotauth'); ?>
             </p>
             
             <?php $this->render_observed_bots_table(); ?>
@@ -499,30 +504,30 @@ class Admin {
             <!-- Stats Cards -->
             <div class="openbotauth-stats-grid">
                 <div class="openbotauth-stat-card highlight">
-                    <div class="openbotauth-stat-label"><?php _e('Signed Requests', 'openbotauth'); ?></div>
-                    <div class="openbotauth-stat-value info"><?php echo number_format($signed); ?></div>
-                    <div class="openbotauth-stat-subtitle"><?php _e('Total agent requests', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-label"><?php esc_html_e('Signed Requests', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-value info"><?php echo esc_html( number_format($signed) ); ?></div>
+                    <div class="openbotauth-stat-subtitle"><?php esc_html_e('Total agent requests', 'openbotauth'); ?></div>
                 </div>
                 
                 <div class="openbotauth-stat-card">
-                    <div class="openbotauth-stat-label"><?php _e('Verified', 'openbotauth'); ?></div>
-                    <div class="openbotauth-stat-value success"><?php echo number_format($verified); ?></div>
-                    <div class="openbotauth-stat-subtitle"><?php echo $percent; ?>% <?php _e('success rate', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-label"><?php esc_html_e('Verified', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-value success"><?php echo esc_html( number_format($verified) ); ?></div>
+                    <div class="openbotauth-stat-subtitle"><?php echo esc_html( $percent ); ?>% <?php esc_html_e('success rate', 'openbotauth'); ?></div>
                     <div class="openbotauth-progress-bar">
-                        <div class="openbotauth-progress-fill" style="width: <?php echo $percent; ?>%;"></div>
+                        <div class="openbotauth-progress-fill" style="width: <?php echo esc_attr( $percent ); ?>%;"></div>
                     </div>
                 </div>
                 
                 <div class="openbotauth-stat-card">
-                    <div class="openbotauth-stat-label"><?php _e('Policy Decisions', 'openbotauth'); ?></div>
-                    <div class="openbotauth-stat-value"><?php echo number_format($total_decisions); ?></div>
-                    <div class="openbotauth-stat-subtitle"><?php _e('Allow, deny, teaser, etc.', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-label"><?php esc_html_e('Policy Decisions', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-value"><?php echo esc_html( number_format($total_decisions) ); ?></div>
+                    <div class="openbotauth-stat-subtitle"><?php esc_html_e('Allow, deny, teaser, etc.', 'openbotauth'); ?></div>
                 </div>
                 
                 <div class="openbotauth-stat-card">
-                    <div class="openbotauth-stat-label"><?php _e('Allowed', 'openbotauth'); ?></div>
-                    <div class="openbotauth-stat-value success"><?php echo number_format($totals['allow']); ?></div>
-                    <div class="openbotauth-stat-subtitle"><?php _e('Full content access', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-label"><?php esc_html_e('Allowed', 'openbotauth'); ?></div>
+                    <div class="openbotauth-stat-value success"><?php echo esc_html( number_format($totals['allow']) ); ?></div>
+                    <div class="openbotauth-stat-subtitle"><?php esc_html_e('Full content access', 'openbotauth'); ?></div>
                 </div>
             </div>
             
@@ -530,7 +535,7 @@ class Admin {
             <div class="openbotauth-chart-container">
                 <div class="openbotauth-chart-title">
                     <span class="dashicons dashicons-chart-area" style="color: #2271b1;"></span>
-                    <?php _e('Daily Policy Decisions (7 Days)', 'openbotauth'); ?>
+                    <?php esc_html_e('Daily Policy Decisions (7 Days)', 'openbotauth'); ?>
                 </div>
                 <svg class="openbotauth-chart-svg" viewBox="0 0 700 120" preserveAspectRatio="xMidYMid meet">
                     <!-- Grid lines -->
@@ -539,8 +544,8 @@ class Admin {
                     <line x1="40" y1="90" x2="680" y2="90" stroke="#e0e0e0" stroke-width="1"/>
                     
                     <!-- Y-axis labels -->
-                    <text x="35" y="14" text-anchor="end" fill="#646970" font-size="10"><?php echo $max_value; ?></text>
-                    <text x="35" y="54" text-anchor="end" fill="#646970" font-size="10"><?php echo round($max_value / 2); ?></text>
+                    <text x="35" y="14" text-anchor="end" fill="#646970" font-size="10"><?php echo esc_html( $max_value ); ?></text>
+                    <text x="35" y="54" text-anchor="end" fill="#646970" font-size="10"><?php echo esc_html( round($max_value / 2) ); ?></text>
                     <text x="35" y="94" text-anchor="end" fill="#646970" font-size="10">0</text>
                     
                     <!-- Bars and labels -->
@@ -555,11 +560,11 @@ class Admin {
                         $date_parts = explode('-', $chart_dates[$i]);
                         $display_date = $date_parts[1] . '/' . $date_parts[2];
                     ?>
-                    <rect x="<?php echo $x; ?>" y="<?php echo $y; ?>" width="<?php echo $bar_width; ?>" height="<?php echo $bar_height; ?>" 
+                    <rect x="<?php echo esc_attr( $x ); ?>" y="<?php echo esc_attr( $y ); ?>" width="<?php echo esc_attr( $bar_width ); ?>" height="<?php echo esc_attr( $bar_height ); ?>" 
                           fill="url(#gradient)" rx="3"/>
-                    <text x="<?php echo $x + $bar_width/2; ?>" y="105" text-anchor="middle" fill="#646970" font-size="10"><?php echo $display_date; ?></text>
+                    <text x="<?php echo esc_attr( $x + $bar_width/2 ); ?>" y="105" text-anchor="middle" fill="#646970" font-size="10"><?php echo esc_html( $display_date ); ?></text>
                     <?php if ($value > 0): ?>
-                    <text x="<?php echo $x + $bar_width/2; ?>" y="<?php echo max($y - 5, 8); ?>" text-anchor="middle" fill="#1d2327" font-size="11" font-weight="600"><?php echo $value; ?></text>
+                    <text x="<?php echo esc_attr( $x + $bar_width/2 ); ?>" y="<?php echo esc_attr( max($y - 5, 8) ); ?>" text-anchor="middle" fill="#1d2327" font-size="11" font-weight="600"><?php echo esc_html( $value ); ?></text>
                     <?php endif; ?>
                     <?php endforeach; ?>
                     
@@ -577,26 +582,26 @@ class Admin {
             <div class="openbotauth-table-section">
                 <div class="openbotauth-table-header">
                     <span class="dashicons dashicons-editor-table" style="color: #646970;"></span>
-                    <?php _e('Decision Breakdown by Date', 'openbotauth'); ?>
+                    <?php esc_html_e('Decision Breakdown by Date', 'openbotauth'); ?>
                 </div>
                 <table class="widefat" style="border: none;">
                     <thead>
                         <tr>
-                            <th style="padding: 12px;"><?php _e('Date', 'openbotauth'); ?></th>
+                            <th style="padding: 12px;"><?php esc_html_e('Date', 'openbotauth'); ?></th>
                             <th style="text-align: center; padding: 12px;">
-                                <span class="openbotauth-decision-badge openbotauth-badge-allow"><?php _e('Allow', 'openbotauth'); ?></span>
+                                <span class="openbotauth-decision-badge openbotauth-badge-allow"><?php esc_html_e('Allow', 'openbotauth'); ?></span>
                             </th>
                             <th style="text-align: center; padding: 12px;">
-                                <span class="openbotauth-decision-badge openbotauth-badge-teaser"><?php _e('Teaser', 'openbotauth'); ?></span>
+                                <span class="openbotauth-decision-badge openbotauth-badge-teaser"><?php esc_html_e('Teaser', 'openbotauth'); ?></span>
                             </th>
                             <th style="text-align: center; padding: 12px;">
-                                <span class="openbotauth-decision-badge openbotauth-badge-deny"><?php _e('Deny', 'openbotauth'); ?></span>
+                                <span class="openbotauth-decision-badge openbotauth-badge-deny"><?php esc_html_e('Deny', 'openbotauth'); ?></span>
                             </th>
                             <th style="text-align: center; padding: 12px;">
-                                <span class="openbotauth-decision-badge openbotauth-badge-pay"><?php _e('Pay', 'openbotauth'); ?></span>
+                                <span class="openbotauth-decision-badge openbotauth-badge-pay"><?php esc_html_e('Pay', 'openbotauth'); ?></span>
                             </th>
                             <th style="text-align: center; padding: 12px;">
-                                <span class="openbotauth-decision-badge openbotauth-badge-rate_limit"><?php _e('Rate Limit', 'openbotauth'); ?></span>
+                                <span class="openbotauth-decision-badge openbotauth-badge-rate_limit"><?php esc_html_e('Rate Limit', 'openbotauth'); ?></span>
                             </th>
                         </tr>
                     </thead>
@@ -614,7 +619,7 @@ class Admin {
                     </tbody>
                     <tfoot style="background: #f6f7f7;">
                         <tr>
-                            <td style="padding: 12px; font-weight: 600;"><?php _e('Total', 'openbotauth'); ?></td>
+                            <td style="padding: 12px; font-weight: 600;"><?php esc_html_e('Total', 'openbotauth'); ?></td>
                             <td style="text-align: center; padding: 12px; font-weight: 600; color: #00a32a;"><?php echo intval($totals['allow']); ?></td>
                             <td style="text-align: center; padding: 12px; font-weight: 600; color: #2271b1;"><?php echo intval($totals['teaser']); ?></td>
                             <td style="text-align: center; padding: 12px; font-weight: 600; color: #d63638;"><?php echo intval($totals['deny']); ?></td>
@@ -647,36 +652,36 @@ class Admin {
         <div class="openbotauth-table-section" style="margin-bottom: 24px;">
             <div class="openbotauth-table-header">
                 <span class="dashicons dashicons-visibility" style="color: #646970;"></span>
-                <?php _e('Automated crawlers we’ve seen (last 7 days)', 'openbotauth'); ?>
+                <?php esc_html_e('Automated crawlers we\'ve seen (last 7 days)', 'openbotauth'); ?>
             </div>
             
             <div style="padding: 12px 16px; background: #fff8e5; border-bottom: 1px solid #c3c4c7;">
                 <p style="margin: 0 0 6px 0; font-size: 12px; color: #646970;">
                     <span class="dashicons dashicons-info" style="font-size: 14px; width: 14px; height: 14px; vertical-align: text-top;"></span>
-                    <?php _e('These counts come from the bot\'s User-Agent (can be spoofed). If a bot supports cryptographic signatures, Signed/Verified provides stronger proof.', 'openbotauth'); ?>
+                    <?php esc_html_e('These counts come from the bot\'s User-Agent (can be spoofed). If a bot supports cryptographic signatures, Signed/Verified provides stronger proof.', 'openbotauth'); ?>
                 </p>
                 <p style="margin: 0; font-size: 11px; color: #8c8f94; padding-left: 18px;">
-                    <?php _e('Many bots don\'t sign yet—zeros in Signed/Verified are normal.', 'openbotauth'); ?>
+                    <?php esc_html_e('Many bots don\'t sign yet—zeros in Signed/Verified are normal.', 'openbotauth'); ?>
                 </p>
             </div>
             
             <?php if (empty($active_bots)): ?>
             <div style="padding: 40px 20px; text-align: center; color: #646970;">
                 <span class="dashicons dashicons-admin-generic" style="font-size: 48px; width: 48px; height: 48px; color: #dcdcde;"></span>
-                <p style="margin: 12px 0 0 0;"><?php _e('No bot traffic detected in the last 7 days.', 'openbotauth'); ?></p>
-                <p style="margin: 4px 0 0 0; font-size: 12px;"><?php _e('Bot visits will appear here when AI crawlers access your site.', 'openbotauth'); ?></p>
+                <p style="margin: 12px 0 0 0;"><?php esc_html_e('No bot traffic detected in the last 7 days.', 'openbotauth'); ?></p>
+                <p style="margin: 4px 0 0 0; font-size: 12px;"><?php esc_html_e('Bot visits will appear here when AI crawlers access your site.', 'openbotauth'); ?></p>
             </div>
             <?php else: ?>
             <table class="widefat striped" style="border: none;">
                 <thead>
                     <tr>
-                        <th style="padding: 12px;"><?php _e('Bot', 'openbotauth'); ?></th>
-                        <th style="padding: 12px;"><?php _e('Vendor', 'openbotauth'); ?></th>
-                        <th style="padding: 12px;"><?php _e('Category', 'openbotauth'); ?></th>
-                        <th style="text-align: center; padding: 12px;"><?php _e('Requests (7d)', 'openbotauth'); ?></th>
-                        <th style="text-align: center; padding: 12px;" title="<?php esc_attr_e('Signed requests on posts/pages only', 'openbotauth'); ?>"><?php _e('Signed', 'openbotauth'); ?></th>
-                        <th style="text-align: center; padding: 12px;" title="<?php esc_attr_e('Verified requests on posts/pages only', 'openbotauth'); ?>"><?php _e('Verified', 'openbotauth'); ?></th>
-                        <th style="text-align: center; padding: 12px;"><?php _e('Rate', 'openbotauth'); ?></th>
+                        <th style="padding: 12px;"><?php esc_html_e('Bot', 'openbotauth'); ?></th>
+                        <th style="padding: 12px;"><?php esc_html_e('Vendor', 'openbotauth'); ?></th>
+                        <th style="padding: 12px;"><?php esc_html_e('Category', 'openbotauth'); ?></th>
+                        <th style="text-align: center; padding: 12px;"><?php esc_html_e('Requests (7d)', 'openbotauth'); ?></th>
+                        <th style="text-align: center; padding: 12px;" title="<?php esc_attr_e('Signed requests on posts/pages only', 'openbotauth'); ?>"><?php esc_html_e('Signed', 'openbotauth'); ?></th>
+                        <th style="text-align: center; padding: 12px;" title="<?php esc_attr_e('Verified requests on posts/pages only', 'openbotauth'); ?>"><?php esc_html_e('Verified', 'openbotauth'); ?></th>
+                        <th style="text-align: center; padding: 12px;"><?php esc_html_e('Rate', 'openbotauth'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -695,10 +700,10 @@ class Admin {
                                 <?php echo esc_html($bot['category']); ?>
                             </span>
                         </td>
-                        <td style="text-align: center; padding: 10px 12px; font-weight: 600;"><?php echo number_format_i18n($bot['requests_total']); ?></td>
-                        <td style="text-align: center; padding: 10px 12px;"><?php echo number_format_i18n($bot['signed_total']); ?></td>
+                        <td style="text-align: center; padding: 10px 12px; font-weight: 600;"><?php echo esc_html( number_format_i18n($bot['requests_total']) ); ?></td>
+                        <td style="text-align: center; padding: 10px 12px;"><?php echo esc_html( number_format_i18n($bot['signed_total']) ); ?></td>
                         <td style="<?php echo esc_attr('text-align: center; padding: 10px 12px; color: ' . $verified_color . ';'); ?>">
-                            <?php echo number_format_i18n($bot['verified_total']); ?>
+                            <?php echo esc_html( number_format_i18n($bot['verified_total']) ); ?>
                         </td>
                         <td style="<?php echo esc_attr('text-align: center; padding: 10px 12px; color: ' . $rate_color . ';'); ?>">
                             <?php echo esc_html($rate); ?>
@@ -733,7 +738,7 @@ class Admin {
         <div class="openbotauth-table-section" style="margin-bottom: 24px;">
             <div class="openbotauth-table-header">
                 <span class="dashicons dashicons-share-alt" style="color: #646970;"></span>
-                <?php _e('Traffic from AI chats (last 7 days)', 'openbotauth'); ?>
+                <?php esc_html_e('Traffic from AI chats (last 7 days)', 'openbotauth'); ?>
             </div>
             
             <div style="padding: 16px;">
@@ -747,7 +752,7 @@ class Admin {
                                 <?php echo esc_html($source_labels[$source] ?? ucfirst($source)); ?>
                             </td>
                             <td style="padding: 8px 12px; text-align: right; font-weight: 600; color: #2271b1;">
-                                <?php echo number_format_i18n($count); ?>
+                                <?php echo esc_html( number_format_i18n($count) ); ?>
                             </td>
                         </tr>
                         <?php endif; ?>
@@ -756,13 +761,13 @@ class Admin {
                 </table>
                 <?php else: ?>
                 <p style="margin: 0; color: #646970;">
-                    <?php _e('No referrer traffic detected from AI chat sources yet.', 'openbotauth'); ?>
+                    <?php esc_html_e('No referrer traffic detected from AI chat sources yet.', 'openbotauth'); ?>
                 </p>
                 <?php endif; ?>
                 
                 <p style="margin: 12px 0 0 0; font-size: 11px; color: #8c8f94;">
                     <span class="dashicons dashicons-info" style="font-size: 14px; width: 14px; height: 14px; vertical-align: text-top;"></span>
-                    <?php _e('Tracked via HTTP Referer and utm_source parameter. Privacy settings may hide some traffic.', 'openbotauth'); ?>
+                    <?php esc_html_e('Tracked via HTTP Referer and utm_source parameter. Privacy settings may hide some traffic.', 'openbotauth'); ?>
                 </p>
             </div>
         </div>
@@ -855,70 +860,70 @@ class Admin {
         </style>
         
         <div class="openbotauth-ai-section">
-            <h2><?php _e('AI Endpoints', 'openbotauth'); ?></h2>
+            <h2><?php esc_html_e('AI Endpoints', 'openbotauth'); ?></h2>
             <p class="description" style="margin-bottom: 20px;">
-                <?php _e('llms.txt + JSON feed + Markdown pages', 'openbotauth'); ?>
+                <?php esc_html_e('llms.txt + JSON feed + Markdown pages', 'openbotauth'); ?>
             </p>
             
             <!-- Copy URLs Section -->
             <div class="openbotauth-urls-card">
                 <h3 style="margin-top: 0;">
                     <span class="dashicons dashicons-admin-links" style="color: #2271b1;"></span>
-                    <?php _e('Your AI-Ready URLs', 'openbotauth'); ?>
+                    <?php esc_html_e('Your AI-Ready URLs', 'openbotauth'); ?>
                 </h3>
                 <p class="description" style="margin-bottom: 16px;">
-                    <?php _e('Copy these URLs to share with AI tools and crawlers:', 'openbotauth'); ?>
+                    <?php esc_html_e('Copy these URLs to share with AI tools and crawlers:', 'openbotauth'); ?>
                 </p>
                 
                 <div class="openbotauth-url-row">
-                    <div class="openbotauth-url-label"><?php _e('llms.txt', 'openbotauth'); ?></div>
+                    <div class="openbotauth-url-label"><?php esc_html_e('llms.txt', 'openbotauth'); ?></div>
                     <div class="openbotauth-url-value"><?php echo esc_html(esc_url($llms_url)); ?></div>
                     <div class="openbotauth-url-status">
                         <?php if ($yoast_manages_llms): ?>
                         <span class="openbotauth-status-badge openbotauth-badge-yoast">
-                            <?php _e('Managed by Yoast', 'openbotauth'); ?>
+                            <?php esc_html_e('Managed by Yoast', 'openbotauth'); ?>
                         </span>
                         <?php else: ?>
                         <span class="openbotauth-status-badge <?php echo $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
-                            <?php echo $llms_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
+                            <?php echo $llms_enabled ? esc_html__('Enabled', 'openbotauth') : esc_html__('Disabled', 'openbotauth'); ?>
                         </span>
                         <?php endif; ?>
                     </div>
                 </div>
                 
                 <div class="openbotauth-url-row">
-                    <div class="openbotauth-url-label"><?php _e('llms.txt (well-known)', 'openbotauth'); ?></div>
+                    <div class="openbotauth-url-label"><?php esc_html_e('llms.txt (well-known)', 'openbotauth'); ?></div>
                     <div class="openbotauth-url-value"><?php echo esc_html(esc_url($llms_wellknown_url)); ?></div>
                     <div class="openbotauth-url-status">
                         <?php if ($yoast_manages_llms): ?>
                         <span class="openbotauth-status-badge openbotauth-badge-yoast">
-                            <?php _e('Managed by Yoast', 'openbotauth'); ?>
+                            <?php esc_html_e('Managed by Yoast', 'openbotauth'); ?>
                         </span>
                         <?php else: ?>
                         <span class="openbotauth-status-badge <?php echo $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
-                            <?php echo $llms_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
+                            <?php echo $llms_enabled ? esc_html__('Enabled', 'openbotauth') : esc_html__('Disabled', 'openbotauth'); ?>
                         </span>
                         <?php endif; ?>
                     </div>
                 </div>
                 
                 <div class="openbotauth-url-row">
-                    <div class="openbotauth-url-label"><?php _e('JSON Feed', 'openbotauth'); ?></div>
+                    <div class="openbotauth-url-label"><?php esc_html_e('JSON Feed', 'openbotauth'); ?></div>
                     <div class="openbotauth-url-value"><?php echo esc_html(esc_url($feed_url)); ?></div>
                     <div class="openbotauth-url-status">
                         <span class="openbotauth-status-badge <?php echo $feed_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
-                            <?php echo $feed_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
+                            <?php echo $feed_enabled ? esc_html__('Enabled', 'openbotauth') : esc_html__('Disabled', 'openbotauth'); ?>
                         </span>
                     </div>
                 </div>
                 
                 <?php if ($sample_md_url): ?>
                 <div class="openbotauth-url-row">
-                    <div class="openbotauth-url-label"><?php _e('Example Markdown', 'openbotauth'); ?></div>
+                    <div class="openbotauth-url-label"><?php esc_html_e('Example Markdown', 'openbotauth'); ?></div>
                     <div class="openbotauth-url-value"><?php echo esc_html(esc_url($sample_md_url)); ?></div>
                     <div class="openbotauth-url-status">
                         <span class="openbotauth-status-badge <?php echo $feed_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
-                            <?php echo $feed_enabled ? __('Enabled', 'openbotauth') : __('Disabled', 'openbotauth'); ?>
+                            <?php echo $feed_enabled ? esc_html__('Enabled', 'openbotauth') : esc_html__('Disabled', 'openbotauth'); ?>
                         </span>
                     </div>
                 </div>
@@ -929,7 +934,7 @@ class Admin {
             <div class="openbotauth-settings-card">
                 <h3>
                     <span class="dashicons dashicons-admin-settings" style="color: #646970;"></span>
-                    <?php _e('Endpoint Settings', 'openbotauth'); ?>
+                    <?php esc_html_e('Endpoint Settings', 'openbotauth'); ?>
                 </h3>
                 
                 <form method="post" action="options.php">
@@ -939,27 +944,27 @@ class Admin {
                     
                     <table class="form-table">
                         <tr>
-                            <th scope="row"><?php _e('Enable llms.txt', 'openbotauth'); ?></th>
+                            <th scope="row"><?php esc_html_e('Enable llms.txt', 'openbotauth'); ?></th>
                             <td>
                                 <label>
                                     <input type="hidden" name="openbotauth_llms_enabled" value="0">
                                     <input type="checkbox" name="openbotauth_llms_enabled" value="1" <?php checked($llms_enabled); ?>>
-                                    <?php _e('Serve /llms.txt and /.well-known/llms.txt endpoints', 'openbotauth'); ?>
+                                    <?php esc_html_e('Serve /llms.txt and /.well-known/llms.txt endpoints', 'openbotauth'); ?>
                                 </label>
                                 <p class="description">
-                                    <?php _e('Provides an index of your content for AI systems.', 'openbotauth'); ?>
+                                    <?php esc_html_e('Provides an index of your content for AI systems.', 'openbotauth'); ?>
                                 </p>
                                 <?php if ($yoast_active): ?>
                                 <div class="notice notice-info inline" style="margin: 12px 0 0 0; padding: 8px 12px;">
                                     <p style="margin: 0;">
                                         <span class="dashicons dashicons-info" style="color: #2271b1; vertical-align: middle;"></span>
-                                        <strong><?php _e('Yoast SEO detected', 'openbotauth'); ?></strong>
+                                        <strong><?php esc_html_e('Yoast SEO detected', 'openbotauth'); ?></strong>
                                     </p>
                                     <p style="margin: 8px 0 0 0; font-size: 13px;">
                                         <?php if ($prefer_yoast): ?>
-                                            <?php _e('Yoast is currently serving llms.txt. Uncheck "Use Yoast llms.txt" below to let OpenBotAuth serve it instead.', 'openbotauth'); ?>
+                                            <?php esc_html_e('Yoast is currently serving llms.txt. Uncheck "Use Yoast llms.txt" below to let OpenBotAuth serve it instead.', 'openbotauth'); ?>
                                         <?php else: ?>
-                                            <?php _e('OpenBotAuth is currently serving llms.txt. Check "Use Yoast llms.txt" below if you prefer Yoast to handle it.', 'openbotauth'); ?>
+                                            <?php esc_html_e('OpenBotAuth is currently serving llms.txt. Check "Use Yoast llms.txt" below if you prefer Yoast to handle it.', 'openbotauth'); ?>
                                         <?php endif; ?>
                                     </p>
                                 </div>
@@ -969,46 +974,46 @@ class Admin {
                         
                         <?php if ($yoast_active && $llms_enabled): ?>
                         <tr>
-                            <th scope="row"><?php _e('Use Yoast llms.txt', 'openbotauth'); ?></th>
+                            <th scope="row"><?php esc_html_e('Use Yoast llms.txt', 'openbotauth'); ?></th>
                             <td>
                                 <label>
                                     <input type="hidden" name="openbotauth_prefer_yoast_llms" value="0">
                                     <input type="checkbox" name="openbotauth_prefer_yoast_llms" value="1" <?php checked($prefer_yoast); ?>>
-                                    <?php _e('Let Yoast SEO serve /llms.txt instead', 'openbotauth'); ?>
+                                    <?php esc_html_e('Let Yoast SEO serve /llms.txt instead', 'openbotauth'); ?>
                                 </label>
                                 <p class="description">
-                                    <?php _e('Yoast SEO detected. Check this if you want Yoast to handle llms.txt.', 'openbotauth'); ?>
+                                    <?php esc_html_e('Yoast SEO detected. Check this if you want Yoast to handle llms.txt.', 'openbotauth'); ?>
                                 </p>
                             </td>
                         </tr>
                         <?php endif; ?>
                         
                         <tr>
-                            <th scope="row"><?php _e('Enable Feed + Markdown', 'openbotauth'); ?></th>
+                            <th scope="row"><?php esc_html_e('Enable Feed + Markdown', 'openbotauth'); ?></th>
                             <td>
                                 <label>
                                     <input type="hidden" name="openbotauth_feed_enabled" value="0">
                                     <input type="checkbox" name="openbotauth_feed_enabled" value="1" <?php checked($feed_enabled); ?>>
-                                    <?php _e('Serve JSON feed and per-post markdown endpoints', 'openbotauth'); ?>
+                                    <?php esc_html_e('Serve JSON feed and per-post markdown endpoints', 'openbotauth'); ?>
                                 </label>
                                 <p class="description">
-                                    <?php _e('Provides structured content for AI indexing and retrieval.', 'openbotauth'); ?>
+                                    <?php esc_html_e('Provides structured content for AI indexing and retrieval.', 'openbotauth'); ?>
                                 </p>
                             </td>
                         </tr>
                         
                         <tr>
-                            <th scope="row"><?php _e('Feed Limit', 'openbotauth'); ?></th>
+                            <th scope="row"><?php esc_html_e('Feed Limit', 'openbotauth'); ?></th>
                             <td>
                                 <input type="number" name="openbotauth_feed_limit" value="<?php echo esc_attr($feed_limit); ?>" min="1" max="500" class="small-text">
                                 <p class="description">
-                                    <?php _e('Maximum number of posts in the feed (1-500). Posts are ordered by last modified date.', 'openbotauth'); ?>
+                                    <?php esc_html_e('Maximum number of posts in the feed (1-500). Posts are ordered by last modified date.', 'openbotauth'); ?>
                                 </p>
                             </td>
                         </tr>
                         
                         <tr>
-                            <th scope="row"><?php _e('Post Types', 'openbotauth'); ?></th>
+                            <th scope="row"><?php esc_html_e('Post Types', 'openbotauth'); ?></th>
                             <td>
                                 <!-- Hidden input ensures empty array is sent when no checkboxes are checked -->
                                 <input type="hidden" name="openbotauth_feed_post_types[]" value="">
@@ -1022,7 +1027,7 @@ class Admin {
                                 </label>
                                 <?php endforeach; ?>
                                 <p class="description">
-                                    <?php _e('Which post types to include in the feed.', 'openbotauth'); ?>
+                                    <?php esc_html_e('Which post types to include in the feed.', 'openbotauth'); ?>
                                 </p>
                             </td>
                         </tr>
@@ -1035,12 +1040,12 @@ class Admin {
             <!-- Info Box -->
             <div class="notice notice-info" style="margin-top: 20px;">
                 <p>
-                    <strong><?php _e('Privacy Note:', 'openbotauth'); ?></strong>
-                    <?php _e('All endpoints serve content from your local WordPress database. No data is sent to external servers.', 'openbotauth'); ?>
+                    <strong><?php esc_html_e('Privacy Note:', 'openbotauth'); ?></strong>
+                    <?php esc_html_e('All endpoints serve content from your local WordPress database. No data is sent to external servers.', 'openbotauth'); ?>
                 </p>
                 <p>
-                    <strong><?php _e('Security:', 'openbotauth'); ?></strong>
-                    <?php _e('Only published, non-password-protected posts are exposed. Draft, private, and password-protected content is never included.', 'openbotauth'); ?>
+                    <strong><?php esc_html_e('Security:', 'openbotauth'); ?></strong>
+                    <?php esc_html_e('Only published, non-password-protected posts are exposed. Draft, private, and password-protected content is never included.', 'openbotauth'); ?>
                 </p>
             </div>
         </div>
@@ -1051,18 +1056,18 @@ class Admin {
      * Sanitize policy settings - only process if Configuration tab form was submitted
      */
     public function sanitize_policy($value) {
-        // Check if this is actually a Configuration tab submission
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
         if (!isset($_POST['openbotauth_config_tab_submitted'])) {
             // Not from Configuration tab - preserve existing value
             return get_option('openbotauth_policy', '{}');
         }
 
-        // If empty value, keep existing
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
         if (empty($value) && !isset($_POST['openbotauth_default_effect']) && !isset($_POST['openbotauth_teaser_words'])) {
             return get_option('openbotauth_policy', '{}');
         }
 
-        // If we have individual field submissions, build the policy JSON
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
         if (isset($_POST['openbotauth_default_effect']) || isset($_POST['openbotauth_teaser_words'])) {
             $policy = json_decode($value, true) ?: [];
 
@@ -1070,13 +1075,15 @@ class Admin {
                 $policy['default'] = [];
             }
 
+            // phpcs:disable WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
             if (isset($_POST['openbotauth_default_effect'])) {
-                $policy['default']['effect'] = sanitize_text_field($_POST['openbotauth_default_effect']);
+                $policy['default']['effect'] = sanitize_text_field( wp_unslash( $_POST['openbotauth_default_effect'] ) );
             }
 
             if (isset($_POST['openbotauth_teaser_words'])) {
-                $policy['default']['teaser_words'] = intval($_POST['openbotauth_teaser_words']);
+                $policy['default']['teaser_words'] = intval( $_POST['openbotauth_teaser_words'] );
             }
+            // phpcs:enable WordPress.Security.NonceVerification.Missing
 
             return wp_json_encode($policy);
         }
@@ -1097,7 +1104,7 @@ class Admin {
      * When enabled, ensure URL is set; when disabled, clear it
      */
     public function sanitize_use_hosted_verifier($value) {
-        // Check if this is actually a Configuration tab submission
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
         if (!isset($_POST['openbotauth_config_tab_submitted'])) {
             // Not from Configuration tab - preserve existing value (defaults to false for new installs)
             return (bool) get_option('openbotauth_use_hosted_verifier', false);
@@ -1150,10 +1157,10 @@ class Admin {
                        id="openbotauth_use_hosted_verifier"
                        value="1"
                        <?php checked($use_hosted); ?>>
-                <?php _e('Use hosted OpenBotAuth verifier', 'openbotauth'); ?>
+                <?php esc_html_e('Use hosted OpenBotAuth verifier', 'openbotauth'); ?>
             </label>
             <span class="description" style="margin-left: 8px;">
-                <?php _e('(Fills URL automatically)', 'openbotauth'); ?>
+                <?php esc_html_e('(Fills URL automatically)', 'openbotauth'); ?>
             </span>
         </p>
         <input type="url"
@@ -1163,7 +1170,7 @@ class Admin {
                class="regular-text"
                placeholder="<?php echo esc_attr($hosted_url); ?>">
         <p class="description">
-            <?php _e('URL of the OpenBotAuth verifier service. Leave empty to disable signature verification (all signed requests will be treated as unverified).', 'openbotauth'); ?>
+            <?php esc_html_e('URL of the OpenBotAuth verifier service. Leave empty to disable signature verification (all signed requests will be treated as unverified).', 'openbotauth'); ?>
         </p>
         <script>
         jQuery(document).ready(function($) {
@@ -1197,7 +1204,7 @@ class Admin {
                class="regular-text"
                placeholder="https://payments.example.com/pay">
         <p class="description">
-            <?php _e('Base URL for payment processing (optional). Used with 402 response stub - actual payment integration requires custom implementation.', 'openbotauth'); ?>
+            <?php esc_html_e('Base URL for payment processing (optional). Used with 402 response stub - actual payment integration requires custom implementation.', 'openbotauth'); ?>
         </p>
         <?php
     }
@@ -1206,7 +1213,7 @@ class Admin {
      * Render policy section description
      */
     public function render_policy_section_description() {
-        echo '<p>' . __('Configure the default policy for all posts. You can override this per-post in the post editor.', 'openbotauth') . '</p>';
+        echo '<p>' . esc_html__('Configure the default policy for all posts. You can override this per-post in the post editor.', 'openbotauth') . '</p>';
     }
     
     /**
@@ -1217,12 +1224,12 @@ class Admin {
         $effect = $policy['default']['effect'] ?? 'allow';
         ?>
         <select name="openbotauth_default_effect">
-            <option value="allow" <?php selected($effect, 'allow'); ?>><?php _e('Allow', 'openbotauth'); ?></option>
-            <option value="teaser" <?php selected($effect, 'teaser'); ?>><?php _e('Teaser (show preview)', 'openbotauth'); ?></option>
-            <option value="deny" <?php selected($effect, 'deny'); ?>><?php _e('Deny', 'openbotauth'); ?></option>
+            <option value="allow" <?php selected($effect, 'allow'); ?>><?php esc_html_e('Allow', 'openbotauth'); ?></option>
+            <option value="teaser" <?php selected($effect, 'teaser'); ?>><?php esc_html_e('Teaser (show preview)', 'openbotauth'); ?></option>
+            <option value="deny" <?php selected($effect, 'deny'); ?>><?php esc_html_e('Deny', 'openbotauth'); ?></option>
         </select>
         <p class="description">
-            <?php _e('What to do when a bot without a valid signature requests content', 'openbotauth'); ?>
+            <?php esc_html_e('What to do when a bot without a valid signature requests content', 'openbotauth'); ?>
         </p>
         <?php
     }
@@ -1241,7 +1248,7 @@ class Admin {
                step="10"
                class="small-text">
         <p class="description">
-            <?php _e('Number of words to show in teaser (0 = no teaser)', 'openbotauth'); ?>
+            <?php esc_html_e('Number of words to show in teaser (0 = no teaser)', 'openbotauth'); ?>
         </p>
         <?php
     }
@@ -1285,22 +1292,22 @@ class Admin {
                        name="openbotauth_enabled" 
                        value="1" 
                        <?php checked($enabled); ?>>
-                <?php _e('Override default policy', 'openbotauth'); ?>
+                <?php esc_html_e('Override default policy', 'openbotauth'); ?>
             </label>
         </p>
         
         <div id="openbotauth-policy-fields" style="<?php echo $enabled ? '' : 'display:none;'; ?>">
             <p>
-                <label><?php _e('Effect', 'openbotauth'); ?></label><br>
+                <label><?php esc_html_e('Effect', 'openbotauth'); ?></label><br>
                 <select name="openbotauth_effect" style="width: 100%;">
-                    <option value="allow" <?php selected($effect, 'allow'); ?>><?php _e('Allow', 'openbotauth'); ?></option>
-                    <option value="teaser" <?php selected($effect, 'teaser'); ?>><?php _e('Teaser', 'openbotauth'); ?></option>
-                    <option value="deny" <?php selected($effect, 'deny'); ?>><?php _e('Deny', 'openbotauth'); ?></option>
+                    <option value="allow" <?php selected($effect, 'allow'); ?>><?php esc_html_e('Allow', 'openbotauth'); ?></option>
+                    <option value="teaser" <?php selected($effect, 'teaser'); ?>><?php esc_html_e('Teaser', 'openbotauth'); ?></option>
+                    <option value="deny" <?php selected($effect, 'deny'); ?>><?php esc_html_e('Deny', 'openbotauth'); ?></option>
                 </select>
             </p>
             
             <p>
-                <label><?php _e('Teaser Words', 'openbotauth'); ?></label><br>
+                <label><?php esc_html_e('Teaser Words', 'openbotauth'); ?></label><br>
                 <input type="number" 
                        name="openbotauth_teaser_words" 
                        value="<?php echo esc_attr($teaser_words); ?>" 
@@ -1309,13 +1316,13 @@ class Admin {
             </p>
             
             <p>
-                <label><?php _e('Price (cents)', 'openbotauth'); ?></label><br>
+                <label><?php esc_html_e('Price (cents)', 'openbotauth'); ?></label><br>
                 <input type="number" 
                        name="openbotauth_price_cents" 
                        value="<?php echo esc_attr($price_cents); ?>" 
                        min="0" 
                        style="width: 100%;">
-                <small><?php _e('Returns 402 stub response if > 0 (payment integration requires custom implementation)', 'openbotauth'); ?></small>
+                <small><?php esc_html_e('Returns 402 stub response if > 0 (payment integration requires custom implementation)', 'openbotauth'); ?></small>
             </p>
         </div>
         
@@ -1335,7 +1342,7 @@ class Admin {
     public function save_post_meta($post_id) {
         // Check nonce
         if (!isset($_POST['openbotauth_meta_nonce']) || 
-            !wp_verify_nonce($_POST['openbotauth_meta_nonce'], 'openbotauth_meta')) {
+            !wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['openbotauth_meta_nonce'] ) ), 'openbotauth_meta')) {
             return;
         }
         
@@ -1350,11 +1357,11 @@ class Admin {
         }
         
         // Save or delete policy
-        if (isset($_POST['openbotauth_enabled']) && $_POST['openbotauth_enabled']) {
+        if (isset($_POST['openbotauth_enabled']) && sanitize_text_field( wp_unslash( $_POST['openbotauth_enabled'] ) )) {
             $policy = [
-                'effect' => sanitize_text_field($_POST['openbotauth_effect'] ?? 'allow'),
-                'teaser_words' => intval($_POST['openbotauth_teaser_words'] ?? 100),
-                'price_cents' => intval($_POST['openbotauth_price_cents'] ?? 0),
+                'effect' => sanitize_text_field( wp_unslash( $_POST['openbotauth_effect'] ?? 'allow' ) ),
+                'teaser_words' => intval( $_POST['openbotauth_teaser_words'] ?? 100 ),
+                'price_cents' => intval( $_POST['openbotauth_price_cents'] ?? 0 ),
             ];
             
             update_post_meta($post_id, '_openbotauth_policy', wp_json_encode($policy));
@@ -1396,7 +1403,8 @@ class Admin {
             return;
         }
         
-        $policy = wp_unslash($_POST['policy'] ?? '');
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON is validated via json_decode below
+        $policy = isset( $_POST['policy'] ) ? wp_unslash( $_POST['policy'] ) : '';
         
         // Validate JSON
         $decoded = json_decode($policy, true);
