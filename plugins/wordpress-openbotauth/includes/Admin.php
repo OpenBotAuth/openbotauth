@@ -39,33 +39,41 @@ class Admin {
     
     /**
      * Register settings
+     * 
+     * IMPORTANT: We use separate settings groups for each tab to prevent
+     * saving one tab from overwriting settings in another tab.
+     * - 'openbotauth_config' for Configuration tab settings
+     * - 'openbotauth_ai' for AI Endpoints tab settings
      */
     public function register_settings() {
-        register_setting('openbotauth', 'openbotauth_verifier_url', [
-            'sanitize_callback' => 'esc_url_raw'
+        // === Configuration Tab Settings (group: openbotauth_config) ===
+        register_setting('openbotauth_config', 'openbotauth_verifier_url', [
+            'sanitize_callback' => [$this, 'sanitize_verifier_url']
         ]);
-        register_setting('openbotauth', 'openbotauth_use_hosted_verifier', [
+        register_setting('openbotauth_config', 'openbotauth_use_hosted_verifier', [
+            'type' => 'boolean',
+            'default' => false,
             'sanitize_callback' => [$this, 'sanitize_use_hosted_verifier']
         ]);
-        register_setting('openbotauth', 'openbotauth_policy', [
+        register_setting('openbotauth_config', 'openbotauth_policy', [
             'sanitize_callback' => [$this, 'sanitize_policy']
         ]);
-        register_setting('openbotauth', 'openbotauth_payment_url', [
-            'sanitize_callback' => 'esc_url_raw'
+        register_setting('openbotauth_config', 'openbotauth_payment_url', [
+            'sanitize_callback' => [$this, 'sanitize_payment_url']
         ]);
         
         add_settings_section(
             'openbotauth_general',
             __('General Settings', 'openbotauth'),
             null,
-            'openbotauth'
+            'openbotauth_config'
         );
         
         add_settings_field(
             'verifier_url',
             __('Verifier Service URL', 'openbotauth'),
             [$this, 'render_verifier_url_field'],
-            'openbotauth',
+            'openbotauth_config',
             'openbotauth_general'
         );
         
@@ -76,14 +84,14 @@ class Admin {
             'openbotauth_policy',
             __('Default Policy', 'openbotauth'),
             [$this, 'render_policy_section_description'],
-            'openbotauth'
+            'openbotauth_config'
         );
         
         add_settings_field(
             'default_effect',
             __('Default Effect', 'openbotauth'),
             [$this, 'render_default_effect_field'],
-            'openbotauth',
+            'openbotauth_config',
             'openbotauth_policy'
         );
         
@@ -91,51 +99,123 @@ class Admin {
             'teaser_words',
             __('Teaser Word Count', 'openbotauth'),
             [$this, 'render_teaser_words_field'],
-            'openbotauth',
+            'openbotauth_config',
             'openbotauth_policy'
         );
         
-        // AI Artifacts settings (v0.1.2+)
-        register_setting('openbotauth', 'openbotauth_llms_enabled', [
+        // === AI Endpoints Tab Settings (group: openbotauth_ai) ===
+        // Use custom sanitize callbacks that preserve values when not being submitted
+        register_setting('openbotauth_ai', 'openbotauth_llms_enabled', [
             'type' => 'boolean',
             'default' => true,
-            'sanitize_callback' => 'rest_sanitize_boolean',
+            'sanitize_callback' => [$this, 'sanitize_ai_boolean'],
         ]);
-        register_setting('openbotauth', 'openbotauth_feed_enabled', [
+        register_setting('openbotauth_ai', 'openbotauth_feed_enabled', [
             'type' => 'boolean',
             'default' => true,
-            'sanitize_callback' => 'rest_sanitize_boolean',
+            'sanitize_callback' => [$this, 'sanitize_ai_boolean'],
         ]);
-        register_setting('openbotauth', 'openbotauth_feed_limit', [
+        register_setting('openbotauth_ai', 'openbotauth_feed_limit', [
             'type' => 'integer',
-            'default' => 50,
+            'default' => 100,
             'sanitize_callback' => [$this, 'sanitize_feed_limit'],
         ]);
-        register_setting('openbotauth', 'openbotauth_feed_post_types', [
+        register_setting('openbotauth_ai', 'openbotauth_feed_post_types', [
             'type' => 'array',
             'default' => ['post', 'page'],
             'sanitize_callback' => [$this, 'sanitize_feed_post_types'],
         ]);
         
         // Yoast compatibility: user-controlled preference (v0.1.3+)
-        register_setting('openbotauth', 'openbotauth_prefer_yoast_llms', [
+        register_setting('openbotauth_ai', 'openbotauth_prefer_yoast_llms', [
             'type' => 'boolean',
             'default' => false,
-            'sanitize_callback' => 'rest_sanitize_boolean',
+            'sanitize_callback' => [$this, 'sanitize_ai_boolean'],
         ]);
     }
     
     /**
+     * Sanitize verifier URL - only process if Configuration tab form was submitted
+     */
+    public function sanitize_verifier_url($value) {
+        // Check if this is actually a Configuration tab submission
+        if (!isset($_POST['openbotauth_config_tab_submitted'])) {
+            // Not from Configuration tab - preserve existing value
+            $existing = get_option('openbotauth_verifier_url');
+            return $existing !== false ? $existing : '';
+        }
+        return esc_url_raw($value);
+    }
+
+    /**
+     * Sanitize payment URL - only process if Configuration tab form was submitted
+     */
+    public function sanitize_payment_url($value) {
+        // Check if this is actually a Configuration tab submission
+        if (!isset($_POST['openbotauth_config_tab_submitted'])) {
+            // Not from Configuration tab - preserve existing value
+            $existing = get_option('openbotauth_payment_url');
+            return $existing !== false ? $existing : '';
+        }
+        return esc_url_raw($value);
+    }
+
+    /**
+     * Sanitize AI boolean settings - only process if AI tab form was submitted
+     * This prevents the Configuration tab from resetting AI settings
+     */
+    public function sanitize_ai_boolean($value) {
+        // Check if this is actually an AI tab submission by looking for the AI tab marker
+        if (!isset($_POST['openbotauth_ai_tab_submitted'])) {
+            // Not from AI tab - return existing value to preserve it
+            // Get the option name from the current filter
+            $current_filter = current_filter();
+            if (preg_match('/sanitize_option_(.+)/', $current_filter, $matches)) {
+                $option_name = $matches[1];
+                $existing = get_option($option_name);
+                // If option exists, return it; otherwise return default (true for enabled settings)
+                if ($existing !== false) {
+                    return $existing;
+                }
+                // Default to true for llms_enabled and feed_enabled
+                if (in_array($option_name, ['openbotauth_llms_enabled', 'openbotauth_feed_enabled'])) {
+                    return true;
+                }
+                return false;
+            }
+            return $value;
+        }
+        
+        // AI tab was submitted - process normally
+        return rest_sanitize_boolean($value);
+    }
+    
+    /**
      * Sanitize feed limit (1-500)
+     * Only process if AI tab form was actually submitted
      */
     public function sanitize_feed_limit($value) {
+        // Check if this is actually an AI tab submission
+        if (!isset($_POST['openbotauth_ai_tab_submitted'])) {
+            // Not from AI tab - preserve existing value
+            $existing = get_option('openbotauth_feed_limit');
+            return $existing !== false ? $existing : 100;
+        }
         return min(500, max(1, absint($value)));
     }
     
     /**
      * Sanitize feed post types array
+     * Only process if AI tab form was actually submitted
      */
     public function sanitize_feed_post_types($value) {
+        // Check if this is actually an AI tab submission
+        if (!isset($_POST['openbotauth_ai_tab_submitted'])) {
+            // Not from AI tab - preserve existing value
+            $existing = get_option('openbotauth_feed_post_types');
+            return $existing !== false ? $existing : ['post', 'page'];
+        }
+        
         // Handle empty case (no checkboxes selected)
         if (empty($value) || $value === '') {
             return [];
@@ -207,9 +287,11 @@ class Admin {
             <?php if ($current_tab === 'config'): ?>
                 <!-- Configuration Tab -->
                 <form action="options.php" method="post">
+                    <?php settings_fields('openbotauth_config'); ?>
+                    <!-- Marker to identify Configuration tab form submission -->
+                    <input type="hidden" name="openbotauth_config_tab_submitted" value="1">
                     <?php
-                    settings_fields('openbotauth');
-                    do_settings_sections('openbotauth');
+                    do_settings_sections('openbotauth_config');
                     submit_button(__('Save Settings', 'openbotauth'));
                     ?>
                 </form>
@@ -632,17 +714,26 @@ class Admin {
     
     /**
      * Render Referrer Stats section
-     * Shows traffic from AI chat sources (ChatGPT, Perplexity) based on HTTP Referer.
+     * Shows traffic from AI chat sources based on HTTP Referer or utm_source parameter.
      */
     private function render_referrer_stats_section(): void {
         $ref_totals = Analytics::getRefTotals(7);
         $has_any = array_sum($ref_totals) > 0;
         
+        // Display names for AI sources
+        $source_labels = [
+            'chatgpt' => 'ChatGPT',
+            'perplexity' => 'Perplexity',
+            'claude' => 'Claude',
+            'gemini' => 'Gemini',
+            'copilot' => 'Copilot',
+        ];
+        
         ?>
         <div class="openbotauth-table-section" style="margin-bottom: 24px;">
             <div class="openbotauth-table-header">
                 <span class="dashicons dashicons-share-alt" style="color: #646970;"></span>
-                <?php _e('Traffic from AI chats (referrer, last 7 days)', 'openbotauth'); ?>
+                <?php _e('Traffic from AI chats (last 7 days)', 'openbotauth'); ?>
             </div>
             
             <div style="padding: 16px;">
@@ -653,15 +744,7 @@ class Admin {
                         <?php if ($count > 0): ?>
                         <tr>
                             <td style="padding: 8px 12px; font-weight: 500;">
-                                <?php 
-                                if ($source === 'chatgpt') {
-                                    _e('ChatGPT', 'openbotauth');
-                                } elseif ($source === 'perplexity') {
-                                    _e('Perplexity', 'openbotauth');
-                                } else {
-                                    echo esc_html(ucfirst($source));
-                                }
-                                ?>
+                                <?php echo esc_html($source_labels[$source] ?? ucfirst($source)); ?>
                             </td>
                             <td style="padding: 8px 12px; text-align: right; font-weight: 600; color: #2271b1;">
                                 <?php echo number_format_i18n($count); ?>
@@ -679,7 +762,7 @@ class Admin {
                 
                 <p style="margin: 12px 0 0 0; font-size: 11px; color: #8c8f94;">
                     <span class="dashicons dashicons-info" style="font-size: 14px; width: 14px; height: 14px; vertical-align: text-top;"></span>
-                    <?php _e('Referrer can be hidden by browsers/privacy settings, so this may undercount.', 'openbotauth'); ?>
+                    <?php _e('Tracked via HTTP Referer and utm_source parameter. Privacy settings may hide some traffic.', 'openbotauth'); ?>
                 </p>
             </div>
         </div>
@@ -693,7 +776,7 @@ class Admin {
     private function render_ai_artifacts_section() {
         $llms_enabled = get_option('openbotauth_llms_enabled', true);
         $feed_enabled = get_option('openbotauth_feed_enabled', true);
-        $feed_limit = get_option('openbotauth_feed_limit', 50);
+        $feed_limit = get_option('openbotauth_feed_limit', 100);
         $feed_post_types = get_option('openbotauth_feed_post_types', ['post', 'page']);
         
         // Yoast compatibility (v0.1.3+)
@@ -850,7 +933,9 @@ class Admin {
                 </h3>
                 
                 <form method="post" action="options.php">
-                    <?php settings_fields('openbotauth'); ?>
+                    <?php settings_fields('openbotauth_ai'); ?>
+                    <!-- Marker to identify AI tab form submission -->
+                    <input type="hidden" name="openbotauth_ai_tab_submitted" value="1">
                     
                     <table class="form-table">
                         <tr>
@@ -864,11 +949,20 @@ class Admin {
                                 <p class="description">
                                     <?php _e('Provides an index of your content for AI systems.', 'openbotauth'); ?>
                                 </p>
-                                <?php if ($yoast_active && $prefer_yoast): ?>
-                                <p class="description" style="color: #1e40af; margin-top: 8px;">
-                                    <span class="dashicons dashicons-info" style="font-size: 14px; width: 14px; height: 14px; vertical-align: middle;"></span>
-                                    <?php _e('Yoast is serving llms.txt. Uncheck "Use Yoast llms.txt" to let OpenBotAuth serve it.', 'openbotauth'); ?>
-                                </p>
+                                <?php if ($yoast_active): ?>
+                                <div class="notice notice-info inline" style="margin: 12px 0 0 0; padding: 8px 12px;">
+                                    <p style="margin: 0;">
+                                        <span class="dashicons dashicons-info" style="color: #2271b1; vertical-align: middle;"></span>
+                                        <strong><?php _e('Yoast SEO detected', 'openbotauth'); ?></strong>
+                                    </p>
+                                    <p style="margin: 8px 0 0 0; font-size: 13px;">
+                                        <?php if ($prefer_yoast): ?>
+                                            <?php _e('Yoast is currently serving llms.txt. Uncheck "Use Yoast llms.txt" below to let OpenBotAuth serve it instead.', 'openbotauth'); ?>
+                                        <?php else: ?>
+                                            <?php _e('OpenBotAuth is currently serving llms.txt. Check "Use Yoast llms.txt" below if you prefer Yoast to handle it.', 'openbotauth'); ?>
+                                        <?php endif; ?>
+                                    </p>
+                                </div>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -954,68 +1048,107 @@ class Admin {
     }
     
     /**
-     * Sanitize policy settings
+     * Sanitize policy settings - only process if Configuration tab form was submitted
      */
     public function sanitize_policy($value) {
-        // If empty value (e.g., from another tab's form submission), keep existing
+        // Check if this is actually a Configuration tab submission
+        if (!isset($_POST['openbotauth_config_tab_submitted'])) {
+            // Not from Configuration tab - preserve existing value
+            return get_option('openbotauth_policy', '{}');
+        }
+
+        // If empty value, keep existing
         if (empty($value) && !isset($_POST['openbotauth_default_effect']) && !isset($_POST['openbotauth_teaser_words'])) {
             return get_option('openbotauth_policy', '{}');
         }
-        
+
         // If we have individual field submissions, build the policy JSON
         if (isset($_POST['openbotauth_default_effect']) || isset($_POST['openbotauth_teaser_words'])) {
             $policy = json_decode($value, true) ?: [];
-            
+
             if (!isset($policy['default'])) {
                 $policy['default'] = [];
             }
-            
+
             if (isset($_POST['openbotauth_default_effect'])) {
                 $policy['default']['effect'] = sanitize_text_field($_POST['openbotauth_default_effect']);
             }
-            
+
             if (isset($_POST['openbotauth_teaser_words'])) {
                 $policy['default']['teaser_words'] = intval($_POST['openbotauth_teaser_words']);
             }
-            
+
             return wp_json_encode($policy);
         }
-        
+
         // Otherwise, validate and return the JSON as-is
         $decoded = json_decode($value, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
             add_settings_error('openbotauth_policy', 'invalid_json', 'Invalid policy JSON');
             return get_option('openbotauth_policy', '{}');
         }
-        
+
         return $value;
     }
     
     /**
      * Sanitize the use hosted verifier checkbox
-     * Just returns boolean - no side effects. The Verifier class handles
-     * using the hosted URL when this option is enabled.
+     * Only process if Configuration tab form was submitted
+     * When enabled, ensure URL is set; when disabled, clear it
      */
     public function sanitize_use_hosted_verifier($value) {
-        return (bool) $value;
+        // Check if this is actually a Configuration tab submission
+        if (!isset($_POST['openbotauth_config_tab_submitted'])) {
+            // Not from Configuration tab - preserve existing value (defaults to false for new installs)
+            return (bool) get_option('openbotauth_use_hosted_verifier', false);
+        }
+
+        $use_hosted = (bool) $value;
+        $hosted_url = 'https://verifier.openbotauth.org/verify';
+
+        // When checkbox is toggled, update the verifier URL accordingly
+        // This ensures the URL stays in sync with the checkbox state
+        if ($use_hosted) {
+            // When enabling, set to hosted URL (will be saved via the form field too)
+            // Just ensure the form field has the right value
+            $_POST['openbotauth_verifier_url'] = $hosted_url;
+        } else {
+            // When disabling, clear the URL
+            $_POST['openbotauth_verifier_url'] = '';
+        }
+
+        return $use_hosted;
     }
     
     /**
      * Render verifier URL field
+     * By default (new install): checkbox OFF, URL field EMPTY (show placeholder only)
+     * When checkbox is clicked ON: fill URL field with hosted URL
+     * When checkbox is unchecked: clear URL field
      */
     public function render_verifier_url_field() {
-        $value = get_option('openbotauth_verifier_url', '');
         $use_hosted = get_option('openbotauth_use_hosted_verifier', false);
+        $verifier_url = get_option('openbotauth_verifier_url', '');
         $hosted_url = 'https://verifier.openbotauth.org/verify';
+
+        // Display logic:
+        // - If checkbox is ON: show hosted URL
+        // - If checkbox is OFF: show empty (user can manually enter custom URL)
+        $display_value = $use_hosted ? $hosted_url : $verifier_url;
+
+        // For new installs (both options are false/empty), ensure field starts empty
+        if (!$use_hosted && empty($verifier_url)) {
+            $display_value = '';
+        }
         ?>
         <p>
             <label>
                 <!-- Hidden input ensures unchecking submits value 0 -->
                 <input type="hidden" name="openbotauth_use_hosted_verifier" value="0">
-                <input type="checkbox" 
-                       name="openbotauth_use_hosted_verifier" 
+                <input type="checkbox"
+                       name="openbotauth_use_hosted_verifier"
                        id="openbotauth_use_hosted_verifier"
-                       value="1" 
+                       value="1"
                        <?php checked($use_hosted); ?>>
                 <?php _e('Use hosted OpenBotAuth verifier', 'openbotauth'); ?>
             </label>
@@ -1023,10 +1156,10 @@ class Admin {
                 <?php _e('(Fills URL automatically)', 'openbotauth'); ?>
             </span>
         </p>
-        <input type="url" 
-               name="openbotauth_verifier_url" 
+        <input type="url"
+               name="openbotauth_verifier_url"
                id="openbotauth_verifier_url"
-               value="<?php echo esc_attr($value); ?>" 
+               value="<?php echo esc_attr($display_value); ?>"
                class="regular-text"
                placeholder="<?php echo esc_attr($hosted_url); ?>">
         <p class="description">
@@ -1035,9 +1168,16 @@ class Admin {
         <script>
         jQuery(document).ready(function($) {
             var hostedUrl = '<?php echo esc_js($hosted_url); ?>';
-            $('#openbotauth_use_hosted_verifier').on('change', function() {
+            var $checkbox = $('#openbotauth_use_hosted_verifier');
+            var $urlField = $('#openbotauth_verifier_url');
+
+            $checkbox.on('change', function() {
                 if (this.checked) {
-                    $('#openbotauth_verifier_url').val(hostedUrl);
+                    // Fill with hosted URL when checked
+                    $urlField.val(hostedUrl);
+                } else {
+                    // Clear the URL when unchecked
+                    $urlField.val('');
                 }
             });
         });
