@@ -1,11 +1,11 @@
 <?php
 /**
- * Plugin Name: OpenBotAuth
- * Plugin URI: https://github.com/OpenBotAuth/openbotauth
- * Description: AI bot analytics + signed agent verification (RFC 9421) with local-only stats and AI endpoints (llms.txt, feed, markdown).
- * Version: 0.1.3
+ * Plugin Name: OpenBotAuth – AI Crawler Access Control
+ * Plugin URI: https://openbotauth.org
+ * Description: Verify AI crawlers with HTTP Signatures and enforce allow/deny/teaser policies; also serves llms.txt and AI-ready feeds.
+ * Version: 1.0.0
  * Author: OpenBotAuth
- * Author URI: https://github.com/OpenBotAuth/openbotauth
+ * Author URI: https://openbotauth.org
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: openbotauth
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 
 // Plugin constants (defensive definitions)
 if (!defined('OPENBOTAUTH_VERSION')) {
-    define('OPENBOTAUTH_VERSION', '0.1.3');
+    define('OPENBOTAUTH_VERSION', '1.0.0');
 }
 if (!defined('OPENBOTAUTH_PLUGIN_DIR')) {
     define('OPENBOTAUTH_PLUGIN_DIR', plugin_dir_path(__FILE__));
@@ -72,9 +72,20 @@ register_activation_hook(__FILE__, function() {
     ]));
     
     // AI Artifacts options (v0.1.2+)
-    add_option('openbotauth_llms_enabled', true);
-    add_option('openbotauth_feed_enabled', true);
-    add_option('openbotauth_feed_limit', 50);
-    add_option('openbotauth_feed_post_types', ['post', 'page']);
+    // Use update_option with autoload for reliable default setting on fresh installs
+    // Check if option exists and has a value before setting defaults
+    // Use boolean true (not string '1') to match register_setting type declaration in Admin.php
+    if (get_option('openbotauth_llms_enabled') === false) {
+        update_option('openbotauth_llms_enabled', true, true);
+    }
+    if (get_option('openbotauth_feed_enabled') === false) {
+        update_option('openbotauth_feed_enabled', true, true);
+    }
+    if (get_option('openbotauth_feed_limit') === false) {
+        update_option('openbotauth_feed_limit', 100, true);
+    }
+    if (get_option('openbotauth_feed_post_types') === false) {
+        update_option('openbotauth_feed_post_types', ['post', 'page'], true);
+    }
 });
 
