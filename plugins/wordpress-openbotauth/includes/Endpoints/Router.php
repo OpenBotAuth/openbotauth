@@ -1,9 +1,4 @@
 <?php
-// Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
-}
-
 /**
  * AI Endpoints Router
  *
@@ -19,6 +14,11 @@ if (!defined('ABSPATH')) {
  */
 
 namespace OpenBotAuth\Endpoints;
+
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 use OpenBotAuth\Content\MetadataProviderInterface;
 use OpenBotAuth\Plugin;
@@ -98,8 +98,10 @@ class Router {
      * @return string The relative route (e.g., "/llms.txt").
      */
     private function get_relative_route(): string {
+        // Note: Don't use sanitize_text_field() on URIs - it strips percent-encoded chars like %20
+        // wp_parse_url() safely extracts the path component without executing any code
         $request_uri = isset($_SERVER['REQUEST_URI']) 
-            ? parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) 
+            ? wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) 
             : '/';
         
         if ($request_uri === null || $request_uri === false) {
@@ -237,6 +239,7 @@ class Router {
             }
         }
 
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Plain text output for llms.txt
         echo $output;
         exit;
     }
@@ -318,7 +321,7 @@ class Router {
         $lastmod_http = gmdate('D, d M Y H:i:s', $lastmod) . ' GMT';
 
         if (isset($_SERVER['HTTP_IF_MODIFIED_SINCE'])) {
-            $if_modified = strtotime($_SERVER['HTTP_IF_MODIFIED_SINCE']);
+            $if_modified = strtotime( sanitize_text_field( wp_unslash( $_SERVER['HTTP_IF_MODIFIED_SINCE'] ) ) );
             // Guard against strtotime returning false
             if ($if_modified && $if_modified >= $lastmod) {
                 status_header(304);
@@ -332,6 +335,7 @@ class Router {
         header('Last-Modified: ' . $lastmod_http);
         header('X-Robots-Tag: noindex'); // Prevent search engine indexing of raw markdown
 
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Markdown content intentionally unescaped
         echo $this->render_post_markdown($post);
         exit;
     }
@@ -381,7 +385,7 @@ class Router {
      * @return \WP_Post[] Array of post objects.
      */
     private function get_feed_posts(): array {
-        $limit = min(500, max(1, (int) get_option('openbotauth_feed_limit', 50)));
+        $limit = min(500, max(1, (int) get_option('openbotauth_feed_limit', 100)));
         $post_types = get_option('openbotauth_feed_post_types', ['post', 'page']);
 
         // Ensure post_types is an array

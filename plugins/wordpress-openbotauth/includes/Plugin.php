@@ -109,7 +109,9 @@ class Plugin {
             return;
         }
         
-        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $ua = isset( $_SERVER['HTTP_USER_AGENT'] ) 
+            ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) 
+            : '';
         if (empty($ua)) {
             return;
         }
@@ -125,23 +127,49 @@ class Plugin {
     
     /**
      * Track referrer stat if request comes from known AI chat sources.
-     * Static + pure: just parses referer, matches known hosts, increments stat.
+     * Checks both HTTP Referer header AND utm_source query parameter.
      * Called from track_bot_traffic() and Router (for AI endpoints).
      */
     public static function track_referrer_stat(): void {
-        $ref = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
-        if (empty($ref)) {
-            return;
+        $tracked = false;
+        
+        // 1. Check HTTP Referer header
+        $ref = isset($_SERVER['HTTP_REFERER']) 
+            ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) 
+            : '';
+        if (!empty($ref)) {
+            $host = wp_parse_url($ref, PHP_URL_HOST);
+            $host = strtolower($host ? $host : '');
+            
+            // Match ChatGPT hosts
+            if (in_array($host, ['chatgpt.com', 'www.chatgpt.com', 'chat.openai.com'], true)) {
+                Analytics::incrementRefStat('chatgpt');
+                $tracked = true;
+            } elseif (in_array($host, ['perplexity.ai', 'www.perplexity.ai'], true)) {
+                Analytics::incrementRefStat('perplexity');
+                $tracked = true;
+            }
         }
         
-        $host = wp_parse_url($ref, PHP_URL_HOST);
-        $host = strtolower($host ? $host : '');
-        
-        // Match ChatGPT hosts
-        if (in_array($host, ['chatgpt.com', 'www.chatgpt.com', 'chat.openai.com'], true)) {
-            Analytics::incrementRefStat('chatgpt');
-        } elseif (in_array($host, ['perplexity.ai', 'www.perplexity.ai'], true)) {
-            Analytics::incrementRefStat('perplexity');
+        // 2. Check utm_source query parameter (e.g., ?utm_source=chatgpt.com)
+        // This is how ChatGPT and other AI sources attribute traffic via links
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Public query param for analytics, not processing form data
+        if (!$tracked && isset($_GET['utm_source'])) {
+            $utm_source = strtolower( sanitize_text_field( wp_unslash( $_GET['utm_source'] ) ) );
+            // phpcs:enable WordPress.Security.NonceVerification.Recommended
+            
+            // Match ChatGPT UTM sources
+            if (in_array($utm_source, ['chatgpt.com', 'chatgpt', 'openai'], true)) {
+                Analytics::incrementRefStat('chatgpt');
+            } elseif (in_array($utm_source, ['perplexity.ai', 'perplexity'], true)) {
+                Analytics::incrementRefStat('perplexity');
+            } elseif (in_array($utm_source, ['claude.ai', 'claude', 'anthropic'], true)) {
+                Analytics::incrementRefStat('claude');
+            } elseif (in_array($utm_source, ['gemini.google.com', 'gemini', 'bard'], true)) {
+                Analytics::incrementRefStat('gemini');
+            } elseif (in_array($utm_source, ['copilot.microsoft.com', 'copilot', 'bing'], true)) {
+                Analytics::incrementRefStat('copilot');
+            }
         }
     }
     
@@ -169,7 +197,9 @@ class Plugin {
         Analytics::incrementMeta('signed_total');
         
         // Track per-bot signed count
-        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $ua = isset( $_SERVER['HTTP_USER_AGENT'] ) 
+            ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) 
+            : '';
         $bot_id = BotDetector::detect_bot_id_from_user_agent($ua);
         if ($bot_id) {
             Analytics::incrementBotStat($bot_id, 'signed_total');
@@ -216,7 +246,7 @@ class Plugin {
             case 'deny':
                 status_header(403);
                 header('X-OBA-Decision: deny');
-                wp_die(__('Access denied', 'openbotauth'), '', ['response' => 403]);
+                wp_die( esc_html__('Access denied', 'openbotauth'), '', ['response' => 403]);
                 break;
                 
             case 'pay':
@@ -239,7 +269,7 @@ class Plugin {
                 if (!empty($result['retry_after'])) {
                     header('Retry-After: ' . intval($result['retry_after']));
                 }
-                wp_die(__('Rate limit exceeded', 'openbotauth'), '', ['response' => 429]);
+                wp_die( esc_html__('Rate limit exceeded', 'openbotauth'), '', ['response' => 429]);
                 break;
                 
             case 'allow':

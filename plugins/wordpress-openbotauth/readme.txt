@@ -1,18 +1,18 @@
-=== OpenBotAuth ===
+=== OpenBotAuth – AI Crawler Access Control ===
 Contributors: openbotauth
-Tags: bot authentication, ai agents, http signatures, rfc 9421, access control
+Tags: ai, crawler, bots, security, llms.txt
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 0.1.3
+Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI bot analytics + signed agent verification (RFC 9421) with local-only stats and AI endpoints (llms.txt, feed, markdown).
+Verify AI crawlers with HTTP Signatures and enforce allow/deny/teaser policies; also serves llms.txt and AI-ready feeds.
 
 == Description ==
 
-**OpenBotAuth** enables content owners to control how AI agents and bots access their content using cryptographic signatures (RFC 9421).
+**OpenBotAuth** helps publishers control automated access from AI crawlers and agents. It verifies requests using RFC 9421 HTTP Message Signatures (via a configurable verifier) and applies per-site or per-post policies like allow, deny, teaser previews, and 402 payment-required responses. It also publishes AI-friendly endpoints like llms.txt, a JSON feed, and per-post Markdown.
 
 Instead of blocking all bots or allowing unrestricted access, you can:
 
@@ -138,6 +138,13 @@ To control this, you can:
 
 == Changelog ==
 
+= 1.0.0 =
+* First stable release for WordPress.org directory
+* AI referrer tracking via utm_source parameter (ChatGPT, Claude, Gemini, Perplexity, Copilot)
+* AI feed options enabled by default on fresh install
+* Feed limit default increased to 100 posts
+* Improved plugin activation defaults
+
 = 0.1.3 =
 * Analytics is now the default tab (see bot traffic immediately on first visit)
 * Bot traffic tracking: see which AI bots (GPTBot, ClaudeBot, PerplexityBot, etc.) are crawling your site
@@ -188,6 +195,9 @@ To control this, you can:
 * REST API for policy retrieval
 
 == Upgrade Notice ==
+
+= 1.0.0 =
+First stable release. AI referrer tracking via utm_source (ChatGPT, Claude, Gemini, Perplexity, Copilot). AI feed options now enabled by default. Feed limit increased to 100 posts.
 
 = 0.1.3 =
 Yoast SEO compatibility, visual analytics dashboard (now the default tab), and configurable AI endpoints. See which AI bots are crawling your site. Use the "Use Yoast llms.txt" toggle if you want Yoast to manage llms.txt. Configure which post types appear in your AI endpoints.

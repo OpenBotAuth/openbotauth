@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: OpenBotAuth
- * Plugin URI: https://github.com/OpenBotAuth/openbotauth
- * Description: AI bot analytics + signed agent verification (RFC 9421) with local-only stats and AI endpoints (llms.txt, feed, markdown).
- * Version: 0.1.3
+ * Plugin Name: OpenBotAuth – AI Crawler Access Control
+ * Plugin URI: https://openbotauth.org
+ * Description: Verify AI crawlers with HTTP Signatures and enforce allow/deny/teaser policies; also serves llms.txt and AI-ready feeds.
+ * Version: 1.0.0
  * Author: OpenBotAuth
  * Author URI: https://github.com/OpenBotAuth/openbotauth
  * License: GPLv2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 
 // Plugin constants (defensive definitions)
 if (!defined('OPENBOTAUTH_VERSION')) {
-    define('OPENBOTAUTH_VERSION', '0.1.3');
+    define('OPENBOTAUTH_VERSION', '1.0.0');
 }
 if (!defined('OPENBOTAUTH_PLUGIN_DIR')) {
     define('OPENBOTAUTH_PLUGIN_DIR', plugin_dir_path(__FILE__));
@@ -49,8 +49,7 @@ spl_autoload_register(function ($class) {
 
 // Initialize plugin
 function openbotauth_init() {
-    // Load text domain
-    load_plugin_textdomain('openbotauth', false, dirname(plugin_basename(__FILE__)) . '/languages');
+    // Text domain loaded automatically by WordPress 4.6+ for plugins on WordPress.org
     
     // Initialize main plugin class
     $plugin = OpenBotAuth\Plugin::get_instance();
@@ -72,9 +71,13 @@ register_activation_hook(__FILE__, function() {
     ]));
     
     // AI Artifacts options (v0.1.2+)
-    add_option('openbotauth_llms_enabled', true);
-    add_option('openbotauth_feed_enabled', true);
-    add_option('openbotauth_feed_limit', 50);
-    add_option('openbotauth_feed_post_types', ['post', 'page']);
+    // Use add_option() which only adds if the option doesn't exist (built-in check)
+    // and properly supports autoload as the 4th parameter
+    // Note: add_option() signature is ($option, $value, $deprecated, $autoload)
+    // Use boolean true (not string '1') to match register_setting type declaration in Admin.php
+    add_option('openbotauth_llms_enabled', true, '', true);
+    add_option('openbotauth_feed_enabled', true, '', true);
+    add_option('openbotauth_feed_limit', 100, '', true);
+    add_option('openbotauth_feed_post_types', ['post', 'page'], '', true);
 });
 

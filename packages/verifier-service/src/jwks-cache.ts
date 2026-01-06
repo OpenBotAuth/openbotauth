@@ -60,7 +60,7 @@ export class JWKSCacheManager {
       // SSRF protection: validate URL is safe to fetch
       validateSafeUrl(jwksUrl);
 
-      // Fetch with timeout and size limit
+      // Fetch with timeout, size limit, and redirect protection
       const response = await fetch(jwksUrl, {
         method: "GET",
         headers: {
@@ -68,7 +68,16 @@ export class JWKSCacheManager {
           "User-Agent": "OpenBotAuth-Verifier/0.1.0",
         },
         signal: AbortSignal.timeout(3000), // 3s timeout
+        redirect: "manual", // SSRF protection: block automatic redirects
       });
+
+      // Block redirects to prevent SSRF via redirect to internal services
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location") || "unknown";
+        throw new Error(
+          `Redirect not allowed from JWKS endpoint (${response.status} to ${location})`,
+        );
+      }
 
       if (!response.ok) {
         throw new Error(

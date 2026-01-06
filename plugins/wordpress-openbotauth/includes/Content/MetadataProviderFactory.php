@@ -1,9 +1,4 @@
 <?php
-// Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
-}
-
 /**
  * Metadata Provider Factory
  *
@@ -15,6 +10,11 @@ if (!defined('ABSPATH')) {
  */
 
 namespace OpenBotAuth\Content;
+
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 /**
  * Factory for creating metadata provider instances.

@@ -20,4 +20,3 @@ Thumbs.db
 # Build
 /vendor/
 composer.lock
-

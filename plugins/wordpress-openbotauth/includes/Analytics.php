@@ -71,8 +71,12 @@ class Analytics {
     public static function get_stats($days = 7) {
         $stats = [];
         
+        // Use DateTime with WordPress timezone to match write operations (current_time('Y-m-d'))
+        // Note: strtotime() without base uses PHP timezone, causing mismatches with WP timezone
+        $wp_now = new \DateTime('now', wp_timezone());
+        
         for ($i = 0; $i < $days; $i++) {
-            $date = date('Y-m-d', strtotime("-{$i} days", current_time('timestamp')));
+            $date = (clone $wp_now)->modify("-{$i} days")->format('Y-m-d');
             $option_name = self::OPTION_PREFIX . $date;
             $day_stats = get_option($option_name, []);
             
@@ -135,7 +139,7 @@ class Analytics {
         // Store one option per key per day for atomic increments
         $option_name = self::META_STATS_PREFIX . $date . '__' . $key;
         
-        // Atomic upsert: insert 1 or increment existing value
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic upsert required for concurrent analytics
         $wpdb->query(
             $wpdb->prepare(
                 "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
@@ -160,8 +164,11 @@ class Analytics {
     public static function getMetaStats($days = 7) {
         $stats = [];
         
+        // Use DateTime with WordPress timezone to match write operations
+        $wp_now = new \DateTime('now', wp_timezone());
+        
         for ($i = 0; $i < $days; $i++) {
-            $date = date('Y-m-d', strtotime("-{$i} days", current_time('timestamp')));
+            $date = (clone $wp_now)->modify("-{$i} days")->format('Y-m-d');
             $base = self::META_STATS_PREFIX . $date . '__';
             
             $stats[$date] = [
@@ -220,7 +227,7 @@ class Analytics {
         $date = current_time('Y-m-d');
         $option_name = self::BOT_STATS_PREFIX . $date . '__' . $bot_id . '__' . $key;
         
-        // Atomic upsert: insert 1 or increment existing value
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic upsert required for concurrent analytics
         $wpdb->query(
             $wpdb->prepare(
                 "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
@@ -258,9 +265,12 @@ class Analytics {
             $signed_total = 0;
             $verified_total = 0;
             
+            // Use DateTime with WordPress timezone to match write operations
+            $wp_now = new \DateTime('now', wp_timezone());
+            
             // Sum counts for each day
             for ($i = 0; $i < $days; $i++) {
-                $date = date('Y-m-d', strtotime("-{$i} days", $now));
+                $date = (clone $wp_now)->modify("-{$i} days")->format('Y-m-d');
                 $base = self::BOT_STATS_PREFIX . $date . '__' . $safe_id . '__';
                 
                 $requests_total += intval(get_option($base . 'requests_total', 0));
@@ -287,8 +297,9 @@ class Analytics {
     
     /**
      * Known referrer sources to track
+     * Detected via HTTP Referer header or utm_source query parameter
      */
-    const KNOWN_REF_SOURCES = ['chatgpt', 'perplexity'];
+    const KNOWN_REF_SOURCES = ['chatgpt', 'perplexity', 'claude', 'gemini', 'copilot'];
     
     /**
      * Increment a referrer source counter for today
@@ -309,7 +320,7 @@ class Analytics {
         $date = current_time('Y-m-d');
         $option_name = self::REF_STATS_PREFIX . $date . '__' . $source_key . '__total';
         
-        // Atomic upsert: insert 1 or increment existing value
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic upsert required for concurrent analytics
         $wpdb->query(
             $wpdb->prepare(
                 "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
@@ -335,14 +346,16 @@ class Analytics {
      */
     public static function getRefTotals(int $days = 7): array {
         $result = [];
-        $now = current_time('timestamp');
+        
+        // Use DateTime with WordPress timezone to match write operations
+        $wp_now = new \DateTime('now', wp_timezone());
         
         foreach (self::KNOWN_REF_SOURCES as $source_key) {
             $total = 0;
             
             // Sum counts for each day
             for ($i = 0; $i < $days; $i++) {
-                $date = date('Y-m-d', strtotime("-{$i} days", $now));
+                $date = (clone $wp_now)->modify("-{$i} days")->format('Y-m-d');
                 $option_name = self::REF_STATS_PREFIX . $date . '__' . $source_key . '__total';
                 $total += intval(get_option($option_name, 0));
             }
@@ -367,12 +380,14 @@ class Analytics {
         
         global $wpdb;
         
-        $cutoff_date = date('Y-m-d', strtotime('-30 days', current_time('timestamp')));
+        // Use DateTime with WordPress timezone to match write operations
+        $cutoff_date = (new \DateTime('now', wp_timezone()))->modify('-30 days')->format('Y-m-d');
         
         // Clean up ALL stat prefixes
         $prefixes = [self::OPTION_PREFIX, self::META_STATS_PREFIX, self::BOT_STATS_PREFIX, self::REF_STATS_PREFIX];
         
         foreach ($prefixes as $prefix) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Cleanup query for old analytics options
             $options = $wpdb->get_col(
                 $wpdb->prepare(
                     "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
