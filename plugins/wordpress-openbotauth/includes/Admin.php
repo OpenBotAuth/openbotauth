@@ -139,6 +139,7 @@ class Admin {
     
     /**
      * Sanitize verifier URL - only process if Configuration tab form was submitted
+     * Coordinates with sanitize_use_hosted_verifier() to ensure URL stays in sync with checkbox
      */
     public function sanitize_verifier_url($value) {
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
@@ -147,6 +148,16 @@ class Admin {
             $existing = get_option('openbotauth_verifier_url');
             return $existing !== false ? $existing : '';
         }
+        
+        // Check if hosted verifier checkbox is being enabled
+        // If so, return the hosted URL regardless of the form field value
+        // This ensures the checkbox controls the URL when enabled
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
+        if (!empty($_POST['openbotauth_use_hosted_verifier'])) {
+            return 'https://verifier.openbotauth.org/verify';
+        }
+        
+        // Checkbox is off - use the form field value (could be custom URL or empty)
         return esc_url_raw($value);
     }
 
@@ -1101,7 +1112,8 @@ class Admin {
     /**
      * Sanitize the use hosted verifier checkbox
      * Only process if Configuration tab form was submitted
-     * When enabled, ensure URL is set; when disabled, clear it
+     * Note: The URL is controlled by sanitize_verifier_url() which checks this checkbox's
+     * POST value to coordinate - we just return the boolean here
      */
     public function sanitize_use_hosted_verifier($value) {
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
@@ -1110,20 +1122,8 @@ class Admin {
             return (bool) get_option('openbotauth_use_hosted_verifier', false);
         }
 
-        $use_hosted = (bool) $value;
-        $hosted_url = 'https://verifier.openbotauth.org/verify';
-
-        // Directly update the verifier URL option to stay in sync with checkbox state
-        // Note: We can't rely on modifying $_POST because WordPress passes values to
-        // sanitize callbacks before they execute, so the verifier_url sanitizer
-        // already has its value. We must update the option directly here.
-        if ($use_hosted) {
-            update_option('openbotauth_verifier_url', $hosted_url);
-        } else {
-            update_option('openbotauth_verifier_url', '');
-        }
-
-        return $use_hosted;
+        // Just return the checkbox state - the URL sanitizer reads $_POST to coordinate
+        return (bool) $value;
     }
     
     /**

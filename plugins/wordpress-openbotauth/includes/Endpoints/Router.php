@@ -98,8 +98,10 @@ class Router {
      * @return string The relative route (e.g., "/llms.txt").
      */
     private function get_relative_route(): string {
+        // Note: Don't use sanitize_text_field() on URIs - it strips percent-encoded chars like %20
+        // wp_parse_url() safely extracts the path component without executing any code
         $request_uri = isset($_SERVER['REQUEST_URI']) 
-            ? wp_parse_url( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ), PHP_URL_PATH ) 
+            ? wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) 
             : '/';
         
         if ($request_uri === null || $request_uri === false) {

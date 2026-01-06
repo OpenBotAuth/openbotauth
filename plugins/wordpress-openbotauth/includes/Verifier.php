@@ -260,9 +260,11 @@ class Verifier {
      * to prevent Host header injection attacks.
      */
     private function get_current_url() {
-        // Use wp_unslash and sanitize to handle magic quotes on older PHP/WP setups
+        // Use wp_unslash to handle magic quotes on older PHP/WP setups
+        // Note: Don't use sanitize_text_field() on URIs - it strips percent-encoded chars like %20
+        // esc_url_raw() preserves URL encoding while sanitizing for database storage
         $request_uri = isset($_SERVER['REQUEST_URI']) 
-            ? sanitize_text_field( wp_unslash($_SERVER['REQUEST_URI']) ) 
+            ? esc_url_raw( wp_unslash($_SERVER['REQUEST_URI']) ) 
             : '/';
         // Preserve request scheme to avoid proxy setup issues
         $scheme = is_ssl() ? 'https' : 'http';
