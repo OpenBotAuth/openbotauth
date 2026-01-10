@@ -1,20 +1,23 @@
 /**
  * Test Protected Endpoint
- * 
+ *
  * Simple Express server with a protected endpoint that requires signature verification
  * Now using @openbotauth/verifier-client middleware
  */
 
 import express from 'express';
-import { openBotAuthMiddleware } from '@openbotauth/verifier-client';
+import { openBotAuthMiddleware } from '@openbotauth/verifier-client/express';
 
 const app = express();
 app.use(express.json());
 
+// Verifier URL can be configured via environment variable
+// Default to local verifier for development, override with VERIFIER_URL for hosted
+const verifierUrl = process.env.VERIFIER_URL || 'http://localhost:8081/verify';
+
 // Add OpenBotAuth middleware in observe mode (verifies but doesn't block)
-// Using hosted verifier since local Redis is not available
 app.use(openBotAuthMiddleware({
-  verifierUrl: 'https://verifier.openbotauth.org/verify',
+  verifierUrl,
   mode: 'observe',
 }));
 
@@ -84,10 +87,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'test-server' });
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('🔒 Test Protected Endpoint Server');
   console.log(`   Running on http://localhost:${PORT}`);
+  console.log(`   Verifier: ${verifierUrl}`);
   console.log('');
   console.log('Endpoints:');
   console.log('   GET /public      - No signature required');
@@ -98,6 +102,9 @@ app.listen(PORT, () => {
   console.log('Test with bot CLI:');
   console.log('   cd packages/bot-cli');
   console.log(`   pnpm dev fetch http://localhost:${PORT}/protected -v`);
+  console.log('');
+  console.log('To use hosted verifier:');
+  console.log('   VERIFIER_URL=https://verifier.openbotauth.org/verify node server.js');
   console.log('');
 });
 

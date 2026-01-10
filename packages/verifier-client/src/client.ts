@@ -99,11 +99,12 @@ export class VerifierClient {
     }
 
     // Build verification payload
+    // Include body even if empty string (for signature verification of empty bodies)
     const payload = {
       method: input.method,
       url: input.url,
       headers: extractResult.headers,
-      ...(input.body && { body: input.body }),
+      ...(input.body !== undefined && { body: input.body }),
     };
 
     const controller = new AbortController();
