@@ -63,20 +63,29 @@ export class VerifierClient {
    * @returns Verification result indicating success or failure
    */
   async verify(input: VerificationRequest): Promise<VerificationResult> {
-    // Check if request has signature headers
+    // Check if request has any signature headers
     if (!hasSignatureHeaders(input.headers)) {
       return {
         verified: false,
-        error: 'Missing required signature headers',
+        error: 'No signature headers present',
       };
     }
 
-    // Get signature-input header value
+    // Get signature-input header value (required for verification)
     const signatureInput = this.getHeaderValue(input.headers, 'signature-input');
     if (!signatureInput) {
       return {
         verified: false,
-        error: 'Missing Signature-Input header',
+        error: 'Missing Signature-Input header (request has signature headers but Signature-Input is required)',
+      };
+    }
+
+    // Check for signature header (required for verification)
+    const signature = this.getHeaderValue(input.headers, 'signature');
+    if (!signature) {
+      return {
+        verified: false,
+        error: 'Missing Signature header (request has Signature-Input but Signature is required)',
       };
     }
 
@@ -97,10 +106,10 @@ export class VerifierClient {
       ...(input.body && { body: input.body }),
     };
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
+    try {
       const response = await fetch(this.verifierUrl, {
         method: 'POST',
         headers: {
@@ -109,8 +118,6 @@ export class VerifierClient {
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -134,6 +141,8 @@ export class VerifierClient {
         verified: false,
         error: `Verification failed: ${error instanceof Error ? error.message : String(error)}`,
       };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

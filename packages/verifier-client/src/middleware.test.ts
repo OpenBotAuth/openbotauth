@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import type { Request, Response } from 'express';
 import { openBotAuthMiddleware } from './middleware.js';
 
@@ -11,8 +11,8 @@ describe('openBotAuthMiddleware', () => {
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  afterAll(() => {
+    vi.unstubAllGlobals();
   });
 
   function createMockRequest(options: {
@@ -293,6 +293,72 @@ describe('openBotAuthMiddleware', () => {
 
     await middleware(req as Request, res as Response, next);
 
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('treats partial signature headers as signed (only signature-agent)', async () => {
+    const middleware = openBotAuthMiddleware();
+
+    // Only signature-agent present - should be classified as signed but fail verification
+    const req = createMockRequest({
+      headers: {
+        'signature-agent': 'https://example.com/jwks.json',
+      },
+    });
+    const res = createMockResponse();
+    const next = vi.fn();
+
+    await middleware(req as Request, res as Response, next);
+
+    const oba = (req as Record<string, unknown>).oba as { signed: boolean; result: { verified: boolean; error: string } };
+    expect(oba.signed).toBe(true);
+    expect(oba.result.verified).toBe(false);
+    expect(oba.result.error).toContain('Signature-Input');
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('treats partial signature headers as signed (only signature)', async () => {
+    const middleware = openBotAuthMiddleware();
+
+    // Only signature present - should be classified as signed but fail verification
+    const req = createMockRequest({
+      headers: {
+        signature: 'base64signature==',
+      },
+    });
+    const res = createMockResponse();
+    const next = vi.fn();
+
+    await middleware(req as Request, res as Response, next);
+
+    const oba = (req as Record<string, unknown>).oba as { signed: boolean; result: { verified: boolean; error: string } };
+    expect(oba.signed).toBe(true);
+    expect(oba.result.verified).toBe(false);
+    expect(oba.result.error).toContain('Signature-Input');
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('returns helpful error when signature-input present but signature missing', async () => {
+    const middleware = openBotAuthMiddleware();
+
+    const req = createMockRequest({
+      headers: {
+        'signature-input': 'sig1=("@method");created=1234',
+        // signature is missing
+      },
+    });
+    const res = createMockResponse();
+    const next = vi.fn();
+
+    await middleware(req as Request, res as Response, next);
+
+    const oba = (req as Record<string, unknown>).oba as { signed: boolean; result: { verified: boolean; error: string } };
+    expect(oba.signed).toBe(true);
+    expect(oba.result.verified).toBe(false);
+    expect(oba.result.error).toContain('Signature header');
+    expect(mockFetch).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalled();
   });
 });

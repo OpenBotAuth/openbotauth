@@ -15,7 +15,7 @@ import { hasSignatureHeaders } from './headers.js';
  * @example
  * ```typescript
  * import express from 'express';
- * import { openBotAuthMiddleware } from '@openbotauth/verifier-client';
+ * import { openBotAuthMiddleware } from '@openbotauth/verifier-client/express';
  *
  * const app = express();
  *
@@ -72,12 +72,25 @@ export function openBotAuthMiddleware(
     const host = req.get('host') || 'localhost';
     const url = `${protocol}://${host}${req.originalUrl}`;
 
+    // Serialize body for verification
+    // Align with verifier-service /authorize behavior: stringify objects
+    let body: string | undefined;
+    if (req.body !== undefined && req.body !== null) {
+      if (typeof req.body === 'string') {
+        body = req.body;
+      } else if (Buffer.isBuffer(req.body)) {
+        body = req.body.toString('utf-8');
+      } else if (typeof req.body === 'object') {
+        body = JSON.stringify(req.body);
+      }
+    }
+
     // Verify the request
     const result = await client.verify({
       method: req.method,
       url,
       headers: headers as Record<string, string>,
-      body: typeof req.body === 'string' ? req.body : undefined,
+      body,
     });
 
     // Attach verification info to request

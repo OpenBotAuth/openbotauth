@@ -24,7 +24,7 @@ yarn add @openbotauth/verifier-client
 
 ```typescript
 import express from 'express';
-import { openBotAuthMiddleware } from '@openbotauth/verifier-client';
+import { openBotAuthMiddleware } from '@openbotauth/verifier-client/express';
 
 const app = express();
 
@@ -146,10 +146,10 @@ const result = await client.verify({
 
 ### openBotAuthMiddleware
 
-Express middleware for automatic verification.
+Express middleware for automatic verification. Import from the `/express` subpath to avoid pulling Express types into non-Express projects.
 
 ```typescript
-import { openBotAuthMiddleware } from '@openbotauth/verifier-client';
+import { openBotAuthMiddleware } from '@openbotauth/verifier-client/express';
 
 app.use(openBotAuthMiddleware({
   // Optional: Override verifier URL

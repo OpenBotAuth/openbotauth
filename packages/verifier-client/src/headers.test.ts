@@ -204,10 +204,35 @@ describe('extractForwardedHeaders', () => {
 });
 
 describe('hasSignatureHeaders', () => {
-  it('returns true when signature headers present', () => {
+  it('returns true when all signature headers present', () => {
     const headers = {
       'Signature-Input': 'sig1=("@method");created=1234',
       'Signature': 'base64signature==',
+      'Signature-Agent': 'https://example.com/jwks.json',
+    };
+
+    expect(hasSignatureHeaders(headers)).toBe(true);
+  });
+
+  it('returns true with only signature-input present', () => {
+    const headers = {
+      'Signature-Input': 'sig1=("@method");created=1234',
+    };
+
+    expect(hasSignatureHeaders(headers)).toBe(true);
+  });
+
+  it('returns true with only signature present', () => {
+    const headers = {
+      'Signature': 'base64signature==',
+    };
+
+    expect(hasSignatureHeaders(headers)).toBe(true);
+  });
+
+  it('returns true with only signature-agent present', () => {
+    const headers = {
+      'Signature-Agent': 'https://example.com/jwks.json',
     };
 
     expect(hasSignatureHeaders(headers)).toBe(true);
@@ -215,27 +240,10 @@ describe('hasSignatureHeaders', () => {
 
   it('returns true with case-insensitive headers', () => {
     const headers = {
-      'signature-input': 'sig1=("@method");created=1234',
-      'SIGNATURE': 'base64signature==',
+      'SIGNATURE-INPUT': 'sig1=("@method");created=1234',
     };
 
     expect(hasSignatureHeaders(headers)).toBe(true);
-  });
-
-  it('returns false when signature-input missing', () => {
-    const headers = {
-      'Signature': 'base64signature==',
-    };
-
-    expect(hasSignatureHeaders(headers)).toBe(false);
-  });
-
-  it('returns false when signature missing', () => {
-    const headers = {
-      'Signature-Input': 'sig1=("@method");created=1234',
-    };
-
-    expect(hasSignatureHeaders(headers)).toBe(false);
   });
 
   it('returns false for empty headers', () => {
@@ -244,12 +252,31 @@ describe('hasSignatureHeaders', () => {
     expect(hasSignatureHeaders(headers)).toBe(false);
   });
 
-  it('handles undefined values', () => {
+  it('returns false for non-signature headers only', () => {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    expect(hasSignatureHeaders(headers)).toBe(false);
+  });
+
+  it('handles undefined values (treats as not present)', () => {
+    const headers: Record<string, string | undefined> = {
+      'Signature-Input': undefined,
+      'Signature': undefined,
+      'Signature-Agent': undefined,
+    };
+
+    expect(hasSignatureHeaders(headers)).toBe(false);
+  });
+
+  it('returns true when some headers defined and some undefined', () => {
     const headers: Record<string, string | undefined> = {
       'Signature-Input': 'sig1=("@method");created=1234',
       'Signature': undefined,
     };
 
-    expect(hasSignatureHeaders(headers)).toBe(false);
+    expect(hasSignatureHeaders(headers)).toBe(true);
   });
 });

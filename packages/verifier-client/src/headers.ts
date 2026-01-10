@@ -157,20 +157,33 @@ export function extractForwardedHeaders(
 }
 
 /**
- * Check if headers contain signature headers
+ * Signature-related headers that indicate a signed request
+ */
+const SIGNATURE_RELATED_HEADERS = new Set([
+  'signature-input',
+  'signature',
+  'signature-agent',
+]);
+
+/**
+ * Check if headers contain any signature-related headers.
+ *
+ * Returns true if ANY of signature-input, signature, or signature-agent
+ * is present. This matches verifier-service behavior for "signed lane"
+ * classification.
+ *
+ * Note: Having any signature header present means the request is attempting
+ * to be signed. The VerifierClient.verify() method will return appropriate
+ * errors if required headers are missing.
  */
 export function hasSignatureHeaders(
   headers: Record<string, string | undefined>
 ): boolean {
-  let hasSignatureInput = false;
-  let hasSignature = false;
-
   for (const [key, value] of Object.entries(headers)) {
     if (value === undefined) continue;
-    const normalized = normalizeHeaderName(key);
-    if (normalized === 'signature-input') hasSignatureInput = true;
-    if (normalized === 'signature') hasSignature = true;
+    if (SIGNATURE_RELATED_HEADERS.has(normalizeHeaderName(key))) {
+      return true;
+    }
   }
-
-  return hasSignatureInput && hasSignature;
+  return false;
 }

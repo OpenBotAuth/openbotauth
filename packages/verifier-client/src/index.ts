@@ -4,8 +4,6 @@ export type {
   VerificationResult,
   VerifiedAgent,
   VerifierClientOptions,
-  MiddlewareOptions,
-  RequestVerificationInfo,
   HeaderExtractionResult,
 } from './types.js';
 
@@ -19,12 +17,12 @@ export {
   hasSignatureHeaders,
 } from './headers.js';
 
-// Express middleware
-export { openBotAuthMiddleware } from './middleware.js';
-
 // Next.js helpers
 export {
   extractFromNextHeaders,
   buildVerifyRequestForNext,
   buildVerifyRequestForNextWithBody,
 } from './nextjs.js';
+
+// Express middleware is available via subpath import:
+// import { openBotAuthMiddleware } from '@openbotauth/verifier-client/express';
