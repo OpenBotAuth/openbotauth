@@ -104,7 +104,7 @@ app.listen(PORT, () => {
   console.log(`   pnpm dev fetch http://localhost:${PORT}/protected -v`);
   console.log('');
   console.log('To use hosted verifier:');
-  console.log('   VERIFIER_URL=https://verifier.openbotauth.org/verify node server.js');
+  console.log('   VERIFIER_URL=https://verifier.openbotauth.org/verify pnpm start');
   console.log('');
 });
 
