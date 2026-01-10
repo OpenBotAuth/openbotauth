@@ -46,7 +46,7 @@ const FieldTooltip = ({ content }: { content: string }) => (
 const EditProfile = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string>("");
+  const [_userId, setUserId] = useState<string>("");
   const [username, setUsername] = useState<string>("");
   const [previewData, setPreviewData] = useState<any>(null);
 
