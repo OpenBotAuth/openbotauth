@@ -241,6 +241,9 @@ importers:
 
   apps/test-server:
     dependencies:
+      '@openbotauth/verifier-client':
+        specifier: workspace:*
+        version: link:../../packages/verifier-client
       express:
         specifier: ^4.19.2
         version: 4.21.2
@@ -424,6 +427,25 @@ importers:
 
   packages/registry-signer:
     devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.25
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.25)
+
+  packages/verifier-client:
+    dependencies:
+      express:
+        specifier: ^4.x || ^5.x
+        version: 4.21.2
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
       '@types/node':
         specifier: ^20.14.0
         version: 20.19.25

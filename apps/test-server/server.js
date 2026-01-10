@@ -2,80 +2,67 @@
  * Test Protected Endpoint
  * 
  * Simple Express server with a protected endpoint that requires signature verification
+ * Now using @openbotauth/verifier-client middleware
  */
 
 import express from 'express';
+import { openBotAuthMiddleware } from '@openbotauth/verifier-client';
 
 const app = express();
 app.use(express.json());
 
-// Middleware to verify signature via verifier service
-async function verifySignature(req, res, next) {
-  try {
-    console.log('\n🔍 Verifying signature...');
-    console.log('Headers:', {
-      'signature-input': req.headers['signature-input'],
-      'signature': req.headers['signature'],
-      'signature-agent': req.headers['signature-agent'],
-    });
+// Add OpenBotAuth middleware in observe mode (verifies but doesn't block)
+// Using hosted verifier since local Redis is not available
+app.use(openBotAuthMiddleware({
+  verifierUrl: 'https://verifier.openbotauth.org/verify',
+  mode: 'observe',
+}));
 
-    // Forward to verifier
-    const verifyResponse = await fetch('http://localhost:8081/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        method: req.method,
-        url: `http://localhost:3000${req.path}`,
-        headers: {
-          'signature-input': req.headers['signature-input'],
-          'signature': req.headers['signature'],
-          'signature-agent': req.headers['signature-agent'],
-        },
-      }),
-    });
-
-    const result = await verifyResponse.json();
-    console.log('Verification result:', result);
-
-    if (!result.verified) {
-      console.log('❌ Signature verification failed:', result.error);
-      return res.status(401).json({ 
-        error: result.error || 'Unauthorized',
-        message: 'Signature verification failed'
-      });
-    }
-
-    console.log('✅ Signature verified!');
-    console.log('Agent:', result.agent);
-
-    // Add verification info to request
-    req.verifiedAgent = result.agent;
-    next();
-  } catch (error) {
-    console.error('❌ Verification error:', error.message);
-    res.status(500).json({ 
-      error: 'Verification failed',
-      message: error.message 
+// Middleware to require verified signature for protected routes
+function requireVerified(req, res, next) {
+  const oba = req.oba;
+  
+  console.log('\n🔍 Checking signature...');
+  console.log('Signed:', oba.signed);
+  
+  if (!oba.signed) {
+    console.log('❌ No signature found');
+    return res.status(401).json({ 
+      error: 'Unauthorized',
+      message: 'Signature required'
     });
   }
+  
+  if (!oba.result?.verified) {
+    console.log('❌ Signature verification failed:', oba.result?.error);
+    return res.status(401).json({ 
+      error: oba.result?.error || 'Unauthorized',
+      message: 'Signature verification failed'
+    });
+  }
+  
+  console.log('✅ Signature verified!');
+  console.log('Agent:', oba.result.agent);
+  
+  next();
 }
 
 // Protected endpoint - requires signature
-app.get('/protected', verifySignature, (req, res) => {
+app.get('/protected', requireVerified, (req, res) => {
   console.log('✅ Access granted to protected resource');
   res.json({
     message: '🎉 Access granted! Your signature is valid.',
-    agent: req.verifiedAgent,
+    agent: req.oba.result.agent,
     timestamp: new Date().toISOString(),
     resource: 'protected-data',
   });
 });
 
 // Protected API endpoint
-app.get('/api/secret', verifySignature, (req, res) => {
+app.get('/api/secret', requireVerified, (req, res) => {
   res.json({
     message: 'Secret data',
-    agent: req.verifiedAgent,
+    agent: req.oba.result.agent,
     data: {
       secret: 'This is protected information',
       value: 42,
