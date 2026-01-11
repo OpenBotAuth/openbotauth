@@ -9,6 +9,7 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@openbotauth/verifier-client": "workspace:*",
     "express": "^4.19.2"
   }
 }

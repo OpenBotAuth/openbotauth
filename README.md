@@ -65,6 +65,7 @@ openbotauth/
 │  ├─ github-connector/         ✅ GitHub OAuth flow for registry
 │  ├─ registry-cli/             ✅ CLI for agent/key management
 │  ├─ verifier-service/         ✅ RFC 9421 signature verification, nonce cache
+│  ├─ verifier-client/          ✅ npm client for Express/Next.js verification
 │  ├─ bot-cli/                  ✅ Demo crawler: signs requests, handles 402
 │  ├─ mcp-server/               ✅ MCP server (policy/meter/payments tools)
 │  └─ a2a-card/                 ✅ Static agent card + A2A stub endpoints

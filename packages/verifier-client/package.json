@@ -1,0 +1,75 @@
+{
+  "name": "@openbotauth/verifier-client",
+  "version": "0.1.0",
+  "description": "Client library for verifying Web Bot Auth / OpenBotAuth (RFC 9421) signed HTTP requests",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./express": {
+      "types": "./dist/express.d.ts",
+      "import": "./dist/express.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "webbotauth",
+    "web-bot-auth",
+    "openbotauth",
+    "rfc9421",
+    "http-signatures",
+    "verification",
+    "express",
+    "nextjs",
+    "middleware",
+    "bot-auth",
+    "agent-auth",
+    "ai-agent"
+  ],
+  "author": "OpenBotAuth",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenBotAuth/openbotauth.git",
+    "directory": "packages/verifier-client"
+  },
+  "homepage": "https://openbotauth.org",
+  "bugs": {
+    "url": "https://github.com/OpenBotAuth/openbotauth/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  },
+  "peerDependencies": {
+    "express": "^4.x || ^5.x"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    }
+  }
+}

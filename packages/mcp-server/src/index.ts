@@ -103,7 +103,7 @@ async function main() {
 
     try {
       switch (name) {
-        case 'policy_apply':
+        case 'policy_apply': {
           const policyResult = await policyTool.apply(args);
           return {
             content: [
@@ -113,8 +113,9 @@ async function main() {
               },
             ],
           };
+        }
 
-        case 'payments_create_intent':
+        case 'payments_create_intent': {
           const paymentIntent = await paymentsTool.createIntent(args);
           return {
             content: [
@@ -124,8 +125,9 @@ async function main() {
               },
             ],
           };
+        }
 
-        case 'meter_ingest':
+        case 'meter_ingest': {
           const meterEvent = await meterTool.ingest(args);
           return {
             content: [
@@ -135,6 +137,7 @@ async function main() {
               },
             ],
           };
+        }
 
         default:
           throw new Error(`Unknown tool: ${name}`);

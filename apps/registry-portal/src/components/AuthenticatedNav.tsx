@@ -4,7 +4,6 @@ import Logo from "./marketing/Logo";
 import { Button } from "@/components/ui/button";
 import { Menu, X, LogOut } from "lucide-react";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 const AuthenticatedNav = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
