@@ -11,6 +11,7 @@ import Publishers from "./pages/marketing/Publishers";
 import Crawlers from "./pages/marketing/Crawlers";
 import Contact from "./pages/marketing/Contact";
 import Privacy from "./pages/marketing/Privacy";
+import Terms from "./pages/marketing/Terms";
 import Radar from "./pages/Radar";
 
 // Portal pages
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/crawlers" element={<Crawlers />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
             <Route path="/radar" element={<Radar />} />
             
             {/* Portal routes - authenticated */}

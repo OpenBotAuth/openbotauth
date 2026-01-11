@@ -56,6 +56,12 @@ const Footer = () => {
                 Privacy
               </a>
               <a
+                href="/terms"
+                className="text-sm hover:text-primary transition-colors flex items-center gap-1"
+              >
+                Terms
+              </a>
+              <a
                 href="/contact"
                 className="text-sm hover:text-primary transition-colors flex items-center gap-1"
               >

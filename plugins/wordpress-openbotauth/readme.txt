@@ -70,6 +70,8 @@ You can:
 
 **Analytics are local-only.** Decision counts (allow/teaser/deny/pay/rate_limit) and bot traffic observations (User-Agent based) are stored in your WordPress database. No analytics data is sent to external servers.
 
+For more information, please review our [Terms of Service](https://openbotauth.org/terms) and [Privacy Policy](https://openbotauth.org/privacy).
+
 == Installation ==
 
 1. Upload the `wordpress-openbotauth` folder to `/wp-content/plugins/`

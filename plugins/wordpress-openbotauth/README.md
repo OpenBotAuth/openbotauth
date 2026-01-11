@@ -649,6 +649,8 @@ GPLv2 or later - see [LICENSE.txt](LICENSE.txt) for details
 - **Verifier Service**: [packages/verifier-service](../../packages/verifier-service)
 - **Bot CLI**: [packages/bot-cli](../../packages/bot-cli)
 - **RFC 9421**: [HTTP Message Signatures](https://www.rfc-editor.org/rfc/rfc9421.html)
+- **Terms of Service**: [openbotauth.org/terms](https://openbotauth.org/terms)
+- **Privacy Policy**: [openbotauth.org/privacy](https://openbotauth.org/privacy)
 
 ---
 
