@@ -6,11 +6,51 @@ from typing import Any, Mapping
 
 import httpx
 
-from .models import VerificationRequest, VerificationResult
-from .headers import extract_forwarded_headers
+from .models import VerificationResult
+from .headers import extract_forwarded_headers, SIGNATURE_HEADERS
 
 # Default hosted verifier URL
 DEFAULT_VERIFIER_URL = "https://verifier.openbotauth.org/verify"
+
+
+def _check_signature_headers(headers: Mapping[str, str]) -> VerificationResult | None:
+    """
+    Check for signature headers and return early error if incomplete.
+
+    Returns None if headers are valid for verification, or a VerificationResult
+    with an error if something is wrong.
+    """
+    # Normalize header names to lowercase for lookup
+    normalized = {k.lower(): v for k, v in headers.items()}
+
+    has_signature_input = "signature-input" in normalized
+    has_signature = "signature" in normalized
+    has_signature_agent = "signature-agent" in normalized
+
+    # Check if any signature headers are present
+    has_any = has_signature_input or has_signature or has_signature_agent
+
+    if not has_any:
+        return VerificationResult(
+            verified=False,
+            error="No signature headers present",
+        )
+
+    # If some headers present but missing required ones
+    if not has_signature_input:
+        return VerificationResult(
+            verified=False,
+            error="Missing required header: Signature-Input",
+        )
+
+    if not has_signature:
+        return VerificationResult(
+            verified=False,
+            error="Missing required header: Signature",
+        )
+
+    # All required headers present
+    return None
 
 
 class VerifierClient:
@@ -62,6 +102,11 @@ class VerifierClient:
             ValueError: If sensitive headers are in Signature-Input
             httpx.HTTPError: On network errors
         """
+        # Early return for missing/incomplete signature headers (no network call)
+        header_error = _check_signature_headers(headers)
+        if header_error is not None:
+            return header_error
+
         # Extract only safe headers to forward
         forwarded_headers = extract_forwarded_headers(headers)
 
@@ -104,6 +149,11 @@ class VerifierClient:
             ValueError: If sensitive headers are in Signature-Input
             httpx.HTTPError: On network errors
         """
+        # Early return for missing/incomplete signature headers (no network call)
+        header_error = _check_signature_headers(headers)
+        if header_error is not None:
+            return header_error
+
         # Extract only safe headers to forward
         forwarded_headers = extract_forwarded_headers(headers)
 

@@ -15,7 +15,7 @@ Test with curl:
     # Public endpoint (no signature required)
     curl http://localhost:8009/public
 
-    # Protected endpoint (requires valid signature)
+    # Protected endpoint (requires valid signature in require mode)
     # Use the bot-cli from the monorepo:
     pnpm --filter @openbotauth/bot-cli dev fetch http://localhost:8009/protected -v
 
@@ -59,7 +59,7 @@ async def root():
         "require_verified": REQUIRE_VERIFIED,
         "endpoints": {
             "/public": "No signature required",
-            "/protected": "Signature verification checked",
+            "/protected": "Signature verification checked (401 in require mode)",
             "/agent": "Returns agent info if verified",
         },
     }
@@ -77,10 +77,10 @@ async def protected(request: Request):
     Protected endpoint - checks signature verification.
 
     In observe mode (require_verified=False):
-        Returns content but indicates verification status.
+        Returns 200 with verification status - allows inspection of signed/verified state.
 
     In require mode (require_verified=True):
-        Returns 401 if not verified (handled by middleware).
+        Returns 401 if not verified (handled by middleware before reaching this handler).
     """
     oba = getattr(request.state, "oba", None)
 
@@ -90,29 +90,24 @@ async def protected(request: Request):
             content={"error": "Middleware not configured"},
         )
 
-    if not oba.signed:
-        return JSONResponse(
-            status_code=401,
-            content={
-                "error": "Missing signature headers",
-                "hint": "Use bot-cli to sign your request",
-            },
-        )
-
-    if not oba.result or not oba.result.verified:
-        return JSONResponse(
-            status_code=401,
-            content={
-                "error": "Signature verification failed",
-                "details": oba.result.error if oba.result else "Unknown error",
-            },
-        )
-
-    return {
-        "message": "This is protected content",
-        "access": "verified",
-        "agent": oba.result.agent,
+    # Build response with verification status
+    response_data = {
+        "signed": oba.signed,
+        "verified": oba.result.verified if oba.result else False,
     }
+
+    if oba.signed and oba.result:
+        if oba.result.verified:
+            response_data["message"] = "Access granted - signature verified"
+            response_data["agent"] = oba.result.agent
+        else:
+            response_data["message"] = "Signature present but verification failed"
+            response_data["error"] = oba.result.error
+    else:
+        response_data["message"] = "No signature provided"
+        response_data["hint"] = "Use bot-cli to sign your request"
+
+    return response_data
 
 
 @app.get("/agent")

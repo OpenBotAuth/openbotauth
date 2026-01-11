@@ -224,3 +224,80 @@ class TestVerifierClient:
 
         # Non-covered headers should not be present
         assert "user-agent" not in payload["headers"]
+
+    @pytest.mark.asyncio
+    async def test_no_signature_headers_returns_error(self):
+        """No signature headers returns error without network call."""
+        client = VerifierClient()
+        result = await client.verify(
+            method="GET",
+            url="https://example.com/api",
+            headers={
+                "host": "example.com",
+                "user-agent": "TestBot/1.0",
+            },
+        )
+
+        assert result.verified is False
+        assert result.error == "No signature headers present"
+
+    @pytest.mark.asyncio
+    async def test_missing_signature_input_returns_error(self):
+        """Missing Signature-Input returns error without network call."""
+        client = VerifierClient()
+        result = await client.verify(
+            method="GET",
+            url="https://example.com/api",
+            headers={
+                "signature": "base64==",
+                "signature-agent": "https://example.com",
+                "host": "example.com",
+            },
+        )
+
+        assert result.verified is False
+        assert "Signature-Input" in result.error
+
+    @pytest.mark.asyncio
+    async def test_missing_signature_returns_error(self):
+        """Missing Signature returns error without network call."""
+        client = VerifierClient()
+        result = await client.verify(
+            method="GET",
+            url="https://example.com/api",
+            headers={
+                "signature-input": 'sig=("host");created=123',
+                "signature-agent": "https://example.com",
+                "host": "example.com",
+            },
+        )
+
+        assert result.verified is False
+        assert "Signature" in result.error
+
+    def test_no_signature_headers_sync(self):
+        """No signature headers returns error (sync) without network call."""
+        client = VerifierClient()
+        result = client.verify_sync(
+            method="GET",
+            url="https://example.com/api",
+            headers={"host": "example.com"},
+        )
+
+        assert result.verified is False
+        assert result.error == "No signature headers present"
+
+    def test_missing_signature_input_sync(self):
+        """Missing Signature-Input returns error (sync) without network call."""
+        client = VerifierClient()
+        result = client.verify_sync(
+            method="GET",
+            url="https://example.com/api",
+            headers={
+                "signature": "base64==",
+                "host": "example.com",
+            },
+        )
+
+        assert result.verified is False
+        assert "Signature-Input" in result.error

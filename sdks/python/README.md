@@ -307,4 +307,4 @@ ruff check src tests
 
 ## License
 
-MIT
+Apache-2.0
