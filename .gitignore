@@ -2,6 +2,33 @@
 node_modules/
 .pnpm-store/
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+.env.python
+*.egg
+*.egg-info/
+dist-python/
+.eggs/
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+pip-log.txt
+pip-delete-this-directory.txt
+
 # Build outputs
 dist/
 build/
