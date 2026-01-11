@@ -1,8 +1,8 @@
 # OpenBotAuth Verifier SDK for Python
 
-Python SDK for verifying OpenBotAuth signed HTTP requests using RFC 9421 HTTP Message Signatures.
+Python SDK for verifying OpenBotAuth (Web Bot Auth) signed HTTP requests using RFC 9421 HTTP Message Signatures.
 
-This package enables Python origins (FastAPI, Starlette, Flask) to verify AI agent signatures by calling the OpenBotAuth verifier service.
+OpenBotAuth is a reference implementation of [Web Bot Auth](https://datatracker.ietf.org/doc/draft-kelsey-httpbis-web-bot-auth/), an IETF draft specification for agent authentication over HTTP. This package enables Python origins (FastAPI, Starlette, Flask) to verify AI agent and bot signatures by calling the OpenBotAuth verifier service.
 
 ## Installation
 
@@ -296,6 +296,14 @@ mypy src
 # Linting
 ruff check src tests
 ```
+
+## Resources
+
+- **OpenBotAuth Website**: https://openbotauth.org
+- **Main Repository**: https://github.com/OpenBotAuth/openbotauth
+- **Web Bot Auth (IETF Draft)**: https://datatracker.ietf.org/doc/draft-kelsey-httpbis-web-bot-auth/
+- **RFC 9421 (HTTP Message Signatures)**: https://www.rfc-editor.org/rfc/rfc9421.html
+- **PyPI Package**: https://pypi.org/project/openbotauth-verifier/
 
 ## License
 

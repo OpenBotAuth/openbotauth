@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "openbotauth-verifier"
 version = "0.1.0"
-description = "Python SDK for verifying OpenBotAuth signed requests (RFC 9421 HTTP Message Signatures)"
+description = "Python SDK for verifying Web Bot Auth (OpenBotAuth) signed requests using RFC 9421 HTTP Message Signatures"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
@@ -14,12 +14,15 @@ authors = [
 ]
 keywords = [
     "openbotauth",
+    "web-bot-auth",
     "bot-auth",
     "http-signatures",
     "rfc9421",
     "jwks",
     "ai-agents",
     "bot-verification",
+    "ietf",
+    "agent-authentication",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
