@@ -1,7 +1,7 @@
 {
   "name": "@openbotauth/verifier-client",
   "version": "0.1.0",
-  "description": "Client library for verifying OpenBotAuth (RFC 9421) signed HTTP requests",
+  "description": "Client library for verifying Web Bot Auth / OpenBotAuth (RFC 9421) signed HTTP requests",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -28,6 +28,8 @@
     "test:watch": "vitest"
   },
   "keywords": [
+    "webbotauth",
+    "web-bot-auth",
     "openbotauth",
     "rfc9421",
     "http-signatures",
@@ -36,7 +38,8 @@
     "nextjs",
     "middleware",
     "bot-auth",
-    "agent-auth"
+    "agent-auth",
+    "ai-agent"
   ],
   "author": "OpenBotAuth",
   "license": "Apache-2.0",

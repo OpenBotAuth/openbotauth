@@ -1,6 +1,8 @@
 # @openbotauth/verifier-client
 
-Client library for verifying [OpenBotAuth](https://openbotauth.org) (RFC 9421) signed HTTP requests in Node.js applications.
+Client library for verifying [Web Bot Auth](https://github.com/nicholasgriffintn/draft-web-bot-auth) / [OpenBotAuth](https://openbotauth.org) signed HTTP requests in Node.js applications.
+
+Web Bot Auth is an IETF draft standard for authenticating AI agents and bots using RFC 9421 HTTP Message Signatures. OpenBotAuth provides the reference implementation, registry, and hosted verifier service.
 
 This package provides:
 - **VerifierClient**: Core client class for calling the verifier service
@@ -304,6 +306,13 @@ interface RequestVerificationInfo {
   result?: VerificationResult;
 }
 ```
+
+## Standards & References
+
+- [Web Bot Auth IETF Draft](https://github.com/nicholasgriffintn/draft-web-bot-auth) - The IETF draft specification for bot authentication
+- [RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html) - HTTP Message Signatures
+- [RFC 7517](https://www.rfc-editor.org/rfc/rfc7517.html) - JSON Web Key (JWK)
+- [OpenBotAuth](https://openbotauth.org) - Reference implementation and hosted services
 
 ## License
 
