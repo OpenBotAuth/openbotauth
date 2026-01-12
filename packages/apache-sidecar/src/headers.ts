@@ -98,6 +98,8 @@ export function extractForwardedHeaders(
     const value = incomingHeaders[sigHeader];
     if (typeof value === 'string') {
       result[sigHeader] = value;
+    } else if (Array.isArray(value)) {
+      result[sigHeader] = value.join(', ');
     }
   }
 
@@ -135,7 +137,7 @@ const HOP_BY_HOP_HEADERS = [
   'proxy-authenticate',
   'proxy-authorization',
   'te',
-  'trailers',
+  'trailer',
   'transfer-encoding',
   'upgrade',
 ];

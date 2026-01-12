@@ -17,18 +17,10 @@ import {
 } from './headers.js';
 import { callVerifier } from './verifier.js';
 import { proxyRequest, sendUnauthorized } from './proxy.js';
+import { isProtectedPath } from './paths.js';
 import type { OBAuthHeaders, VerifierRequest } from './types.js';
 
 const config = loadConfig();
-
-/**
- * Check if a path requires verification
- */
-function isProtectedPath(pathname: string): boolean {
-  return config.protectedPaths.some(prefix =>
-    pathname === prefix || pathname.startsWith(prefix + '/')
-  );
-}
 
 /**
  * Reconstruct the full URL from the incoming request
@@ -50,7 +42,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   const pathname = url.pathname;
 
   // Determine if this path requires verification
-  const requiresVerification = config.mode === 'require-verified' && isProtectedPath(pathname);
+  const requiresVerification = config.mode === 'require-verified' && isProtectedPath(pathname, config.protectedPaths);
 
   // Check for signature headers
   const isSigned = hasSignatureHeaders(req.headers);

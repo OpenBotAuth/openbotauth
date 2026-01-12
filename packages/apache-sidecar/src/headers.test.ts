@@ -186,6 +186,20 @@ describe('extractForwardedHeaders', () => {
 
     expect(result['x-custom']).toBe('value1, value2');
   });
+
+  it('handles array signature header values', () => {
+    const headers = {
+      'signature-input': ['sig1=...', 'sig2=...'],
+      signature: ['sig1=:...:, sig2=:...:'],
+      'signature-agent': 'https://example.com/jwks.json',
+    };
+    const covered = ['@method'];
+    const result = extractForwardedHeaders(headers, covered);
+
+    expect(result['signature-input']).toBe('sig1=..., sig2=...');
+    expect(result['signature']).toBe('sig1=:...:, sig2=:...:');
+    expect(result['signature-agent']).toBe('https://example.com/jwks.json');
+  });
 });
 
 describe('filterHopByHopHeaders', () => {
@@ -206,6 +220,13 @@ describe('filterHopByHopHeaders', () => {
     const headers = { 'keep-alive': 'timeout=5', host: 'example.com' };
     const result = filterHopByHopHeaders(headers);
     expect(result['keep-alive']).toBeUndefined();
+  });
+
+  it('removes trailer header', () => {
+    const headers = { trailer: 'Expires', 'content-type': 'text/html' };
+    const result = filterHopByHopHeaders(headers);
+    expect(result['trailer']).toBeUndefined();
+    expect(result['content-type']).toBe('text/html');
   });
 
   it('preserves normal headers', () => {
