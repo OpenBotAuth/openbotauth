@@ -8,13 +8,14 @@ version = "0.1.0"
 description = "Python SDK for verifying Web Bot Auth (OpenBotAuth) signed requests using RFC 9421 HTTP Message Signatures"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     { name = "OpenBotAuth" }
 ]
 keywords = [
     "openbotauth",
     "web-bot-auth",
+    "webbotauth",
     "bot-auth",
     "http-signatures",
     "rfc9421",
@@ -32,10 +33,10 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Framework :: FastAPI",
     "Framework :: Flask",
     "Topic :: Internet :: WWW/HTTP",
@@ -88,11 +89,11 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 strict = true
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
