@@ -2,6 +2,8 @@
 ASGI middleware for OpenBotAuth verification (FastAPI/Starlette).
 """
 
+from __future__ import annotations
+
 from typing import Any, Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware

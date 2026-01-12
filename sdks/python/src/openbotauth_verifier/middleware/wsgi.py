@@ -2,6 +2,8 @@
 WSGI middleware for OpenBotAuth verification (Flask).
 """
 
+from __future__ import annotations
+
 import json
 from typing import Any, Callable, Iterable
 

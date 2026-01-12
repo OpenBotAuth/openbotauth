@@ -2,12 +2,14 @@
 Verifier client for calling the OpenBotAuth verifier service.
 """
 
+from __future__ import annotations
+
 from typing import Any, Mapping
 
 import httpx
 
 from .models import VerificationResult
-from .headers import extract_forwarded_headers, SIGNATURE_HEADERS
+from .headers import extract_forwarded_headers
 
 # Default hosted verifier URL
 DEFAULT_VERIFIER_URL = "https://verifier.openbotauth.org/verify"

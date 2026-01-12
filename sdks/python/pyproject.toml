@@ -10,7 +10,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
 authors = [
-    { name = "OpenBotAuth", email = "dev@openbotauth.org" }
+    { name = "OpenBotAuth" }
 ]
 keywords = [
     "openbotauth",
@@ -22,6 +22,8 @@ keywords = [
     "ai-agents",
     "bot-verification",
     "ietf",
+    "httpbis",
+    "agent-auth",
     "agent-authentication",
 ]
 classifiers = [
