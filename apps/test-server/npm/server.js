@@ -1,8 +1,12 @@
 /**
- * Test Protected Endpoint
+ * npm Package Test Server (Express.js)
  *
- * Simple Express server with a protected endpoint that requires signature verification
- * Now using @openbotauth/verifier-client middleware
+ * Test server for @openbotauth/verifier-client npm package.
+ * Uses Express.js with the openBotAuthMiddleware for signature verification.
+ *
+ * This server is part of the unified test-server that supports both:
+ * - npm package testing (this file) - port 3000
+ * - Python package testing (python/server.py) - port 3001
  */
 
 import express from 'express';
@@ -84,12 +88,14 @@ app.get('/public', (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'test-server' });
+  res.json({ status: 'ok', service: 'test-server-npm' });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log('🔒 Test Protected Endpoint Server');
+  console.log('');
+  console.log('📦 npm Package Test Server (@openbotauth/verifier-client)');
+  console.log('═══════════════════════════════════════════════════════════');
   console.log(`   Running on http://localhost:${PORT}`);
   console.log(`   Verifier: ${verifierUrl}`);
   console.log('');
@@ -104,7 +110,6 @@ app.listen(PORT, () => {
   console.log(`   pnpm dev fetch http://localhost:${PORT}/protected -v`);
   console.log('');
   console.log('To use hosted verifier:');
-  console.log('   VERIFIER_URL=https://verifier.openbotauth.org/verify pnpm start');
+  console.log('   VERIFIER_URL=https://verifier.openbotauth.org/verify pnpm start:npm');
   console.log('');
 });
-
