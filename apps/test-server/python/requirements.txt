@@ -1,0 +1,16 @@
+# Python package test server dependencies
+#
+# For local development (using SDK from monorepo):
+#   pip install -r requirements.txt
+#
+# For production (using published package):
+#   pip install openbotauth-verifier[fastapi]
+
+# Core dependencies
+fastapi>=0.100
+starlette>=0.27
+uvicorn>=0.23
+httpx>=0.25.0
+
+# Note: openbotauth-verifier is loaded from the monorepo path
+# For production, install: openbotauth-verifier[fastapi]

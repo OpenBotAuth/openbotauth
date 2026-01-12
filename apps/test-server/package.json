@@ -1,12 +1,15 @@
 {
   "name": "@openbotauth/test-server",
   "version": "0.1.0",
-  "description": "Test server with protected endpoints for OpenBotAuth",
+  "description": "Unified test server for OpenBotAuth npm and Python packages",
   "type": "module",
-  "main": "server.js",
+  "main": "npm/server.js",
   "scripts": {
-    "dev": "node server.js",
-    "start": "node server.js"
+    "dev": "node npm/server.js",
+    "dev:npm": "node npm/server.js",
+    "start": "node npm/server.js",
+    "start:npm": "node npm/server.js",
+    "start:python": "./start-python.sh"
   },
   "dependencies": {
     "@openbotauth/verifier-client": "workspace:*",
