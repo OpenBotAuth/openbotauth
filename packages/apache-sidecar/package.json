@@ -1,0 +1,31 @@
+{
+  "name": "@openbotauth/apache-sidecar",
+  "version": "0.1.0",
+  "description": "OpenBotAuth reverse-proxy sidecar for Apache and other upstreams",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch --env-file=../../.env src/server.ts",
+    "start": "node dist/server.js",
+    "clean": "rm -rf dist",
+    "test": "vitest"
+  },
+  "keywords": [
+    "openbotauth",
+    "apache",
+    "sidecar",
+    "reverse-proxy",
+    "rfc9421"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {}
+}
