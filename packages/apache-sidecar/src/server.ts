@@ -12,7 +12,7 @@ import { loadConfig } from './config.js';
 import {
   hasSignatureHeaders,
   parseCoveredHeaders,
-  hasSensitiveCoveredHeaders,
+  getSensitiveCoveredHeader,
   extractForwardedHeaders,
 } from './headers.js';
 import { callVerifier } from './verifier.js';
@@ -93,14 +93,16 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   const coveredHeaders = parseCoveredHeaders(signatureInput);
 
   // Security check: reject if sensitive headers are covered
-  if (hasSensitiveCoveredHeaders(coveredHeaders)) {
+  const sensitiveHeader = getSensitiveCoveredHeader(coveredHeaders);
+  if (sensitiveHeader) {
+    const errorMsg = `Sensitive header in signature scope: ${sensitiveHeader}`;
     const obAuthHeaders: OBAuthHeaders = {
       'X-OBAuth-Verified': 'false',
-      'X-OBAuth-Error': 'Sensitive headers in signature scope',
+      'X-OBAuth-Error': errorMsg,
     };
 
     if (requiresVerification) {
-      sendUnauthorized(res, 'Sensitive headers in signature scope', obAuthHeaders);
+      sendUnauthorized(res, errorMsg, obAuthHeaders);
       return;
     }
 
@@ -149,20 +151,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   await proxyRequest(req, res, config.upstreamUrl, obAuthHeaders);
 }
 
-// Create and start server
-const server = createServer((req, res) => {
-  handleRequest(req, res).catch((err) => {
-    console.error('Request handling error:', err);
-    if (!res.headersSent) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Internal Server Error' }));
-    }
-  });
-});
-
-// Health check endpoint (simple inline handler)
-server.on('request', (req, res) => {
-  if (req.url === '/.well-known/health' && req.method === 'GET') {
+/**
+ * Main server request handler - routes health check and normal requests
+ */
+function serverRequestHandler(req: IncomingMessage, res: ServerResponse): void {
+  // Health check endpoint
+  if (req.method === 'GET' && req.url === '/.well-known/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       status: 'ok',
@@ -171,21 +165,10 @@ server.on('request', (req, res) => {
       verifier: config.verifierUrl,
       mode: config.mode,
     }));
-    // Mark as handled to prevent further processing
-    (req as IncomingMessage & { handled?: boolean }).handled = true;
-  }
-});
-
-// Wrap original handler to skip if already handled
-const originalHandler = server.listeners('request')[0] as (req: IncomingMessage, res: ServerResponse) => void;
-server.removeListener('request', originalHandler);
-
-server.on('request', (req, res) => {
-  // Health check is handled inline above
-  if (req.url === '/.well-known/health' && req.method === 'GET') {
     return;
   }
 
+  // Normal request handling
   handleRequest(req, res).catch((err) => {
     console.error('Request handling error:', err);
     if (!res.headersSent) {
@@ -193,7 +176,10 @@ server.on('request', (req, res) => {
       res.end(JSON.stringify({ error: 'Internal Server Error' }));
     }
   });
-});
+}
+
+// Create and start server
+const server = createServer(serverRequestHandler);
 
 server.listen(config.port, () => {
   console.log(`🛡️  OpenBotAuth Apache Sidecar running on port ${config.port}`);

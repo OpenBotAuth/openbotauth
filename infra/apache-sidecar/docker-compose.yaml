@@ -35,6 +35,5 @@ services:
         condition: service_healthy
 
 # Optional: Full local stack for development
-# Uncomment below to run with local verifier instead of hosted
----
+# To run with local verifier instead of hosted:
 # docker-compose -f docker-compose.yaml -f docker-compose.local.yaml up

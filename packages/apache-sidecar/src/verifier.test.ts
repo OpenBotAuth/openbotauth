@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { callVerifier } from './verifier.js';
 
 describe('callVerifier', () => {
@@ -6,8 +6,8 @@ describe('callVerifier', () => {
     vi.resetAllMocks();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  afterAll(() => {
+    vi.unstubAllGlobals();
   });
 
   it('returns verified true on successful verification', async () => {
@@ -128,6 +128,50 @@ describe('callVerifier', () => {
 
     expect(result.verified).toBe(false);
     expect(result.error).toBe('Unknown verifier error');
+  });
+
+  it('handles non-JSON error response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: () => Promise.reject(new Error('Invalid JSON')),
+      text: () => Promise.resolve('Internal Server Error'),
+    }));
+
+    const result = await callVerifier(
+      'https://verifier.example.com/verify',
+      {
+        method: 'GET',
+        url: 'https://target.com/page',
+        headers: {},
+      },
+      5000
+    );
+
+    expect(result.verified).toBe(false);
+    expect(result.error).toBe('Verifier 500: Internal Server Error');
+  });
+
+  it('handles non-JSON response with text() failure', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: () => Promise.reject(new Error('Invalid JSON')),
+      text: () => Promise.reject(new Error('Text read failed')),
+    }));
+
+    const result = await callVerifier(
+      'https://verifier.example.com/verify',
+      {
+        method: 'GET',
+        url: 'https://target.com/page',
+        headers: {},
+      },
+      5000
+    );
+
+    expect(result.verified).toBe(false);
+    expect(result.error).toBe('Verifier 502: Unable to read response');
   });
 
   it('sends correct request body', async () => {

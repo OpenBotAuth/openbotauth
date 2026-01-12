@@ -21,17 +21,28 @@ export async function callVerifier(
       signal: controller.signal,
     });
 
-    const data = await response.json() as VerifierResponse;
+    // Try to parse JSON response
+    let data: VerifierResponse;
+    try {
+      data = await response.json() as VerifierResponse;
+    } catch {
+      // Non-JSON response - get text for error message
+      const text = await response.text().catch(() => 'Unable to read response');
+      return {
+        verified: false,
+        error: `Verifier ${response.status}: ${text.slice(0, 200)}`,
+      };
+    }
 
     // 200 with verified=true or 401 with verified=false
     if (response.ok) {
       return data;
     }
 
-    // Error response
+    // Error response with JSON body
     return {
       verified: false,
-      error: data.error || `Verifier returned ${response.status}`,
+      error: data.error || `Verifier ${response.status}: Unknown error`,
     };
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   hasSignatureHeaders,
   parseCoveredHeaders,
-  hasSensitiveCoveredHeaders,
+  getSensitiveCoveredHeader,
   extractForwardedHeaders,
   filterHopByHopHeaders,
 } from './headers.js';
@@ -66,32 +66,55 @@ describe('parseCoveredHeaders', () => {
   it('handles empty parentheses', () => {
     expect(parseCoveredHeaders('sig1=();created=1618884473')).toEqual([]);
   });
+
+  it('parses unquoted tokens', () => {
+    const input = 'sig1=(@method @path content-type);created=1618884473';
+    expect(parseCoveredHeaders(input)).toEqual(['@method', '@path', 'content-type']);
+  });
+
+  it('handles mixed quoted and unquoted tokens', () => {
+    const input = 'sig1=("@method" @path "content-type" accept);created=1618884473';
+    expect(parseCoveredHeaders(input)).toEqual(['@method', '@path', 'content-type', 'accept']);
+  });
+
+  it('handles extra whitespace', () => {
+    const input = 'sig1=(  "@method"   "@path"  );created=1618884473';
+    expect(parseCoveredHeaders(input)).toEqual(['@method', '@path']);
+  });
 });
 
-describe('hasSensitiveCoveredHeaders', () => {
-  it('returns true when authorization is covered', () => {
-    expect(hasSensitiveCoveredHeaders(['@method', 'authorization'])).toBe(true);
+describe('getSensitiveCoveredHeader', () => {
+  it('returns header name when authorization is covered', () => {
+    expect(getSensitiveCoveredHeader(['@method', 'authorization'])).toBe('authorization');
   });
 
-  it('returns true when cookie is covered', () => {
-    expect(hasSensitiveCoveredHeaders(['@method', 'cookie'])).toBe(true);
+  it('returns header name when cookie is covered', () => {
+    expect(getSensitiveCoveredHeader(['@method', 'cookie'])).toBe('cookie');
   });
 
-  it('returns true when proxy-authorization is covered', () => {
-    expect(hasSensitiveCoveredHeaders(['proxy-authorization'])).toBe(true);
+  it('returns header name when proxy-authorization is covered', () => {
+    expect(getSensitiveCoveredHeader(['proxy-authorization'])).toBe('proxy-authorization');
   });
 
-  it('returns false for safe headers', () => {
-    expect(hasSensitiveCoveredHeaders(['@method', '@path', 'content-type', 'accept'])).toBe(false);
+  it('returns header name when www-authenticate is covered', () => {
+    expect(getSensitiveCoveredHeader(['www-authenticate'])).toBe('www-authenticate');
   });
 
-  it('returns false for empty array', () => {
-    expect(hasSensitiveCoveredHeaders([])).toBe(false);
+  it('returns null for safe headers', () => {
+    expect(getSensitiveCoveredHeader(['@method', '@path', 'content-type', 'accept'])).toBeNull();
+  });
+
+  it('returns null for empty array', () => {
+    expect(getSensitiveCoveredHeader([])).toBeNull();
   });
 
   it('is case insensitive', () => {
-    expect(hasSensitiveCoveredHeaders(['AUTHORIZATION'])).toBe(true);
-    expect(hasSensitiveCoveredHeaders(['Authorization'])).toBe(true);
+    expect(getSensitiveCoveredHeader(['AUTHORIZATION'])).toBe('authorization');
+    expect(getSensitiveCoveredHeader(['Authorization'])).toBe('authorization');
+  });
+
+  it('returns the first sensitive header found', () => {
+    expect(getSensitiveCoveredHeader(['cookie', 'authorization'])).toBe('cookie');
   });
 });
 

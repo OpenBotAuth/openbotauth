@@ -32,13 +32,19 @@ export async function proxyRequest(
   // Set proper host header for upstream
   forwardHeaders['host'] = upstream.host;
 
-  // Add X-Forwarded headers
+  // Add X-Forwarded headers (preserve incoming if present)
   const clientIp = req.socket.remoteAddress || 'unknown';
   forwardHeaders['x-forwarded-for'] = forwardHeaders['x-forwarded-for']
     ? `${forwardHeaders['x-forwarded-for']}, ${clientIp}`
     : clientIp;
-  forwardHeaders['x-forwarded-proto'] = isHttps ? 'https' : 'http';
-  forwardHeaders['x-forwarded-host'] = req.headers.host || upstream.host;
+  // Preserve incoming x-forwarded-proto, else default to 'http' (sidecar listens on HTTP)
+  if (!forwardHeaders['x-forwarded-proto']) {
+    forwardHeaders['x-forwarded-proto'] = 'http';
+  }
+  // Preserve incoming x-forwarded-host if present
+  if (!forwardHeaders['x-forwarded-host']) {
+    forwardHeaders['x-forwarded-host'] = req.headers.host || upstream.host;
+  }
 
   return new Promise((resolve, reject) => {
     const proxyReq = requestFn(
@@ -52,6 +58,18 @@ export async function proxyRequest(
       (proxyRes) => {
         // Filter response headers
         const responseHeaders = filterHopByHopHeaders(proxyRes.headers);
+
+        // Echo key OBAuth headers on response for client visibility
+        // Only include minimal set: Verified, Agent (if present), Error (if present)
+        if (obAuthHeaders['X-OBAuth-Verified']) {
+          responseHeaders['X-OBAuth-Verified'] = obAuthHeaders['X-OBAuth-Verified'];
+        }
+        if (obAuthHeaders['X-OBAuth-Agent']) {
+          responseHeaders['X-OBAuth-Agent'] = obAuthHeaders['X-OBAuth-Agent'];
+        }
+        if (obAuthHeaders['X-OBAuth-Error']) {
+          responseHeaders['X-OBAuth-Error'] = obAuthHeaders['X-OBAuth-Error'];
+        }
 
         // Send response status and headers
         res.writeHead(proxyRes.statusCode || 500, responseHeaders);

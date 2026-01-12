@@ -61,15 +61,17 @@ Environment variables for the sidecar:
 | `PORT` | `8088` | Sidecar listen port |
 | `UPSTREAM_URL` | `http://apache:8080` | Backend server URL |
 | `OBA_VERIFIER_URL` | `https://verifier.openbotauth.org/verify` | Verifier service endpoint |
-| `OBA_MODE` | `observe` | `observe` or `require-verified` |
+| `OBA_MODE` | `observe` (standalone) / `require-verified` (compose) | `observe` or `require-verified` |
 | `OBA_TIMEOUT_MS` | `5000` | Verifier request timeout |
 | `OBA_PROTECTED_PATHS` | `/protected` | Comma-separated paths requiring verification |
 
 ## Modes
 
-### Observe Mode (default)
+### Observe Mode
 
 All requests pass through to upstream. Signature verification is attempted for signed requests, and `X-OBAuth-*` headers are injected to inform the upstream of verification status.
+
+This is the default mode when running the package standalone.
 
 ```bash
 OBA_MODE=observe docker compose up
@@ -79,19 +81,23 @@ OBA_MODE=observe docker compose up
 
 Protected paths return 401 if the request is unsigned or verification fails.
 
+The compose stack defaults to `require-verified` for `/protected` paths to provide a better demo experience.
+
 ```bash
 OBA_MODE=require-verified docker compose up
 ```
 
 ## Headers Injected
 
-| Header | Description |
-|--------|-------------|
-| `X-OBAuth-Verified` | `true` or `false` |
-| `X-OBAuth-Agent` | Bot client_name (or "unknown") |
-| `X-OBAuth-JWKS-URL` | Bot's JWKS endpoint |
-| `X-OBAuth-Kid` | Key ID used for signing |
-| `X-OBAuth-Error` | Error message (on failure) |
+These headers are injected to the upstream request and also echoed on the response (for client visibility):
+
+| Header | Description | Echoed on Response |
+|--------|-------------|-------------------|
+| `X-OBAuth-Verified` | `true` or `false` | Yes |
+| `X-OBAuth-Agent` | Bot client_name (or "unknown") | Yes |
+| `X-OBAuth-JWKS-URL` | Bot's JWKS endpoint | No |
+| `X-OBAuth-Kid` | Key ID used for signing | No |
+| `X-OBAuth-Error` | Error message (on failure) | Yes |
 
 ## Local Development Stack
 
