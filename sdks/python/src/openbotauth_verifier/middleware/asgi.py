@@ -12,12 +12,7 @@ from starlette.responses import JSONResponse, Response
 
 from ..client import VerifierClient, DEFAULT_VERIFIER_URL
 from ..models import OBAState, VerificationResult
-from ..headers import SIGNATURE_HEADERS
-
-
-def _has_signature_headers(headers: dict[str, str]) -> bool:
-    """Check if request has any signature headers."""
-    return any(h in headers for h in SIGNATURE_HEADERS)
+from ..headers import has_signature_headers
 
 
 class OpenBotAuthASGIMiddleware(BaseHTTPMiddleware):
@@ -73,7 +68,7 @@ class OpenBotAuthASGIMiddleware(BaseHTTPMiddleware):
             headers[key.lower()] = value
 
         # Check if signed
-        signed = _has_signature_headers(headers)
+        signed = has_signature_headers(headers)
 
         if not signed:
             # No signature headers

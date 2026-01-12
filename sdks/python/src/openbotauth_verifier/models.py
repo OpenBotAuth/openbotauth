@@ -5,7 +5,7 @@ Data models for OpenBotAuth verification.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 
 @dataclass
@@ -21,7 +21,7 @@ class VerificationRequest:
     """
     method: str
     url: str
-    headers: Mapping[str, str]
+    headers: dict[str, str]
     body: str | None = None
 
 

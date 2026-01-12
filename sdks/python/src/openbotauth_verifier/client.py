@@ -179,10 +179,11 @@ class VerifierClient:
         """Parse verifier service response into VerificationResult."""
         try:
             data = response.json()
-        except Exception:
+        except (ValueError, TypeError) as e:
+            # JSON decode errors (json.JSONDecodeError is a subclass of ValueError)
             return VerificationResult(
                 verified=False,
-                error=f"Invalid verifier response: {response.status_code}",
+                error=f"Invalid verifier response ({response.status_code}): {e}",
             )
 
         if response.status_code >= 500:

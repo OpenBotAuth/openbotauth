@@ -2,6 +2,8 @@
 Signature-Input parsing and privacy-safe header forwarding.
 """
 
+from __future__ import annotations
+
 import re
 from typing import Mapping
 
@@ -141,3 +143,17 @@ def extract_forwarded_headers(
             result[header] = normalized[header][1]
 
     return result
+
+
+def has_signature_headers(headers: Mapping[str, str]) -> bool:
+    """
+    Check if request has any signature headers.
+
+    Args:
+        headers: Request headers (case-insensitive keys supported)
+
+    Returns:
+        True if any signature header is present
+    """
+    normalized = {k.lower() for k in headers}
+    return bool(normalized & SIGNATURE_HEADERS)

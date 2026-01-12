@@ -5,16 +5,12 @@ WSGI middleware for OpenBotAuth verification (Flask).
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from typing import Any, Callable, Iterable
 
 from ..client import VerifierClient, DEFAULT_VERIFIER_URL
 from ..models import OBAState, VerificationResult
-from ..headers import SIGNATURE_HEADERS
-
-
-def _has_signature_headers(headers: dict[str, str]) -> bool:
-    """Check if request has any signature headers."""
-    return any(h in headers for h in SIGNATURE_HEADERS)
+from ..headers import has_signature_headers
 
 
 def _extract_headers(environ: dict[str, Any]) -> dict[str, str]:
@@ -98,7 +94,7 @@ class OpenBotAuthWSGIMiddleware:
         start_response: Callable[..., Any],
     ) -> Iterable[bytes]:
         headers = _extract_headers(environ)
-        signed = _has_signature_headers(headers)
+        signed = has_signature_headers(headers)
 
         if not signed:
             environ["openbotauth.oba"] = OBAState(signed=False, result=None)
@@ -126,7 +122,6 @@ class OpenBotAuthWSGIMiddleware:
                         body_bytes = environ["wsgi.input"].read(length)
                         body = body_bytes.decode("utf-8", errors="replace")
                         # Reset input stream for downstream apps
-                        from io import BytesIO
                         environ["wsgi.input"] = BytesIO(body_bytes)
                     except (ValueError, KeyError):
                         pass
