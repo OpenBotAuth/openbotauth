@@ -14,6 +14,8 @@ import {
   parseCoveredHeaders,
   getSensitiveCoveredHeader,
   extractForwardedHeaders,
+  getHeaderString,
+  sanitizeHeaderValue,
 } from './headers.js';
 import { callVerifier } from './verifier.js';
 import { proxyRequest, sendUnauthorized } from './proxy.js';
@@ -65,15 +67,35 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   // Case 2: Signed request - verify
-  const signatureInput = req.headers['signature-input'] as string;
+  // Normalize header values (handle arrays)
+  const signatureInput = getHeaderString(req.headers, 'signature-input');
+  const signature = getHeaderString(req.headers, 'signature');
+
+  // Early validation: missing signature-input
   if (!signatureInput) {
     const obAuthHeaders: OBAuthHeaders = {
       'X-OBAuth-Verified': 'false',
-      'X-OBAuth-Error': 'Missing signature-input header',
+      'X-OBAuth-Error': 'Missing Signature-Input',
     };
 
     if (requiresVerification) {
-      sendUnauthorized(res, 'Missing signature-input header', obAuthHeaders);
+      sendUnauthorized(res, 'Missing Signature-Input header', obAuthHeaders);
+      return;
+    }
+
+    await proxyRequest(req, res, config.upstreamUrl, obAuthHeaders);
+    return;
+  }
+
+  // Early validation: missing signature
+  if (!signature) {
+    const obAuthHeaders: OBAuthHeaders = {
+      'X-OBAuth-Verified': 'false',
+      'X-OBAuth-Error': 'Missing Signature',
+    };
+
+    if (requiresVerification) {
+      sendUnauthorized(res, 'Missing Signature header', obAuthHeaders);
       return;
     }
 
@@ -90,7 +112,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const errorMsg = `Sensitive header in signature scope: ${sensitiveHeader}`;
     const obAuthHeaders: OBAuthHeaders = {
       'X-OBAuth-Verified': 'false',
-      'X-OBAuth-Error': errorMsg,
+      'X-OBAuth-Error': sanitizeHeaderValue(errorMsg),
     };
 
     if (requiresVerification) {
@@ -119,7 +141,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     // Verification succeeded
     const obAuthHeaders: OBAuthHeaders = {
       'X-OBAuth-Verified': 'true',
-      'X-OBAuth-Agent': result.agent.client_name || 'unknown',
+      'X-OBAuth-Agent': sanitizeHeaderValue(result.agent.client_name || 'unknown'),
       'X-OBAuth-JWKS-URL': result.agent.jwks_url,
       'X-OBAuth-Kid': result.agent.kid,
     };
@@ -129,13 +151,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   // Verification failed
+  const errorMsg = result.error || 'Verification failed';
   const obAuthHeaders: OBAuthHeaders = {
     'X-OBAuth-Verified': 'false',
-    'X-OBAuth-Error': result.error || 'Verification failed',
+    'X-OBAuth-Error': sanitizeHeaderValue(errorMsg),
   };
 
   if (requiresVerification) {
-    sendUnauthorized(res, result.error || 'Verification failed', obAuthHeaders);
+    sendUnauthorized(res, errorMsg, obAuthHeaders);
     return;
   }
 

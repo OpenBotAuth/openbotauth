@@ -6,6 +6,33 @@ import type { IncomingHttpHeaders } from 'node:http';
 const SIGNATURE_HEADERS = ['signature-input', 'signature', 'signature-agent'];
 
 /**
+ * Get a header value as a string, normalizing arrays by joining with ", "
+ */
+export function getHeaderString(headers: IncomingHttpHeaders, name: string): string | undefined {
+  const value = headers[name.toLowerCase()];
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.join(', ');
+  }
+  return undefined;
+}
+
+/**
+ * Sanitize a header value for safe inclusion in HTTP response headers.
+ * - Replaces CR/LF with spaces (prevents header injection)
+ * - Trims whitespace
+ * - Clamps to maxLength characters
+ */
+export function sanitizeHeaderValue(value: string, maxLength = 200): string {
+  return value
+    .replace(/[\r\n]+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+/**
  * Sensitive headers that should not be covered/forwarded
  * Matches canonical policy used elsewhere in OpenBotAuth
  */
