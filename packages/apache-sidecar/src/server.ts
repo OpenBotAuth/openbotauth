@@ -28,9 +28,9 @@ const config = loadConfig();
  * Reconstruct the full URL from the incoming request
  */
 function reconstructUrl(req: IncomingMessage): string {
-  // Use X-Forwarded headers if present
-  const protocol = (req.headers['x-forwarded-proto'] as string) || 'http';
-  const host = (req.headers['x-forwarded-host'] as string) || req.headers.host || 'localhost';
+  // Use X-Forwarded headers if present (normalized via getHeaderString)
+  const protocol = getHeaderString(req.headers, 'x-forwarded-proto') || 'http';
+  const host = getHeaderString(req.headers, 'x-forwarded-host') || req.headers.host || 'localhost';
   const path = req.url || '/';
 
   return `${protocol}://${host}${path}`;

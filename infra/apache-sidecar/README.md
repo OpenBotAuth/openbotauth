@@ -1,6 +1,8 @@
-# OpenBotAuth Apache Sidecar
+# OpenBotAuth Sidecar Proxy
 
-A reverse-proxy sidecar that sits in front of Apache (or any HTTP upstream), verifies OpenBotAuth RFC 9421 signatures, and injects `X-OBAuth-*` headers.
+A reverse-proxy sidecar that sits in front of **any HTTP server** (Apache, Nginx, Node.js, Python, Go, etc.), verifies OpenBotAuth RFC 9421 signatures, and injects `X-OBAuth-*` headers.
+
+> **Note**: Despite the folder name "apache-sidecar", this proxy is **backend-agnostic** and works with any HTTP server. Apache is just the demo example.
 
 ## Quick Start
 
@@ -138,24 +140,252 @@ This adds:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Using with Your Own Upstream
+### How Traffic Blocking Works
 
-The sidecar works with any HTTP upstream, not just Apache:
+The sidecar is a **reverse proxy** that sits IN FRONT of Apache—it's not a companion process running alongside. This is how protection is enforced:
 
-```bash
-# Point to your own server
-UPSTREAM_URL=http://your-server:3000 docker compose up sidecar
+```
+                    ┌─────────────────────────────────────────────────┐
+                    │                   Your Server                    │
+                    │                                                  │
+Internet ──────────►│  Sidecar (:8088)  ──────────►  Apache (:8080)   │
+                    │     PUBLIC              INTERNAL ONLY            │
+                    │                                                  │
+                    │  ✓ Verifies signatures                          │
+                    │  ✓ Blocks bad requests (returns 401)            │
+                    │  ✓ Only forwards verified requests              │
+                    └─────────────────────────────────────────────────┘
+
+         Apache is NOT directly accessible from the internet!
 ```
 
-Or build the Docker image directly:
+**Key points:**
+1. **Apache listens on an internal port** (8080) that is NOT exposed to the public
+2. **Sidecar listens on the public port** (8088) and is the ONLY entry point
+3. When a request arrives at the sidecar:
+   - If the path requires verification (`require-verified` mode) and the signature is missing/invalid → **returns 401 immediately, request NEVER reaches Apache**
+   - If the signature is valid → forwards the request to Apache with `X-OBAuth-*` headers
+
+### Is This Pattern Safe?
+
+**Yes!** This is a standard, battle-tested architecture used by:
+
+- **Nginx** as a reverse proxy in front of application servers
+- **HAProxy** for load balancing and SSL termination
+- **Envoy** (used by Istio/Kubernetes service mesh)
+- **Traefik** for container routing
+- **AWS ALB/CloudFront** for edge protection
+
+The sidecar approach is actually **safer** than running authentication inside Apache because:
+1. **Small attack surface** - The sidecar is a focused, minimal codebase (~500 lines) that's easy to audit
+2. **Defense in depth** - Bad requests are rejected before reaching your application server
+3. **Separation of concerns** - Apache handles content serving; the sidecar handles authentication
+4. **No Apache modifications** - Your existing Apache config remains unchanged
+
+### Production Deployment
+
+For a production server, you need to ensure Apache is only accessible through the sidecar:
+
+#### Option 1: Firewall Rules
 
 ```bash
-docker build -t openbotauth-sidecar -f ../docker/Dockerfile.apache-sidecar ../..
+# Block direct access to Apache (port 80/8080)
+iptables -A INPUT -p tcp --dport 80 -j DROP
+iptables -A INPUT -p tcp --dport 8080 -j DROP
+
+# Allow access to sidecar (port 8088)
+iptables -A INPUT -p tcp --dport 8088 -j ACCEPT
+```
+
+#### Option 2: Bind Apache to localhost only
+
+In your Apache `httpd.conf`:
+```apache
+# Only listen on localhost - sidecar can reach it, internet cannot
+Listen 127.0.0.1:8080
+```
+
+#### Option 3: Docker/Container networking (recommended)
+
+Use Docker's internal networking (as shown in the demo):
+```yaml
+# docker-compose.yaml
+apache:
+  expose:
+    - "8080"      # Internal only - not published to host
+
+sidecar:
+  ports:
+    - "8088:8088"  # Public - this is what clients connect to
+```
+
+#### Option 4: Load Balancer
+
+Route all traffic through your load balancer to the sidecar:
+```
+Internet → Load Balancer → Sidecar (:8088) → Apache (:8080 internal)
+```
+
+### Optional Apache Configuration
+
+Apache requires **no changes** to work with the sidecar. However, you can optionally:
+
+#### Log verification status
+
+```apache
+# Add to httpd.conf to log X-OBAuth-* headers
+LogFormat "%h %t \"%r\" %>s \"%{X-OBAuth-Verified}i\" \"%{X-OBAuth-Agent}i\"" obauth
+CustomLog logs/bot_access.log obauth
+```
+
+#### Use headers for access control
+
+```apache
+# Example: additional Apache-level enforcement
+<Location /premium-content>
+    <If "%{HTTP:X-OBAuth-Verified} != 'true'">
+        Require all denied
+    </If>
+</Location>
+```
+
+#### Conditional content based on bot identity
+
+```apache
+# Serve different content to verified bots
+<If "%{HTTP:X-OBAuth-Agent} == 'GoogleBot'">
+    # Special handling for Google
+</If>
+```
+
+## Supported Backends
+
+Despite the name "apache-sidecar", this proxy works with **any HTTP server**. The sidecar is backend-agnostic—it just needs an `UPSTREAM_URL` to proxy to.
+
+### Tested Backends
+
+| Backend | Example UPSTREAM_URL | Notes |
+|---------|---------------------|-------|
+| **Apache** | `http://apache:8080` | Default in demo |
+| **Nginx** | `http://nginx:80` | Works perfectly |
+| **Node.js/Express** | `http://node-app:3000` | Great for APIs |
+| **Next.js** | `http://nextjs:3000` | SSR apps |
+| **Python/FastAPI** | `http://fastapi:8000` | Via Uvicorn |
+| **Python/Django** | `http://django:8000` | Via Gunicorn |
+| **Go** | `http://go-app:8080` | Native HTTP servers |
+| **PHP-FPM + Nginx** | `http://nginx:80` | Point to Nginx |
+| **Ruby/Rails** | `http://rails:3000` | Via Puma |
+| **Static files** | `http://nginx:80` | Nginx/Apache serving files |
+
+### Example: Nginx Backend
+
+```yaml
+# docker-compose.yaml
+services:
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+    expose:
+      - "80"
+
+  sidecar:
+    image: openbotauth-sidecar
+    ports:
+      - "8088:8088"
+    environment:
+      - UPSTREAM_URL=http://nginx:80
+      - OBA_MODE=require-verified
+      - OBA_PROTECTED_PATHS=/api,/protected
+```
+
+### Example: Node.js/Express Backend
+
+```yaml
+# docker-compose.yaml
+services:
+  api:
+    build: ./my-express-app
+    expose:
+      - "3000"
+
+  sidecar:
+    image: openbotauth-sidecar
+    ports:
+      - "8088:8088"
+    environment:
+      - UPSTREAM_URL=http://api:3000
+      - OBA_MODE=require-verified
+      - OBA_PROTECTED_PATHS=/api/v1
+```
+
+### Example: Python/FastAPI Backend
+
+```yaml
+# docker-compose.yaml
+services:
+  fastapi:
+    build: ./my-fastapi-app
+    expose:
+      - "8000"
+
+  sidecar:
+    image: openbotauth-sidecar
+    ports:
+      - "8088:8088"
+    environment:
+      - UPSTREAM_URL=http://fastapi:8000
+      - OBA_MODE=require-verified
+      - OBA_PROTECTED_PATHS=/api
+```
+
+### Example: Existing Server (non-Docker)
+
+If your server is already running (not in Docker), run the sidecar standalone:
+
+```bash
+# Build the sidecar image
+docker build -t openbotauth-sidecar -f infra/docker/Dockerfile.apache-sidecar .
+
+# Run pointing to your existing server
 docker run -p 8088:8088 \
-  -e UPSTREAM_URL=http://your-server:3000 \
+  -e UPSTREAM_URL=http://host.docker.internal:3000 \
   -e OBA_MODE=require-verified \
   -e OBA_PROTECTED_PATHS=/api,/admin \
   openbotauth-sidecar
+```
+
+> **Note**: Use `host.docker.internal` to reach services running on your host machine from inside Docker.
+
+### Chaining with Existing Nginx
+
+If you already have Nginx handling SSL, add the sidecar between Nginx and your app:
+
+```
+Internet → Nginx (SSL :443) → Sidecar (:8088) → Your App (:3000)
+```
+
+Nginx config:
+```nginx
+upstream sidecar {
+    server 127.0.0.1:8088;
+}
+
+server {
+    listen 443 ssl;
+    server_name example.com;
+
+    ssl_certificate /etc/ssl/cert.pem;
+    ssl_certificate_key /etc/ssl/key.pem;
+
+    location / {
+        proxy_pass http://sidecar;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 ```
 
 ## Testing Workflow

@@ -1,20 +1,24 @@
 FROM node:20-alpine
 
-RUN npm install -g pnpm@8
+# Enable corepack and install pnpm
+RUN corepack enable && corepack prepare pnpm@10.15.1 --activate
 
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml ./
+# Copy workspace configuration and lockfile
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/verifier-service/package.json ./packages/verifier-service/
 
-RUN pnpm install --frozen-lockfile
+# Install dependencies (filtered to verifier-service and its deps)
+RUN pnpm install --frozen-lockfile --filter @openbotauth/verifier-service...
 
+# Copy source code
 COPY packages/verifier-service ./packages/verifier-service
 COPY tsconfig.json ./
 
-RUN pnpm --filter verifier-service build
+# Build
+RUN pnpm --filter @openbotauth/verifier-service build
 
 EXPOSE 8081
 
 CMD ["node", "packages/verifier-service/dist/server.js"]
-
