@@ -1,0 +1,32 @@
+FROM node:20-alpine
+
+# Enable corepack and install pnpm
+RUN corepack enable && corepack prepare pnpm@10.15.1 --activate
+
+WORKDIR /app
+
+# Copy workspace configuration and lockfile
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY packages/sidecar/package.json ./packages/sidecar/
+
+# Install dependencies (filtered to sidecar and its deps)
+RUN pnpm install --frozen-lockfile --filter @openbotauth/sidecar...
+
+# Copy source code
+COPY packages/sidecar ./packages/sidecar
+COPY tsconfig.json ./
+
+# Build
+RUN pnpm --filter @openbotauth/sidecar build
+
+# Default environment variables
+ENV PORT=8088
+ENV UPSTREAM_URL=http://localhost:8080
+ENV OBA_VERIFIER_URL=https://verifier.openbotauth.org/verify
+ENV OBA_MODE=observe
+ENV OBA_TIMEOUT_MS=5000
+ENV OBA_PROTECTED_PATHS=/protected
+
+EXPOSE 8088
+
+CMD ["node", "packages/sidecar/dist/server.js"]

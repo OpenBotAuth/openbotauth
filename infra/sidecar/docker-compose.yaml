@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # Apache httpd serving sample content
+  apache:
+    image: httpd:2.4-alpine
+    volumes:
+      - ./apache/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro
+      - ./apache/htdocs:/usr/local/apache2/htdocs:ro
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # OpenBotAuth Sidecar - sits in front of Apache
+  sidecar:
+    build:
+      context: ../../
+      dockerfile: infra/docker/Dockerfile.sidecar
+    ports:
+      - "8088:8088"
+    environment:
+      - PORT=8088
+      - UPSTREAM_URL=http://apache:8080
+      # Default: use hosted verifier
+      - OBA_VERIFIER_URL=${OBA_VERIFIER_URL:-https://verifier.openbotauth.org/verify}
+      - OBA_MODE=${OBA_MODE:-require-verified}
+      - OBA_TIMEOUT_MS=${OBA_TIMEOUT_MS:-5000}
+      - OBA_PROTECTED_PATHS=${OBA_PROTECTED_PATHS:-/protected}
+    depends_on:
+      apache:
+        condition: service_healthy
+
+# Optional: Full local stack for development
+# To run with local verifier instead of hosted:
+# docker-compose -f docker-compose.yaml -f docker-compose.local.yaml up
