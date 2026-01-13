@@ -5,9 +5,32 @@
   "type": "module",
   "main": "./dist/server.js",
   "types": "./dist/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./verifier": {
+      "types": "./dist/verifier.d.ts",
+      "import": "./dist/verifier.js"
+    },
+    "./headers": {
+      "types": "./dist/headers.d.ts",
+      "import": "./dist/headers.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    }
+  },
   "bin": {
     "oba-sidecar": "./dist/server.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch --env-file=../../.env src/server.ts",
@@ -17,13 +40,33 @@
   },
   "keywords": [
     "openbotauth",
+    "webbotauth",
+    "web-bot-auth",
     "sidecar",
     "reverse-proxy",
     "rfc9421",
-    "http-signatures"
+    "http-signatures",
+    "bot-auth",
+    "agent-auth",
+    "ai-agent"
   ],
-  "author": "",
+  "author": "OpenBotAuth",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenBotAuth/openbotauth.git",
+    "directory": "packages/sidecar"
+  },
+  "homepage": "https://openbotauth.org",
+  "bugs": {
+    "url": "https://github.com/OpenBotAuth/openbotauth/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "tsx": "^4.15.0",

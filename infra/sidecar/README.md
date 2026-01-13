@@ -7,7 +7,7 @@ A reverse-proxy sidecar that sits in front of **any HTTP server** (Apache, Nginx
 ### 1. Start the stack
 
 ```bash
-cd infra/apache-sidecar
+cd infra/sidecar
 docker compose up --build
 ```
 
@@ -111,6 +111,23 @@ This adds:
 - **Redis** for nonce cache
 - **Verifier service** at `http://verifier:8081`
 - Overrides sidecar to use local verifier
+
+## Using Published Images (Production)
+
+For production deployments, use pre-built container images instead of building locally:
+
+```bash
+docker compose -f docker-compose.prod.yaml up
+```
+
+This pulls images from GitHub Container Registry:
+- `ghcr.io/openbotauth/sidecar:latest`
+
+For version pinning (recommended for production):
+```bash
+# Use a specific version tag
+docker pull ghcr.io/openbotauth/sidecar:0.1.0
+```
 
 ## Architecture
 
@@ -258,7 +275,7 @@ CustomLog logs/bot_access.log obauth
 
 ## Supported Backends
 
-Despite the name "apache-sidecar", this proxy works with **any HTTP server**. The sidecar is backend-agnostic—it just needs an `UPSTREAM_URL` to proxy to.
+This proxy works with **any HTTP server**. The sidecar is backend-agnostic—it just needs an `UPSTREAM_URL` to proxy to.
 
 ### Tested Backends
 
@@ -343,7 +360,7 @@ If your server is already running (not in Docker), run the sidecar standalone:
 
 ```bash
 # Build the sidecar image
-docker build -t openbotauth-sidecar -f infra/docker/Dockerfile.apache-sidecar .
+docker build -t openbotauth-sidecar -f infra/docker/Dockerfile.sidecar .
 
 # Run pointing to your existing server
 docker run -p 8088:8088 \

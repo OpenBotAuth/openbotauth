@@ -1,0 +1,40 @@
+# Production compose file using published container images
+# Usage: docker compose -f docker-compose.prod.yaml up
+#
+# This uses pre-built images from GitHub Container Registry instead of building locally.
+# Replace 'latest' with a specific version tag for production stability.
+
+version: '3.8'
+
+services:
+  # Apache httpd serving sample content
+  apache:
+    image: httpd:2.4-alpine
+    volumes:
+      - ./apache/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro
+      - ./apache/htdocs:/usr/local/apache2/htdocs:ro
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # OpenBotAuth Sidecar - sits in front of Apache
+  sidecar:
+    image: ghcr.io/openbotauth/sidecar:latest
+    # For Docker Hub (alternative):
+    # image: openbotauth/sidecar:latest
+    ports:
+      - "8088:8088"
+    environment:
+      - PORT=8088
+      - UPSTREAM_URL=http://apache:8080
+      - OBA_VERIFIER_URL=${OBA_VERIFIER_URL:-https://verifier.openbotauth.org/verify}
+      - OBA_MODE=${OBA_MODE:-require-verified}
+      - OBA_TIMEOUT_MS=${OBA_TIMEOUT_MS:-5000}
+      - OBA_PROTECTED_PATHS=${OBA_PROTECTED_PATHS:-/protected}
+    depends_on:
+      apache:
+        condition: service_healthy
