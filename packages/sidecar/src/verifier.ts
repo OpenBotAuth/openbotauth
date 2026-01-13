@@ -21,13 +21,15 @@ export async function callVerifier(
       signal: controller.signal,
     });
 
-    // Try to parse JSON response
+    // Read body as text first to avoid stream consumption issues
+    const text = await response.text();
+
+    // Try to parse as JSON
     let data: VerifierResponse;
     try {
-      data = await response.json() as VerifierResponse;
+      data = JSON.parse(text) as VerifierResponse;
     } catch {
-      // Non-JSON response - get text for error message
-      const text = await response.text().catch(() => 'Unable to read response');
+      // Non-JSON response - use text for error message
       return {
         verified: false,
         error: `Verifier ${response.status}: ${text.slice(0, 200)}`,
