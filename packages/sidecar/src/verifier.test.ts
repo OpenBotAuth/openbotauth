@@ -24,7 +24,8 @@ describe('callVerifier', () => {
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(mockResponse),
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(mockResponse)),
     }));
 
     const result = await callVerifier(
@@ -56,7 +57,7 @@ describe('callVerifier', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
-      json: () => Promise.resolve(mockResponse),
+      text: () => Promise.resolve(JSON.stringify(mockResponse)),
     }));
 
     const result = await callVerifier(
@@ -134,7 +135,6 @@ describe('callVerifier', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
-      json: () => Promise.reject(new Error('Invalid JSON')),
       text: () => Promise.resolve('Internal Server Error'),
     }));
 
@@ -152,11 +152,10 @@ describe('callVerifier', () => {
     expect(result.error).toBe('Verifier 500: Internal Server Error');
   });
 
-  it('handles non-JSON response with text() failure', async () => {
+  it('handles text() failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
       status: 502,
-      json: () => Promise.reject(new Error('Invalid JSON')),
       text: () => Promise.reject(new Error('Text read failed')),
     }));
 
@@ -171,13 +170,14 @@ describe('callVerifier', () => {
     );
 
     expect(result.verified).toBe(false);
-    expect(result.error).toBe('Verifier 502: Unable to read response');
+    expect(result.error).toBe('Text read failed');
   });
 
   it('sends correct request body', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ verified: true, agent: {} }),
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify({ verified: true, agent: {} })),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -202,5 +202,27 @@ describe('callVerifier', () => {
         body: JSON.stringify(request),
       })
     );
+  });
+
+  it('truncates long error messages', async () => {
+    const longError = 'x'.repeat(500);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: () => Promise.resolve(longError),
+    }));
+
+    const result = await callVerifier(
+      'https://verifier.example.com/verify',
+      {
+        method: 'GET',
+        url: 'https://target.com/page',
+        headers: {},
+      },
+      5000
+    );
+
+    expect(result.verified).toBe(false);
+    expect(result.error).toBe(`Verifier 500: ${'x'.repeat(200)}`);
   });
 });
