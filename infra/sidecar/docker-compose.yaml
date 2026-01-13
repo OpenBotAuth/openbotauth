@@ -1,12 +1,11 @@
-version: '3.8'
-
 services:
-  # Apache httpd serving sample content
-  apache:
+  # Demo backend server (Apache httpd serving sample content)
+  # You can replace this with any HTTP server (Nginx, Node.js, Python, etc.)
+  demo-backend:
     image: httpd:2.4-alpine
     volumes:
-      - ./apache/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro
-      - ./apache/htdocs:/usr/local/apache2/htdocs:ro
+      - ./demo-backend/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro
+      - ./demo-backend/htdocs:/usr/local/apache2/htdocs:ro
     expose:
       - "8080"
     healthcheck:
@@ -15,8 +14,8 @@ services:
       timeout: 3s
       retries: 5
 
-  # OpenBotAuth Sidecar - sits in front of Apache
-  sidecar:
+  # OpenBotAuth Sidecar Proxy - sits in front of your backend
+  proxy:
     build:
       context: ../../
       dockerfile: infra/docker/Dockerfile.sidecar
@@ -24,14 +23,14 @@ services:
       - "8088:8088"
     environment:
       - PORT=8088
-      - UPSTREAM_URL=http://apache:8080
+      - UPSTREAM_URL=http://demo-backend:8080
       # Default: use hosted verifier
       - OBA_VERIFIER_URL=${OBA_VERIFIER_URL:-https://verifier.openbotauth.org/verify}
       - OBA_MODE=${OBA_MODE:-require-verified}
       - OBA_TIMEOUT_MS=${OBA_TIMEOUT_MS:-5000}
       - OBA_PROTECTED_PATHS=${OBA_PROTECTED_PATHS:-/protected}
     depends_on:
-      apache:
+      demo-backend:
         condition: service_healthy
 
 # Optional: Full local stack for development
