@@ -2,8 +2,6 @@
 
 A reverse-proxy sidecar that sits in front of **any HTTP server** (Apache, Nginx, Node.js, Python, Go, etc.), verifies OpenBotAuth RFC 9421 signatures, and injects `X-OBAuth-*` headers.
 
-> **Note**: Despite the folder name "apache-sidecar", this proxy is **backend-agnostic** and works with any HTTP server. Apache is just the demo example.
-
 ## Quick Start
 
 ### 1. Start the stack

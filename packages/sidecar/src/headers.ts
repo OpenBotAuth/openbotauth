@@ -147,9 +147,10 @@ export function extractForwardedHeaders(
     }
   }
 
-  // Add host if present (commonly used)
+  // Add host if present (commonly used) - normalize arrays like other headers
   if (incomingHeaders.host && !result.host) {
-    result.host = incomingHeaders.host;
+    const hostValue = incomingHeaders.host;
+    result.host = Array.isArray(hostValue) ? hostValue.join(', ') : hostValue;
   }
 
   return result;

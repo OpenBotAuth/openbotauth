@@ -2,7 +2,7 @@ import { request as httpRequest, type IncomingMessage, type ServerResponse } fro
 import { request as httpsRequest } from 'node:https';
 import { URL } from 'node:url';
 import type { OBAuthHeaders } from './types.js';
-import { filterHopByHopHeaders } from './headers.js';
+import { filterHopByHopHeaders, getHeaderString } from './headers.js';
 
 /**
  * Proxy a request to the upstream server
@@ -43,7 +43,7 @@ export async function proxyRequest(
   }
   // Preserve incoming x-forwarded-host if present
   if (!forwardHeaders['x-forwarded-host']) {
-    forwardHeaders['x-forwarded-host'] = req.headers.host || upstream.host;
+    forwardHeaders['x-forwarded-host'] = getHeaderString(req.headers, 'host') || upstream.host;
   }
 
   return new Promise((resolve, reject) => {
@@ -74,16 +74,29 @@ export async function proxyRequest(
         // Send response status and headers
         res.writeHead(proxyRes.statusCode || 500, responseHeaders);
 
-        // Pipe the response body
-        proxyRes.pipe(res);
-
+        // Attach event listeners BEFORE pipe() to avoid race conditions
+        // where the stream completes before listeners are registered
         proxyRes.on('end', () => {
           resolve();
         });
 
         proxyRes.on('error', (err) => {
+          // Clean up upstream request to prevent resource leaks
+          proxyReq.destroy();
           reject(err);
         });
+
+        // Handle downstream client errors (e.g., client closes connection abruptly)
+        res.on('error', () => {
+          // Clean up both streams to prevent resource leaks
+          proxyRes.destroy();
+          proxyReq.destroy();
+          // Resolve instead of reject - client disconnect is not a server error
+          resolve();
+        });
+
+        // Pipe the response body
+        proxyRes.pipe(res);
       }
     );
 
@@ -94,6 +107,12 @@ export async function proxyRequest(
         res.end(JSON.stringify({ error: 'Bad Gateway', message: err.message }));
       }
       resolve(); // Don't reject, we handled it
+    });
+
+    // Handle incoming request errors (e.g., client disconnects during upload)
+    req.on('error', () => {
+      proxyReq.destroy();
+      resolve();
     });
 
     // Pipe the request body to upstream

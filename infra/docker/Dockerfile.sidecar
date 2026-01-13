@@ -7,21 +7,21 @@ WORKDIR /app
 
 # Copy workspace configuration and lockfile
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages/apache-sidecar/package.json ./packages/apache-sidecar/
+COPY packages/sidecar/package.json ./packages/sidecar/
 
-# Install dependencies (filtered to apache-sidecar and its deps)
-RUN pnpm install --frozen-lockfile --filter @openbotauth/apache-sidecar...
+# Install dependencies (filtered to sidecar and its deps)
+RUN pnpm install --frozen-lockfile --filter @openbotauth/sidecar...
 
 # Copy source code
-COPY packages/apache-sidecar ./packages/apache-sidecar
+COPY packages/sidecar ./packages/sidecar
 COPY tsconfig.json ./
 
 # Build
-RUN pnpm --filter @openbotauth/apache-sidecar build
+RUN pnpm --filter @openbotauth/sidecar build
 
 # Default environment variables
 ENV PORT=8088
-ENV UPSTREAM_URL=http://apache:8080
+ENV UPSTREAM_URL=http://localhost:8080
 ENV OBA_VERIFIER_URL=https://verifier.openbotauth.org/verify
 ENV OBA_MODE=observe
 ENV OBA_TIMEOUT_MS=5000
@@ -29,4 +29,4 @@ ENV OBA_PROTECTED_PATHS=/protected
 
 EXPOSE 8088
 
-CMD ["node", "packages/apache-sidecar/dist/server.js"]
+CMD ["node", "packages/sidecar/dist/server.js"]

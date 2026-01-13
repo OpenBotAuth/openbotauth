@@ -1,7 +1,8 @@
+#!/usr/bin/env node
 /**
- * OpenBotAuth Apache Sidecar
+ * OpenBotAuth Sidecar
  *
- * A reverse-proxy sidecar that sits in front of Apache (or any upstream),
+ * A reverse-proxy sidecar that sits in front of any HTTP upstream,
  * verifies OpenBotAuth signatures via the verifier service, and injects
  * standard X-OBAuth-* headers.
  */
@@ -30,7 +31,7 @@ const config = loadConfig();
 function reconstructUrl(req: IncomingMessage): string {
   // Use X-Forwarded headers if present (normalized via getHeaderString)
   const protocol = getHeaderString(req.headers, 'x-forwarded-proto') || 'http';
-  const host = getHeaderString(req.headers, 'x-forwarded-host') || req.headers.host || 'localhost';
+  const host = getHeaderString(req.headers, 'x-forwarded-host') || getHeaderString(req.headers, 'host') || 'localhost';
   const path = req.url || '/';
 
   return `${protocol}://${host}${path}`;
@@ -40,7 +41,8 @@ function reconstructUrl(req: IncomingMessage): string {
  * Main request handler
  */
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  const hostHeader = getHeaderString(req.headers, 'host') || 'localhost';
+  const url = new URL(req.url || '/', `http://${hostHeader}`);
   const pathname = url.pathname;
 
   // Determine if this path requires verification
@@ -137,20 +139,25 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   // Call verifier
   const result = await callVerifier(config.verifierUrl, verifierRequest, config.timeoutMs);
 
-  if (result.verified && result.agent) {
-    // Verification succeeded
+  if (result.verified) {
+    // Verification succeeded - trust the verified flag as the primary indicator
+    // Sanitize all user-controlled values to prevent header injection attacks
     const obAuthHeaders: OBAuthHeaders = {
       'X-OBAuth-Verified': 'true',
-      'X-OBAuth-Agent': sanitizeHeaderValue(result.agent.client_name || 'unknown'),
-      'X-OBAuth-JWKS-URL': result.agent.jwks_url,
-      'X-OBAuth-Kid': result.agent.kid,
     };
+
+    // Add agent details if available
+    if (result.agent) {
+      obAuthHeaders['X-OBAuth-Agent'] = sanitizeHeaderValue(result.agent.client_name || 'unknown');
+      obAuthHeaders['X-OBAuth-JWKS-URL'] = sanitizeHeaderValue(result.agent.jwks_url);
+      obAuthHeaders['X-OBAuth-Kid'] = sanitizeHeaderValue(result.agent.kid);
+    }
 
     await proxyRequest(req, res, config.upstreamUrl, obAuthHeaders);
     return;
   }
 
-  // Verification failed
+  // Verification failed (verified=false or missing)
   const errorMsg = result.error || 'Verification failed';
   const obAuthHeaders: OBAuthHeaders = {
     'X-OBAuth-Verified': 'false',
@@ -175,7 +182,7 @@ function serverRequestHandler(req: IncomingMessage, res: ServerResponse): void {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       status: 'ok',
-      service: 'apache-sidecar',
+      service: 'openbotauth-sidecar',
       upstream: config.upstreamUrl,
       verifier: config.verifierUrl,
       mode: config.mode,
@@ -197,7 +204,7 @@ function serverRequestHandler(req: IncomingMessage, res: ServerResponse): void {
 const server = createServer(serverRequestHandler);
 
 server.listen(config.port, () => {
-  console.log(`🛡️  OpenBotAuth Apache Sidecar running on port ${config.port}`);
+  console.log(`🛡️  OpenBotAuth Sidecar running on port ${config.port}`);
   console.log(`   Upstream: ${config.upstreamUrl}`);
   console.log(`   Verifier: ${config.verifierUrl}`);
   console.log(`   Mode: ${config.mode}`);

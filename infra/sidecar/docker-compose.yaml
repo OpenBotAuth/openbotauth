@@ -19,7 +19,7 @@ services:
   sidecar:
     build:
       context: ../../
-      dockerfile: infra/docker/Dockerfile.apache-sidecar
+      dockerfile: infra/docker/Dockerfile.sidecar
     ports:
       - "8088:8088"
     environment:

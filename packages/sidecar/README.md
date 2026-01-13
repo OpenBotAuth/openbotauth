@@ -1,10 +1,17 @@
-# @openbotauth/apache-sidecar
+# @openbotauth/sidecar
 
-A reverse-proxy sidecar that verifies OpenBotAuth RFC 9421 HTTP signatures and injects `X-OBAuth-*` headers.
+A reverse-proxy sidecar that verifies OpenBotAuth RFC 9421 HTTP signatures and injects `X-OBAuth-*` headers. Works with any HTTP backend (Apache, Nginx, Node.js, Python, Go, etc.).
 
 ## Installation
 
 ```bash
+# From npm
+npm install -g @openbotauth/sidecar
+
+# Or use npx
+npx @openbotauth/sidecar
+
+# Or from source
 pnpm install
 pnpm build
 ```
@@ -14,11 +21,11 @@ pnpm build
 ```bash
 # Start the sidecar
 PORT=8088 \
-UPSTREAM_URL=http://localhost:8080 \
+UPSTREAM_URL=http://localhost:3000 \
 OBA_VERIFIER_URL=https://verifier.openbotauth.org/verify \
 OBA_MODE=require-verified \
-OBA_PROTECTED_PATHS=/protected,/api \
-pnpm start
+OBA_PROTECTED_PATHS=/api,/protected \
+oba-sidecar
 ```
 
 ## Configuration
@@ -26,7 +33,7 @@ pnpm start
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8088` | Sidecar listen port |
-| `UPSTREAM_URL` | `http://apache:8080` | Backend server URL |
+| `UPSTREAM_URL` | `http://localhost:8080` | Backend server URL |
 | `OBA_VERIFIER_URL` | `https://verifier.openbotauth.org/verify` | Verifier endpoint |
 | `OBA_MODE` | `observe` | `observe` or `require-verified` |
 | `OBA_TIMEOUT_MS` | `5000` | Verifier timeout in ms |
@@ -57,7 +64,7 @@ pnpm build    # Build for production
 
 ## Docker
 
-See `infra/apache-sidecar/` for Docker Compose examples.
+See `infra/sidecar/` for Docker Compose examples.
 
 ## License
 
