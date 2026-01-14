@@ -9,6 +9,7 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { URL } from 'node:url';
+import { parseCLI } from './cli.js';
 import { loadConfig } from './config.js';
 import {
   hasSignatureHeaders,
@@ -23,7 +24,15 @@ import { proxyRequest, sendUnauthorized } from './proxy.js';
 import { isProtectedPath } from './paths.js';
 import type { OBAuthHeaders, VerifierRequest } from './types.js';
 
-const config = loadConfig();
+// Parse CLI arguments (skip first two: node and script path)
+const cliOptions = parseCLI(process.argv.slice(2));
+
+// If --help or --version was requested, parseCLI returns null and already printed output
+if (cliOptions === null) {
+  process.exit(0);
+}
+
+const config = loadConfig(cliOptions);
 
 /**
  * Reconstruct the full URL from the incoming request
