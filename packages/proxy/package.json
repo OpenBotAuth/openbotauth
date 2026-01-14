@@ -24,7 +24,6 @@
     }
   },
   "bin": {
-    "proxy": "./dist/server.js",
     "oba-proxy": "./dist/server.js",
     "openbotauth-proxy": "./dist/server.js"
   },
