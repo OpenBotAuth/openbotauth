@@ -5,7 +5,7 @@ import type { SidecarConfig } from './types.js';
  */
 export function loadConfig(): SidecarConfig {
   const port = parseInt(process.env.PORT || '8088', 10);
-  const upstreamUrl = process.env.UPSTREAM_URL || 'http://apache:8080';
+  const upstreamUrl = process.env.UPSTREAM_URL || 'http://localhost:8080';
   const verifierUrl = process.env.OBA_VERIFIER_URL || 'https://verifier.openbotauth.org/verify';
   const mode = (process.env.OBA_MODE || 'observe') as 'observe' | 'require-verified';
   const timeoutMs = parseInt(process.env.OBA_TIMEOUT_MS || '5000', 10);
