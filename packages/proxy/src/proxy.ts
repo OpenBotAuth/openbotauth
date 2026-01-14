@@ -37,7 +37,7 @@ export async function proxyRequest(
   forwardHeaders['x-forwarded-for'] = forwardHeaders['x-forwarded-for']
     ? `${forwardHeaders['x-forwarded-for']}, ${clientIp}`
     : clientIp;
-  // Preserve incoming x-forwarded-proto, else default to 'http' (sidecar listens on HTTP)
+  // Preserve incoming x-forwarded-proto, else default to 'http' (proxy listens on HTTP)
   if (!forwardHeaders['x-forwarded-proto']) {
     forwardHeaders['x-forwarded-proto'] = 'http';
   }

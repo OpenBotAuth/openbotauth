@@ -1,7 +1,7 @@
 /**
- * Sidecar configuration from environment
+ * Proxy configuration from environment
  */
-export interface SidecarConfig {
+export interface ProxyConfig {
   port: number;
   upstreamUrl: string;
   verifierUrl: string;

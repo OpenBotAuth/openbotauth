@@ -1,19 +1,19 @@
-# OpenBotAuth Sidecar Proxy
+# OpenBotAuth Proxy
 
-A reverse-proxy sidecar that sits in front of **any HTTP server** (Apache, Nginx, Node.js, Python, Go, etc.), verifies OpenBotAuth RFC 9421 signatures, and injects `X-OBAuth-*` headers.
+A reverse proxy that sits in front of **any HTTP server** (Apache, Nginx, Node.js, Python, Go, etc.), verifies OpenBotAuth RFC 9421 signatures, and injects `X-OBAuth-*` headers.
 
 ## Quick Start
 
 ### 1. Start the stack
 
 ```bash
-cd infra/apache-sidecar
+cd infra/proxy
 docker compose up --build
 ```
 
 This starts:
-- **Apache** on internal port 8080 (not exposed)
-- **Sidecar** on port 8088 → proxies to Apache
+- **Demo backend** on internal port 8080 (not exposed)
+- **Proxy** on port 8088 → proxies to backend
 
 ### 2. Test public access
 
@@ -54,12 +54,12 @@ pnpm --filter @openbotauth/bot-cli dev fetch http://localhost:8088/protected.htm
 
 ## Configuration
 
-Environment variables for the sidecar:
+Environment variables for the proxy:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `8088` | Sidecar listen port |
-| `UPSTREAM_URL` | `http://apache:8080` | Backend server URL |
+| `PORT` | `8088` | Proxy listen port |
+| `UPSTREAM_URL` | `http://demo-backend:8080` | Backend server URL |
 | `OBA_VERIFIER_URL` | `https://verifier.openbotauth.org/verify` | Verifier service endpoint |
 | `OBA_MODE` | `observe` (standalone) / `require-verified` (compose) | `observe` or `require-verified` |
 | `OBA_TIMEOUT_MS` | `5000` | Verifier request timeout |
@@ -110,7 +110,7 @@ docker compose -f docker-compose.yaml -f docker-compose.local.yaml up --build
 This adds:
 - **Redis** for nonce cache
 - **Verifier service** at `http://verifier:8081`
-- Overrides sidecar to use local verifier
+- Overrides proxy to use local verifier
 
 ## Architecture
 
@@ -121,7 +121,7 @@ This adds:
                                │
                                ▼ HTTP Request
 ┌─────────────────────────────────────────────────────────────────┐
-│  OpenBotAuth Sidecar (:8088)                                    │
+│  OpenBotAuth Proxy (:8088)                                      │
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │ 1. Extract signature headers                                ││
 │  │ 2. Call verifier service                                    ││
@@ -132,7 +132,7 @@ This adds:
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Apache httpd (:8080 internal)                                  │
+│  Backend Server (:8080 internal)                                │
 │  • Serves /public.html, /protected.html                         │
 │  • Reads X-OBAuth-* headers for logging/decisions               │
 └─────────────────────────────────────────────────────────────────┘
@@ -140,13 +140,13 @@ This adds:
 
 ### How Traffic Blocking Works
 
-The sidecar is a **reverse proxy** that sits IN FRONT of Apache—it's not a companion process running alongside. This is how protection is enforced:
+The proxy is a **reverse proxy** that sits IN FRONT of your backend—it's not a companion process running alongside. This is how protection is enforced:
 
 ```
                     ┌─────────────────────────────────────────────────┐
                     │                   Your Server                    │
                     │                                                  │
-Internet ──────────►│  Sidecar (:8088)  ──────────►  Apache (:8080)   │
+Internet ──────────►│  Proxy (:8088)  ──────────►  Backend (:8080)    │
                     │     PUBLIC              INTERNAL ONLY            │
                     │                                                  │
                     │  ✓ Verifies signatures                          │
@@ -154,15 +154,15 @@ Internet ──────────►│  Sidecar (:8088)  ─────�
                     │  ✓ Only forwards verified requests              │
                     └─────────────────────────────────────────────────┘
 
-         Apache is NOT directly accessible from the internet!
+         Backend is NOT directly accessible from the internet!
 ```
 
 **Key points:**
-1. **Apache listens on an internal port** (8080) that is NOT exposed to the public
-2. **Sidecar listens on the public port** (8088) and is the ONLY entry point
-3. When a request arrives at the sidecar:
-   - If the path requires verification (`require-verified` mode) and the signature is missing/invalid → **returns 401 immediately, request NEVER reaches Apache**
-   - If the signature is valid → forwards the request to Apache with `X-OBAuth-*` headers
+1. **Backend listens on an internal port** (8080) that is NOT exposed to the public
+2. **Proxy listens on the public port** (8088) and is the ONLY entry point
+3. When a request arrives at the proxy:
+   - If the path requires verification (`require-verified` mode) and the signature is missing/invalid → **returns 401 immediately, request NEVER reaches backend**
+   - If the signature is valid → forwards the request to backend with `X-OBAuth-*` headers
 
 ### Is This Pattern Safe?
 
@@ -174,32 +174,32 @@ Internet ──────────►│  Sidecar (:8088)  ─────�
 - **Traefik** for container routing
 - **AWS ALB/CloudFront** for edge protection
 
-The sidecar approach is actually **safer** than running authentication inside Apache because:
-1. **Small attack surface** - The sidecar is a focused, minimal codebase (~500 lines) that's easy to audit
+The proxy approach is actually **safer** than running authentication inside your backend because:
+1. **Small attack surface** - The proxy is a focused, minimal codebase (~500 lines) that's easy to audit
 2. **Defense in depth** - Bad requests are rejected before reaching your application server
-3. **Separation of concerns** - Apache handles content serving; the sidecar handles authentication
-4. **No Apache modifications** - Your existing Apache config remains unchanged
+3. **Separation of concerns** - Your backend handles content serving; the proxy handles authentication
+4. **No backend modifications** - Your existing config remains unchanged
 
 ### Production Deployment
 
-For a production server, you need to ensure Apache is only accessible through the sidecar:
+For a production server, you need to ensure your backend is only accessible through the proxy:
 
 #### Option 1: Firewall Rules
 
 ```bash
-# Block direct access to Apache (port 80/8080)
+# Block direct access to backend (port 80/8080)
 iptables -A INPUT -p tcp --dport 80 -j DROP
 iptables -A INPUT -p tcp --dport 8080 -j DROP
 
-# Allow access to sidecar (port 8088)
+# Allow access to proxy (port 8088)
 iptables -A INPUT -p tcp --dport 8088 -j ACCEPT
 ```
 
-#### Option 2: Bind Apache to localhost only
+#### Option 2: Bind backend to localhost only
 
-In your Apache `httpd.conf`:
+In your server config:
 ```apache
-# Only listen on localhost - sidecar can reach it, internet cannot
+# Only listen on localhost - proxy can reach it, internet cannot
 Listen 127.0.0.1:8080
 ```
 
@@ -208,27 +208,27 @@ Listen 127.0.0.1:8080
 Use Docker's internal networking (as shown in the demo):
 ```yaml
 # docker-compose.yaml
-apache:
+backend:
   expose:
     - "8080"      # Internal only - not published to host
 
-sidecar:
+proxy:
   ports:
     - "8088:8088"  # Public - this is what clients connect to
 ```
 
 #### Option 4: Load Balancer
 
-Route all traffic through your load balancer to the sidecar:
+Route all traffic through your load balancer to the proxy:
 ```
-Internet → Load Balancer → Sidecar (:8088) → Apache (:8080 internal)
+Internet → Load Balancer → Proxy (:8088) → Backend (:8080 internal)
 ```
 
-### Optional Apache Configuration
+### Optional Backend Configuration
 
-Apache requires **no changes** to work with the sidecar. However, you can optionally:
+Your backend requires **no changes** to work with the proxy. However, you can optionally:
 
-#### Log verification status
+#### Log verification status (Apache example)
 
 ```apache
 # Add to httpd.conf to log X-OBAuth-* headers
@@ -258,7 +258,7 @@ CustomLog logs/bot_access.log obauth
 
 ## Supported Backends
 
-Despite the name "apache-sidecar", this proxy works with **any HTTP server**. The sidecar is backend-agnostic—it just needs an `UPSTREAM_URL` to proxy to.
+This proxy works with **any HTTP server**. It's backend-agnostic—it just needs an `UPSTREAM_URL` to proxy to.
 
 ### Tested Backends
 
@@ -287,8 +287,8 @@ services:
     expose:
       - "80"
 
-  sidecar:
-    image: openbotauth-sidecar
+  proxy:
+    image: openbotauth/proxy
     ports:
       - "8088:8088"
     environment:
@@ -307,8 +307,8 @@ services:
     expose:
       - "3000"
 
-  sidecar:
-    image: openbotauth-sidecar
+  proxy:
+    image: openbotauth/proxy
     ports:
       - "8088:8088"
     environment:
@@ -327,8 +327,8 @@ services:
     expose:
       - "8000"
 
-  sidecar:
-    image: openbotauth-sidecar
+  proxy:
+    image: openbotauth/proxy
     ports:
       - "8088:8088"
     environment:
@@ -339,33 +339,36 @@ services:
 
 ### Example: Existing Server (non-Docker)
 
-If your server is already running (not in Docker), run the sidecar standalone:
+If your server is already running (not in Docker), run the proxy standalone:
 
 ```bash
-# Build the sidecar image
-docker build -t openbotauth-sidecar -f infra/docker/Dockerfile.apache-sidecar .
+# Using npx
+npx @openbotauth/proxy \
+  --upstream http://localhost:3000 \
+  --mode require-verified \
+  --paths /api,/admin
 
-# Run pointing to your existing server
+# Or with Docker
 docker run -p 8088:8088 \
   -e UPSTREAM_URL=http://host.docker.internal:3000 \
   -e OBA_MODE=require-verified \
   -e OBA_PROTECTED_PATHS=/api,/admin \
-  openbotauth-sidecar
+  openbotauth/proxy
 ```
 
 > **Note**: Use `host.docker.internal` to reach services running on your host machine from inside Docker.
 
 ### Chaining with Existing Nginx
 
-If you already have Nginx handling SSL, add the sidecar between Nginx and your app:
+If you already have Nginx handling SSL, add the proxy between Nginx and your app:
 
 ```
-Internet → Nginx (SSL :443) → Sidecar (:8088) → Your App (:3000)
+Internet → Nginx (SSL :443) → Proxy (:8088) → Your App (:3000)
 ```
 
 Nginx config:
 ```nginx
-upstream sidecar {
+upstream openbotauth_proxy {
     server 127.0.0.1:8088;
 }
 
@@ -377,7 +380,7 @@ server {
     ssl_certificate_key /etc/ssl/key.pem;
 
     location / {
-        proxy_pass http://sidecar;
+        proxy_pass http://openbotauth_proxy;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

@@ -1,10 +1,10 @@
-# @openbotauth/sidecar
+# @openbotauth/proxy
 
-Reverse-proxy sidecar for verifying [Web Bot Auth](https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth-architecture/) / [OpenBotAuth](https://openbotauth.org) signed HTTP requests. Works with any HTTP backend (Apache, Nginx, Node.js, Python, Go, Ruby, etc.).
+Reverse proxy for verifying [Web Bot Auth](https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth-architecture/) / [OpenBotAuth](https://openbotauth.org) signed HTTP requests. Works with any HTTP backend (Apache, Nginx, Node.js, Python, Go, Ruby, etc.).
 
 Web Bot Auth is an IETF draft standard for authenticating AI agents and bots using RFC 9421 HTTP Message Signatures. OpenBotAuth provides the reference implementation, registry, and hosted verifier service.
 
-This sidecar:
+This proxy:
 - **Verifies RFC 9421 signatures** on incoming HTTP requests
 - **Injects X-OBAuth-* headers** with verification results for your backend
 - **Protects any HTTP server** without code changes to your application
@@ -14,26 +14,26 @@ This sidecar:
 
 ```bash
 # npm (global)
-npm install -g @openbotauth/sidecar
+npm install -g @openbotauth/proxy
 
 # npx (no install required)
-npx @openbotauth/sidecar
+npx @openbotauth/proxy
 
 # pnpm
-pnpm add -g @openbotauth/sidecar
+pnpm add -g @openbotauth/proxy
 
 # Homebrew (coming soon)
-brew install openbotauth/tap/oba-sidecar
+brew install openbotauth/tap/openbotauth-proxy
 
 # Docker
-docker run -p 8088:8088 openbotauth/sidecar
+docker run -p 8088:8088 openbotauth/proxy
 ```
 
 ## Quick Start
 
 ```bash
-# Start the sidecar in front of your backend
-UPSTREAM_URL=http://localhost:3000 npx @openbotauth/sidecar
+# Start the proxy in front of your backend
+UPSTREAM_URL=http://localhost:3000 npx @openbotauth/proxy
 ```
 
 All requests to `localhost:8088` are proxied to your backend at `localhost:3000` with verification headers injected.
@@ -42,10 +42,12 @@ All requests to `localhost:8088` are proxied to your backend at `localhost:3000`
 
 ```bash
 # Basic usage (proxies to localhost:8080 by default)
-npx @openbotauth/sidecar
+npx @openbotauth/proxy
 
 # Or if installed globally
-oba-sidecar
+openbotauth-proxy
+# or
+oba-proxy
 
 # Production configuration
 PORT=8088 \
@@ -53,14 +55,14 @@ UPSTREAM_URL=http://localhost:3000 \
 OBA_VERIFIER_URL=https://verifier.openbotauth.org/verify \
 OBA_MODE=require-verified \
 OBA_PROTECTED_PATHS=/api,/protected \
-oba-sidecar
+openbotauth-proxy
 ```
 
 ## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `8088` | Sidecar listen port |
+| `PORT` | `8088` | Proxy listen port |
 | `UPSTREAM_URL` | `http://localhost:8080` | Backend server URL to proxy to |
 | `OBA_VERIFIER_URL` | `https://verifier.openbotauth.org/verify` | OpenBotAuth verifier endpoint |
 | `OBA_MODE` | `observe` | `observe` or `require-verified` |
@@ -71,13 +73,13 @@ oba-sidecar
 
 ### Observe Mode (Default)
 
-All requests pass through to your backend. The sidecar adds `X-OBAuth-*` headers indicating verification status. Use this for:
+All requests pass through to your backend. The proxy adds `X-OBAuth-*` headers indicating verification status. Use this for:
 - Logging and analytics
 - Gradual rollout
 - Understanding bot traffic before enforcing
 
 ```bash
-OBA_MODE=observe oba-sidecar
+OBA_MODE=observe openbotauth-proxy
 ```
 
 ### Require-Verified Mode
@@ -87,7 +89,7 @@ Protected paths return `401 Unauthorized` if the request is unsigned or verifica
 ```bash
 OBA_MODE=require-verified \
 OBA_PROTECTED_PATHS=/api,/protected \
-oba-sidecar
+openbotauth-proxy
 ```
 
 ## Headers Injected
@@ -130,7 +132,7 @@ def api_data():
 
 ## Health Check
 
-The sidecar exposes a health check endpoint:
+The proxy exposes a health check endpoint:
 
 ```bash
 curl http://localhost:8088/.well-known/health
@@ -140,7 +142,7 @@ Response:
 ```json
 {
   "status": "ok",
-  "service": "openbotauth-sidecar",
+  "service": "openbotauth-proxy",
   "upstream": "http://localhost:8080",
   "verifier": "https://verifier.openbotauth.org/verify",
   "mode": "observe"
@@ -154,7 +156,7 @@ Response:
 docker run -p 8088:8088 \
   -e UPSTREAM_URL=http://host.docker.internal:3000 \
   -e OBA_MODE=observe \
-  openbotauth/sidecar
+  openbotauth/proxy
 ```
 
 Docker Compose example:
@@ -162,8 +164,8 @@ Docker Compose example:
 ```yaml
 version: '3.8'
 services:
-  sidecar:
-    image: openbotauth/sidecar
+  proxy:
+    image: openbotauth/proxy
     ports:
       - "8088:8088"
     environment:
@@ -173,10 +175,10 @@ services:
 
   backend:
     image: your-backend
-    # No need to expose port - only sidecar is public
+    # No need to expose port - only proxy is public
 ```
 
-See `infra/sidecar/` in the [OpenBotAuth repository](https://github.com/OpenBotAuth/openbotauth) for more Docker Compose examples.
+See the [OpenBotAuth repository](https://github.com/OpenBotAuth/openbotauth) for more Docker Compose examples.
 
 ## Architecture
 
@@ -187,15 +189,15 @@ See `infra/sidecar/` in the [OpenBotAuth repository](https://github.com/OpenBotA
                          +-------^--------+
                                  |
 +----------+    +----------+     |     +----------+
-|  Client  |--->|  Sidecar |-----+---->|  Backend |
+|  Client  |--->|   Proxy  |-----+---->|  Backend |
 | (AI Bot) |    |          |           | (Your App)|
 +----------+    +----------+           +----------+
 ```
 
-1. Bot sends signed HTTP request to sidecar
-2. Sidecar extracts RFC 9421 signature headers
-3. Sidecar calls verifier service to validate signature
-4. Sidecar injects `X-OBAuth-*` headers with results
+1. Bot sends signed HTTP request to proxy
+2. Proxy extracts RFC 9421 signature headers
+3. Proxy calls verifier service to validate signature
+4. Proxy injects `X-OBAuth-*` headers with results
 5. Backend receives request with verification info
 
 ## Development
@@ -203,7 +205,7 @@ See `infra/sidecar/` in the [OpenBotAuth repository](https://github.com/OpenBotA
 ```bash
 # Clone the repository
 git clone https://github.com/OpenBotAuth/openbotauth.git
-cd openbotauth/packages/sidecar
+cd openbotauth/packages/proxy
 
 # Install dependencies
 pnpm install

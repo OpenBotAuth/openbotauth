@@ -1,11 +1,11 @@
-import type { SidecarConfig } from './types.js';
+import type { ProxyConfig } from './types.js';
 import type { CLIOptions } from './cli.js';
 
 /**
  * Load configuration from CLI arguments and environment variables
  * CLI arguments take precedence over environment variables
  */
-export function loadConfig(cliOptions: CLIOptions = {}): SidecarConfig {
+export function loadConfig(cliOptions: CLIOptions = {}): ProxyConfig {
   // CLI args override env vars
   const port = cliOptions.port ?? parseInt(process.env.PORT || '8088', 10);
   const upstreamUrl = cliOptions.upstream ?? process.env.UPSTREAM_URL ?? 'http://localhost:8080';

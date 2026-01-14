@@ -58,13 +58,13 @@
         <h2>What happened</h2>
         <ol>
             <li>Your request included RFC 9421 HTTP signature headers</li>
-            <li>The sidecar proxy extracted and forwarded these to the verifier</li>
+            <li>The proxy extracted and forwarded these to the verifier</li>
             <li>The verifier validated your signature against your JWKS</li>
             <li>Access was granted and the request was proxied to Apache</li>
         </ol>
 
         <h2>Your signature headers</h2>
-        <p>The sidecar added these headers to the upstream request:</p>
+        <p>The proxy added these headers to the upstream request:</p>
         <ul>
             <li><code>X-OBAuth-Verified: true</code></li>
             <li><code>X-OBAuth-Agent</code> - Your bot's client_name</li>
