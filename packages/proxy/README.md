@@ -2,7 +2,7 @@
 
 Reverse proxy for verifying [Web Bot Auth](https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth-architecture/) / [OpenBotAuth](https://openbotauth.org) signed HTTP requests. Works with any HTTP backend (Apache, Nginx, Node.js, Python, Go, Ruby, etc.).
 
-Web Bot Auth is an IETF draft standard for authenticating AI agents and bots using RFC 9421 HTTP Message Signatures. OpenBotAuth provides the reference implementation, registry, and hosted verifier service.
+Web Bot Auth is an IETF Internet-Draft for authenticating AI agents and bots using RFC 9421 HTTP Message Signatures. OpenBotAuth provides an open-source implementation aligned with the draft, along with a registry and hosted verifier service.
 
 This proxy:
 - **Verifies RFC 9421 signatures** on incoming HTTP requests
@@ -25,8 +25,11 @@ pnpm add -g @openbotauth/proxy
 # Homebrew (coming soon)
 brew install openbotauth/tap/openbotauth-proxy
 
-# Docker
+# Docker (Docker Hub)
 docker run -p 8088:8088 hammadtariq/openbotauth-proxy
+
+# Docker (GitHub Container Registry)
+docker run -p 8088:8088 ghcr.io/openbotauth/openbotauth-proxy
 ```
 
 ## Quick Start
