@@ -389,7 +389,7 @@ docker-compose up
 - Use Redis for sessions (optional)
 
 **Verifier Service**:
-- Deploy as sidecar or separate service
+- Deploy as proxy sidecar or separate service
 - Must have low latency to origin
 - Requires Redis for nonce cache
 - Set trusted directories

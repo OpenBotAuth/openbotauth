@@ -35,13 +35,14 @@ function getVersion(): string {
  */
 function printHelp(): void {
   console.log(`
-@openbotauth/sidecar v${getVersion()}
+@openbotauth/proxy v${getVersion()}
 
-Reverse-proxy sidecar for verifying Web Bot Auth / OpenBotAuth signed HTTP requests.
+Reverse proxy for verifying Web Bot Auth / OpenBotAuth signed HTTP requests.
 
 USAGE:
-  npx @openbotauth/sidecar [OPTIONS]
-  oba-sidecar [OPTIONS]
+  npx @openbotauth/proxy [OPTIONS]
+  openbotauth-proxy [OPTIONS]
+  oba-proxy [OPTIONS]
 
 OPTIONS:
   -p, --port <port>          Listen port (default: 8088)
@@ -65,16 +66,16 @@ CLI arguments take precedence over environment variables.
 
 EXAMPLES:
   # Start with defaults
-  npx @openbotauth/sidecar
+  npx @openbotauth/proxy
 
   # Custom upstream
-  npx @openbotauth/sidecar --upstream http://localhost:3000
+  npx @openbotauth/proxy --upstream http://localhost:3000
 
   # Require verification on /api paths
-  npx @openbotauth/sidecar --mode require-verified --paths /api,/protected
+  npx @openbotauth/proxy --mode require-verified --paths /api,/protected
 
   # Using environment variables
-  UPSTREAM_URL=http://localhost:3000 npx @openbotauth/sidecar
+  UPSTREAM_URL=http://localhost:3000 npx @openbotauth/proxy
 
 DOCUMENTATION:
   https://openbotauth.org

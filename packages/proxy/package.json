@@ -1,7 +1,7 @@
 {
-  "name": "@openbotauth/sidecar",
-  "version": "0.1.5",
-  "description": "Web Bot Auth / OpenBotAuth reverse-proxy sidecar for verifying RFC 9421 HTTP signatures",
+  "name": "@openbotauth/proxy",
+  "version": "0.1.2",
+  "description": "Web Bot Auth / OpenBotAuth reverse proxy for verifying RFC 9421 HTTP signatures",
   "type": "module",
   "main": "./dist/server.js",
   "types": "./dist/server.d.ts",
@@ -24,9 +24,9 @@
     }
   },
   "bin": {
-    "sidecar": "./dist/server.js",
-    "oba-sidecar": "./dist/server.js",
-    "openbotauth-sidecar": "./dist/server.js"
+    "proxy": "./dist/server.js",
+    "oba-proxy": "./dist/server.js",
+    "openbotauth-proxy": "./dist/server.js"
   },
   "files": [
     "dist",
@@ -44,20 +44,21 @@
     "openbotauth",
     "webbotauth",
     "web-bot-auth",
-    "sidecar",
+    "proxy",
     "reverse-proxy",
     "rfc9421",
     "http-signatures",
     "bot-auth",
     "agent-auth",
-    "ai-agent"
+    "ai-agent",
+    "sidecar"
   ],
   "author": "OpenBotAuth",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/OpenBotAuth/openbotauth.git",
-    "directory": "packages/sidecar"
+    "directory": "packages/proxy"
   },
   "homepage": "https://openbotauth.org",
   "bugs": {

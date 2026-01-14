@@ -23,7 +23,7 @@ describe('loadConfig', () => {
     const config = loadConfig();
 
     expect(config.port).toBe(8088);
-    expect(config.upstreamUrl).toBe('http://apache:8080');
+    expect(config.upstreamUrl).toBe('http://localhost:8080');
     expect(config.verifierUrl).toBe('https://verifier.openbotauth.org/verify');
     expect(config.mode).toBe('observe');
     expect(config.timeoutMs).toBe(5000);

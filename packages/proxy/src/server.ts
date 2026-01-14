@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * OpenBotAuth Sidecar
+ * OpenBotAuth Proxy
  *
- * A reverse-proxy sidecar that sits in front of any HTTP upstream,
+ * A reverse proxy that sits in front of any HTTP upstream,
  * verifies OpenBotAuth signatures via the verifier service, and injects
  * standard X-OBAuth-* headers.
  */
@@ -191,7 +191,7 @@ function serverRequestHandler(req: IncomingMessage, res: ServerResponse): void {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       status: 'ok',
-      service: 'openbotauth-sidecar',
+      service: 'openbotauth-proxy',
       upstream: config.upstreamUrl,
       verifier: config.verifierUrl,
       mode: config.mode,
@@ -213,7 +213,7 @@ function serverRequestHandler(req: IncomingMessage, res: ServerResponse): void {
 const server = createServer(serverRequestHandler);
 
 server.listen(config.port, () => {
-  console.log(`🛡️  OpenBotAuth Sidecar running on port ${config.port}`);
+  console.log(`🛡️  OpenBotAuth Proxy running on port ${config.port}`);
   console.log(`   Upstream: ${config.upstreamUrl}`);
   console.log(`   Verifier: ${config.verifierUrl}`);
   console.log(`   Mode: ${config.mode}`);
