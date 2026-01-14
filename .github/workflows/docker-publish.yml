@@ -1,10 +1,10 @@
-name: Publish Docker Image
+name: Publish Proxy Package
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., 0.1.3)'
+        description: 'Version tag (e.g., 0.1.4)'
         required: true
         type: string
   push:
@@ -17,7 +17,51 @@ env:
   IMAGE_NAME: openbotauth/openbotauth-proxy
 
 jobs:
-  build-and-push:
+  publish-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Set version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/proxy-v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Update package version
+        run: |
+          cd packages/proxy
+          npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Build package
+        run: pnpm --filter @openbotauth/proxy build
+
+      - name: Publish to npm
+        run: |
+          cd packages/proxy
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-docker:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -33,7 +77,6 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            # Extract version from tag (proxy-v0.1.3 -> 0.1.3)
             echo "version=${GITHUB_REF#refs/tags/proxy-v}" >> $GITHUB_OUTPUT
           fi
 
