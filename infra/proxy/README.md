@@ -288,7 +288,7 @@ services:
       - "80"
 
   proxy:
-    image: openbotauth/proxy
+    image: hammadtariq/openbotauth-proxy
     ports:
       - "8088:8088"
     environment:
@@ -308,7 +308,7 @@ services:
       - "3000"
 
   proxy:
-    image: openbotauth/proxy
+    image: hammadtariq/openbotauth-proxy
     ports:
       - "8088:8088"
     environment:
@@ -328,7 +328,7 @@ services:
       - "8000"
 
   proxy:
-    image: openbotauth/proxy
+    image: hammadtariq/openbotauth-proxy
     ports:
       - "8088:8088"
     environment:
@@ -353,7 +353,7 @@ docker run -p 8088:8088 \
   -e UPSTREAM_URL=http://host.docker.internal:3000 \
   -e OBA_MODE=require-verified \
   -e OBA_PROTECTED_PATHS=/api,/admin \
-  openbotauth/proxy
+  hammadtariq/openbotauth-proxy
 ```
 
 > **Note**: Use `host.docker.internal` to reach services running on your host machine from inside Docker.

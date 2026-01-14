@@ -26,7 +26,7 @@ pnpm add -g @openbotauth/proxy
 brew install openbotauth/tap/openbotauth-proxy
 
 # Docker
-docker run -p 8088:8088 openbotauth/proxy
+docker run -p 8088:8088 hammadtariq/openbotauth-proxy
 ```
 
 ## Quick Start
@@ -156,7 +156,7 @@ Response:
 docker run -p 8088:8088 \
   -e UPSTREAM_URL=http://host.docker.internal:3000 \
   -e OBA_MODE=observe \
-  openbotauth/proxy
+  hammadtariq/openbotauth-proxy
 ```
 
 Docker Compose example:
@@ -165,7 +165,7 @@ Docker Compose example:
 version: '3.8'
 services:
   proxy:
-    image: openbotauth/proxy
+    image: hammadtariq/openbotauth-proxy
     ports:
       - "8088:8088"
     environment:
