@@ -240,9 +240,9 @@ class Router {
             }
         }
 
-        // Escape output for safety - esc_html is safe for text/plain content type
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- esc_html is an escaping function
-        echo esc_html( wp_strip_all_tags( $output ) );
+        // Output plain text - wp_strip_all_tags removes HTML, Content-Type: text/plain prevents rendering
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- text/plain content-type, not HTML context
+        echo wp_strip_all_tags( $output );
         exit;
     }
 
@@ -338,9 +338,9 @@ class Router {
         header('Last-Modified: ' . $lastmod_http);
         header('X-Robots-Tag: noindex'); // Prevent search engine indexing of raw markdown
 
-        // Output markdown - escape for safety (text/markdown content type)
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- esc_html is an escaping function
-        echo esc_html( $this->render_post_markdown( $post ) );
+        // Output markdown - render_post_markdown already strips HTML, Content-Type prevents rendering
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- text/markdown content-type, not HTML context
+        echo $this->render_post_markdown( $post );
         exit;
     }
 
