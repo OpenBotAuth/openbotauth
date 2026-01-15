@@ -124,11 +124,11 @@ class ContentFilter {
         $teaser = '<div class="openbotauth-teaser">';
         $teaser .= '<div class="teaser-content">' . wpautop(esc_html($decoded)) . '</div>';
         $teaser .= '<div class="teaser-notice">';
-        $teaser .= '<p><strong>' . __('Content Preview', 'openbotauth') . '</strong></p>';
-        $teaser .= '<p>' . __('This is a preview. Authenticated bots can access the full content.', 'openbotauth') . '</p>';
+        $teaser .= '<p><strong>' . esc_html__('Content Preview', 'openbotauth') . '</strong></p>';
+        $teaser .= '<p>' . esc_html__('This is a preview. Authenticated bots can access the full content.', 'openbotauth') . '</p>';
         $teaser .= '</div>';
         $teaser .= '</div>';
-        
+
         return $teaser;
     }
 }

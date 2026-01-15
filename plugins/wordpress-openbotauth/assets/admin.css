@@ -1,0 +1,229 @@
+/**
+ * OpenBotAuth Admin Styles
+ *
+ * Styles for the WordPress admin settings page.
+ */
+
+/* Analytics Section */
+.openbotauth-analytics {
+    max-width: 900px;
+}
+
+.openbotauth-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.openbotauth-stat-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 16px 20px;
+    position: relative;
+}
+
+.openbotauth-stat-card.highlight {
+    border-left: 4px solid #2271b1;
+}
+
+.openbotauth-stat-label {
+    font-size: 12px;
+    color: #646970;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.openbotauth-stat-value {
+    font-size: 28px;
+    font-weight: 600;
+    color: #1d2327;
+    line-height: 1.2;
+}
+
+.openbotauth-stat-value.success {
+    color: #00a32a;
+}
+
+.openbotauth-stat-value.warning {
+    color: #dba617;
+}
+
+.openbotauth-stat-value.info {
+    color: #2271b1;
+}
+
+.openbotauth-stat-subtitle {
+    font-size: 12px;
+    color: #646970;
+    margin-top: 4px;
+}
+
+.openbotauth-progress-bar {
+    height: 8px;
+    background: #dcdcde;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.openbotauth-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #2271b1, #00a32a);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.openbotauth-chart-container {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.openbotauth-chart-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d2327;
+    margin-bottom: 16px;
+}
+
+.openbotauth-chart-svg {
+    width: 100%;
+    height: 120px;
+}
+
+.openbotauth-table-section {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.openbotauth-table-section table {
+    margin: 0;
+    border: none;
+}
+
+.openbotauth-table-header {
+    padding: 12px 16px;
+    background: #f6f7f7;
+    border-bottom: 1px solid #c3c4c7;
+    font-weight: 600;
+}
+
+.openbotauth-decision-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.openbotauth-badge-allow {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.openbotauth-badge-teaser {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.openbotauth-badge-deny {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.openbotauth-badge-pay {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.openbotauth-badge-rate_limit {
+    background: #f3e8ff;
+    color: #6b21a8;
+}
+
+/* AI Endpoints Section */
+.openbotauth-ai-section {
+    max-width: 900px;
+}
+
+.openbotauth-urls-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.openbotauth-url-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f1;
+}
+
+.openbotauth-url-row:last-child {
+    border-bottom: none;
+}
+
+.openbotauth-url-label {
+    font-weight: 500;
+    color: #1d2327;
+    min-width: 160px;
+}
+
+.openbotauth-url-value {
+    flex: 1;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 13px;
+    background: #f6f7f7;
+    padding: 6px 10px;
+    border-radius: 3px;
+    word-break: break-all;
+}
+
+.openbotauth-url-status {
+    margin-left: 12px;
+}
+
+.openbotauth-status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.openbotauth-badge-enabled {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.openbotauth-badge-disabled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.openbotauth-badge-yoast {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.openbotauth-settings-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+}
+
+.openbotauth-settings-card h3 {
+    margin-top: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f0f0f1;
+}
