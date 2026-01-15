@@ -403,105 +403,6 @@ class Admin {
         $max_value = max(1, max($chart_data));
         
         ?>
-        <style>
-            .openbotauth-analytics { max-width: 900px; }
-            .openbotauth-stats-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-                gap: 16px;
-                margin-bottom: 24px;
-            }
-            .openbotauth-stat-card {
-                background: #fff;
-                border: 1px solid #c3c4c7;
-                border-radius: 4px;
-                padding: 16px 20px;
-                position: relative;
-            }
-            .openbotauth-stat-card.highlight {
-                border-left: 4px solid #2271b1;
-            }
-            .openbotauth-stat-label {
-                font-size: 12px;
-                color: #646970;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                margin-bottom: 4px;
-            }
-            .openbotauth-stat-value {
-                font-size: 28px;
-                font-weight: 600;
-                color: #1d2327;
-                line-height: 1.2;
-            }
-            .openbotauth-stat-value.success { color: #00a32a; }
-            .openbotauth-stat-value.warning { color: #dba617; }
-            .openbotauth-stat-value.info { color: #2271b1; }
-            .openbotauth-stat-subtitle {
-                font-size: 12px;
-                color: #646970;
-                margin-top: 4px;
-            }
-            .openbotauth-progress-bar {
-                height: 8px;
-                background: #dcdcde;
-                border-radius: 4px;
-                overflow: hidden;
-                margin-top: 8px;
-            }
-            .openbotauth-progress-fill {
-                height: 100%;
-                background: linear-gradient(90deg, #2271b1, #00a32a);
-                border-radius: 4px;
-                transition: width 0.3s ease;
-            }
-            .openbotauth-chart-container {
-                background: #fff;
-                border: 1px solid #c3c4c7;
-                border-radius: 4px;
-                padding: 20px;
-                margin-bottom: 24px;
-            }
-            .openbotauth-chart-title {
-                font-size: 14px;
-                font-weight: 600;
-                color: #1d2327;
-                margin-bottom: 16px;
-            }
-            .openbotauth-chart-svg {
-                width: 100%;
-                height: 120px;
-            }
-            .openbotauth-table-section {
-                background: #fff;
-                border: 1px solid #c3c4c7;
-                border-radius: 4px;
-                overflow: hidden;
-            }
-            .openbotauth-table-section table {
-                margin: 0;
-                border: none;
-            }
-            .openbotauth-table-header {
-                padding: 12px 16px;
-                background: #f6f7f7;
-                border-bottom: 1px solid #c3c4c7;
-                font-weight: 600;
-            }
-            .openbotauth-decision-badge {
-                display: inline-block;
-                padding: 2px 8px;
-                border-radius: 3px;
-                font-size: 11px;
-                font-weight: 500;
-            }
-            .openbotauth-badge-allow { background: #d1fae5; color: #065f46; }
-            .openbotauth-badge-teaser { background: #dbeafe; color: #1e40af; }
-            .openbotauth-badge-deny { background: #fee2e2; color: #991b1b; }
-            .openbotauth-badge-pay { background: #fef3c7; color: #92400e; }
-            .openbotauth-badge-rate_limit { background: #f3e8ff; color: #6b21a8; }
-        </style>
-        
         <div class="openbotauth-analytics">
             <h2><?php esc_html_e('AI Bot Request Analytics', 'openbotauth'); ?></h2>
             <p class="description" style="margin-bottom: 20px;">
@@ -814,62 +715,6 @@ class Admin {
         $sample_md_url = $sample_posts ? home_url('/.well-known/openbotauth/posts/' . $sample_posts[0]->ID . '.md') : '';
         
         ?>
-        <style>
-            .openbotauth-ai-section { max-width: 900px; }
-            .openbotauth-urls-card {
-                background: #fff;
-                border: 1px solid #c3c4c7;
-                border-radius: 4px;
-                padding: 20px;
-                margin-bottom: 24px;
-            }
-            .openbotauth-url-row {
-                display: flex;
-                align-items: center;
-                padding: 12px 0;
-                border-bottom: 1px solid #f0f0f1;
-            }
-            .openbotauth-url-row:last-child { border-bottom: none; }
-            .openbotauth-url-label {
-                font-weight: 500;
-                color: #1d2327;
-                min-width: 160px;
-            }
-            .openbotauth-url-value {
-                flex: 1;
-                font-family: Consolas, Monaco, monospace;
-                font-size: 13px;
-                background: #f6f7f7;
-                padding: 6px 10px;
-                border-radius: 3px;
-                word-break: break-all;
-            }
-            .openbotauth-url-status {
-                margin-left: 12px;
-            }
-            .openbotauth-status-badge {
-                display: inline-block;
-                padding: 2px 8px;
-                border-radius: 3px;
-                font-size: 11px;
-                font-weight: 500;
-            }
-            .openbotauth-badge-enabled { background: #d1fae5; color: #065f46; }
-            .openbotauth-badge-disabled { background: #fee2e2; color: #991b1b; }
-            .openbotauth-badge-yoast { background: #dbeafe; color: #1e40af; }
-            .openbotauth-settings-card {
-                background: #fff;
-                border: 1px solid #c3c4c7;
-                border-radius: 4px;
-                padding: 20px;
-            }
-            .openbotauth-settings-card h3 {
-                margin-top: 0;
-                padding-bottom: 12px;
-                border-bottom: 1px solid #f0f0f1;
-            }
-        </style>
-        
         <div class="openbotauth-ai-section">
             <h2><?php esc_html_e('AI Endpoints', 'openbotauth'); ?></h2>
             <p class="description" style="margin-bottom: 20px;">
@@ -1171,23 +1016,6 @@ class Admin {
         <p class="description">
             <?php esc_html_e('URL of the OpenBotAuth verifier service. Leave empty to disable signature verification (all signed requests will be treated as unverified).', 'openbotauth'); ?>
         </p>
-        <script>
-        jQuery(document).ready(function($) {
-            var hostedUrl = '<?php echo esc_js($hosted_url); ?>';
-            var $checkbox = $('#openbotauth_use_hosted_verifier');
-            var $urlField = $('#openbotauth_verifier_url');
-
-            $checkbox.on('change', function() {
-                if (this.checked) {
-                    // Fill with hosted URL when checked
-                    $urlField.val(hostedUrl);
-                } else {
-                    // Clear the URL when unchecked
-                    $urlField.val('');
-                }
-            });
-        });
-        </script>
         <?php
     }
     
@@ -1324,14 +1152,6 @@ class Admin {
                 <small><?php esc_html_e('Returns 402 stub response if > 0 (payment integration requires custom implementation)', 'openbotauth'); ?></small>
             </p>
         </div>
-        
-        <script>
-        jQuery(document).ready(function($) {
-            $('input[name="openbotauth_enabled"]').on('change', function() {
-                $('#openbotauth-policy-fields').toggle(this.checked);
-            });
-        });
-        </script>
         <?php
     }
     
@@ -1370,13 +1190,28 @@ class Admin {
     }
     
     /**
-     * Enqueue admin scripts
+     * Enqueue admin scripts and styles
      */
     public function enqueue_scripts($hook) {
-        if ('settings_page_openbotauth' !== $hook) {
+        // Load on settings page and post edit pages (for meta box)
+        $is_settings_page = ('settings_page_openbotauth' === $hook);
+        $is_post_edit = in_array($hook, ['post.php', 'post-new.php'], true);
+
+        if (!$is_settings_page && !$is_post_edit) {
             return;
         }
-        
+
+        // Enqueue admin CSS only on settings page (not needed for post edit meta box)
+        if ($is_settings_page) {
+            wp_enqueue_style(
+                'openbotauth-admin',
+                OPENBOTAUTH_PLUGIN_URL . 'assets/admin.css',
+                [],
+                OPENBOTAUTH_VERSION
+            );
+        }
+
+        // Enqueue admin JS on both settings and post edit pages
         wp_enqueue_script(
             'openbotauth-admin',
             OPENBOTAUTH_PLUGIN_URL . 'assets/admin.js',
@@ -1384,10 +1219,12 @@ class Admin {
             OPENBOTAUTH_VERSION,
             true
         );
-        
+
+        // Localize script with data needed by JS
         wp_localize_script('openbotauth-admin', 'openbotauth', [
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('openbotauth_admin'),
+            'hosted_url' => 'https://verifier.openbotauth.org/verify',
         ]);
     }
     

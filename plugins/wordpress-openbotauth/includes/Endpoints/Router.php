@@ -239,8 +239,8 @@ class Router {
             }
         }
 
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Plain text output for llms.txt
-        echo $output;
+        // Strip any unexpected HTML tags while preserving newlines for text/plain output
+        echo wp_strip_all_tags( $output );
         exit;
     }
 
@@ -284,7 +284,8 @@ class Router {
             'items'        => $items,
         ];
 
-        echo wp_json_encode($feed, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        // wp_json_encode() safely encodes data for JSON output
+        echo wp_json_encode( $feed, JSON_PRETTY_PRINT );
         exit;
     }
 
@@ -335,8 +336,8 @@ class Router {
         header('Last-Modified: ' . $lastmod_http);
         header('X-Robots-Tag: noindex'); // Prevent search engine indexing of raw markdown
 
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Markdown content intentionally unescaped
-        echo $this->render_post_markdown($post);
+        // Output markdown (already sanitized in render_post_markdown via wp_strip_all_tags)
+        echo $this->render_post_markdown( $post );
         exit;
     }
 
