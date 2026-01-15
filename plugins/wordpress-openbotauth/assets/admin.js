@@ -110,7 +110,5 @@
                 $policyFields.toggle(this.checked);
             });
         }
-
     });
-
 })(jQuery);

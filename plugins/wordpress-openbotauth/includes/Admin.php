@@ -1201,15 +1201,17 @@ class Admin {
             return;
         }
 
-        // Enqueue admin CSS
-        wp_enqueue_style(
-            'openbotauth-admin',
-            OPENBOTAUTH_PLUGIN_URL . 'assets/admin.css',
-            [],
-            OPENBOTAUTH_VERSION
-        );
+        // Enqueue admin CSS only on settings page (not needed for post edit meta box)
+        if ($is_settings_page) {
+            wp_enqueue_style(
+                'openbotauth-admin',
+                OPENBOTAUTH_PLUGIN_URL . 'assets/admin.css',
+                [],
+                OPENBOTAUTH_VERSION
+            );
+        }
 
-        // Enqueue admin JS
+        // Enqueue admin JS on both settings and post edit pages
         wp_enqueue_script(
             'openbotauth-admin',
             OPENBOTAUTH_PLUGIN_URL . 'assets/admin.js',

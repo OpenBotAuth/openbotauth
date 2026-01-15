@@ -336,9 +336,8 @@ class Router {
         header('Last-Modified: ' . $lastmod_http);
         header('X-Robots-Tag: noindex'); // Prevent search engine indexing of raw markdown
 
-        // Strip any unexpected HTML tags while preserving newlines for text/markdown output
-        $markdown = $this->render_post_markdown( $post );
-        echo wp_strip_all_tags( $markdown );
+        // Output markdown (already sanitized in render_post_markdown via wp_strip_all_tags)
+        echo $this->render_post_markdown( $post );
         exit;
     }
 
