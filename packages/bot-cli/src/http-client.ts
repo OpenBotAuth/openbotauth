@@ -124,6 +124,7 @@ export class HttpClient {
     // Show important headers
     const importantHeaders = [
       'content-type',
+      'x-oba-decision',
       'x-obauth-verified',
       'x-obauth-agent',
       'link',

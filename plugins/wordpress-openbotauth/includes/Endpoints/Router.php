@@ -98,11 +98,12 @@ class Router {
      * @return string The relative route (e.g., "/llms.txt").
      */
     private function get_relative_route(): string {
-        // Note: Don't use sanitize_text_field() on URIs - it strips percent-encoded chars like %20
+        // Sanitize REQUEST_URI: wp_unslash removes slashes, esc_url_raw sanitizes the URL
         // wp_parse_url() safely extracts the path component without executing any code
-        $request_uri = isset($_SERVER['REQUEST_URI']) 
-            ? wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) 
+        $raw_uri = isset($_SERVER['REQUEST_URI'])
+            ? esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) )
             : '/';
+        $request_uri = wp_parse_url( $raw_uri, PHP_URL_PATH );
         
         if ($request_uri === null || $request_uri === false) {
             $request_uri = '/';
@@ -239,7 +240,8 @@ class Router {
             }
         }
 
-        // Strip any unexpected HTML tags while preserving newlines for text/plain output
+        // Output plain text - wp_strip_all_tags removes HTML, Content-Type: text/plain prevents rendering
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- text/plain content-type, not HTML context
         echo wp_strip_all_tags( $output );
         exit;
     }
@@ -336,7 +338,8 @@ class Router {
         header('Last-Modified: ' . $lastmod_http);
         header('X-Robots-Tag: noindex'); // Prevent search engine indexing of raw markdown
 
-        // Output markdown (already sanitized in render_post_markdown via wp_strip_all_tags)
+        // Output markdown - render_post_markdown already strips HTML, Content-Type prevents rendering
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- text/markdown content-type, not HTML context
         echo $this->render_post_markdown( $post );
         exit;
     }
@@ -348,9 +351,10 @@ class Router {
      * @return string The markdown content.
      */
     private function render_post_markdown(\WP_Post $post): string {
-        $title = $this->metadata->getTitle($post);
-        $url = $this->metadata->getCanonicalUrl($post);
-        $lastmod = $this->metadata->getLastModifiedIso($post);
+        // Sanitize metadata fields for safe output
+        $title = sanitize_text_field( $this->metadata->getTitle($post) );
+        $url = esc_url_raw( $this->metadata->getCanonicalUrl($post) );
+        $lastmod = sanitize_text_field( $this->metadata->getLastModifiedIso($post) );
 
         // Process content: strip shortcodes BEFORE stripping tags
         $content = $post->post_content;
