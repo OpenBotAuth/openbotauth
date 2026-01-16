@@ -1018,6 +1018,8 @@ class Admin {
 			return get_option( 'openbotauth_policy', '{}' );
 		}
 
+		$value = is_string( $value ) ? sanitize_textarea_field( $value ) : '';
+
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by settings_fields() in options.php
 		if ( empty( $value ) && ! isset( $_POST['openbotauth_default_effect'] ) && ! isset( $_POST['openbotauth_teaser_words'] ) ) {
 			return get_option( 'openbotauth_policy', '{}' );
@@ -1299,6 +1301,8 @@ class Admin {
 				'price_cents'  => absint( wp_unslash( $_POST['openbotauth_price_cents'] ?? 0 ) ),
 			);
 
+			$policy = $this->sanitize_policy_array( $policy );
+
 			update_post_meta( $post_id, '_openbotauth_policy', wp_json_encode( $policy ) );
 		} else {
 			delete_post_meta( $post_id, '_openbotauth_policy' );
@@ -1362,8 +1366,7 @@ class Admin {
 			return;
 		}
 
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON is validated and sanitized below
-		$policy_raw = isset( $_POST['policy'] ) ? wp_unslash( $_POST['policy'] ) : '';
+		$policy_raw = isset( $_POST['policy'] ) ? sanitize_textarea_field( wp_unslash( $_POST['policy'] ) ) : '';
 
 		// Validate JSON syntax.
 		$decoded = json_decode( $policy_raw, true );
