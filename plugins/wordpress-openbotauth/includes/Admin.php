@@ -311,7 +311,7 @@ class Admin {
 		}
 		// Filter out the empty hidden field marker and validate post types.
 		$value = array_filter(
-			$value,
+			array_map( 'sanitize_key', $value ),
 			function ( $type ) {
 				return '' !== $type && post_type_exists( $type );
 			}
@@ -357,8 +357,9 @@ class Admin {
 			<!-- Tab Navigation -->
 			<nav class="nav-tab-wrapper wp-clearfix" style="margin-bottom: 20px;">
 				<?php foreach ( $tabs as $tab_id => $tab ) : ?>
+					<?php $tab_class = 'nav-tab ' . ( $current_tab === $tab_id ? 'nav-tab-active' : '' ); ?>
 					<a href="<?php echo esc_url( add_query_arg( 'tab', $tab_id, admin_url( 'options-general.php?page=openbotauth' ) ) ); ?>" 
-						class="nav-tab <?php echo $current_tab === $tab_id ? 'nav-tab-active' : ''; ?>">
+						class="<?php echo esc_attr( trim( $tab_class ) ); ?>">
 						<span class="dashicons <?php echo esc_attr( $tab['icon'] ); ?>" style="margin-right: 4px; line-height: 1.6;"></span>
 						<?php echo esc_html( $tab['label'] ); ?>
 					</a>
@@ -601,22 +602,22 @@ class Admin {
 						<?php foreach ( $stats as $date => $day_stats ) : ?>
 						<tr>
 							<td style="padding: 10px 12px; font-weight: 500;"><?php echo esc_html( $date ); ?></td>
-							<td style="text-align: center; padding: 10px 12px;"><?php echo intval( $day_stats['allow'] ); ?></td>
-							<td style="text-align: center; padding: 10px 12px;"><?php echo intval( $day_stats['teaser'] ); ?></td>
-							<td style="text-align: center; padding: 10px 12px;"><?php echo intval( $day_stats['deny'] ); ?></td>
-							<td style="text-align: center; padding: 10px 12px;"><?php echo intval( $day_stats['pay'] ); ?></td>
-							<td style="text-align: center; padding: 10px 12px;"><?php echo intval( $day_stats['rate_limit'] ); ?></td>
+							<td style="text-align: center; padding: 10px 12px;"><?php echo esc_html( absint( $day_stats['allow'] ) ); ?></td>
+							<td style="text-align: center; padding: 10px 12px;"><?php echo esc_html( absint( $day_stats['teaser'] ) ); ?></td>
+							<td style="text-align: center; padding: 10px 12px;"><?php echo esc_html( absint( $day_stats['deny'] ) ); ?></td>
+							<td style="text-align: center; padding: 10px 12px;"><?php echo esc_html( absint( $day_stats['pay'] ) ); ?></td>
+							<td style="text-align: center; padding: 10px 12px;"><?php echo esc_html( absint( $day_stats['rate_limit'] ) ); ?></td>
 						</tr>
 						<?php endforeach; ?>
 					</tbody>
 					<tfoot style="background: #f6f7f7;">
 						<tr>
 							<td style="padding: 12px; font-weight: 600;"><?php esc_html_e( 'Total', 'openbotauth' ); ?></td>
-							<td style="text-align: center; padding: 12px; font-weight: 600; color: #00a32a;"><?php echo intval( $totals['allow'] ); ?></td>
-							<td style="text-align: center; padding: 12px; font-weight: 600; color: #2271b1;"><?php echo intval( $totals['teaser'] ); ?></td>
-							<td style="text-align: center; padding: 12px; font-weight: 600; color: #d63638;"><?php echo intval( $totals['deny'] ); ?></td>
-							<td style="text-align: center; padding: 12px; font-weight: 600; color: #dba617;"><?php echo intval( $totals['pay'] ); ?></td>
-							<td style="text-align: center; padding: 12px; font-weight: 600; color: #6b21a8;"><?php echo intval( $totals['rate_limit'] ); ?></td>
+							<td style="text-align: center; padding: 12px; font-weight: 600; color: #00a32a;"><?php echo esc_html( absint( $totals['allow'] ) ); ?></td>
+							<td style="text-align: center; padding: 12px; font-weight: 600; color: #2271b1;"><?php echo esc_html( absint( $totals['teaser'] ) ); ?></td>
+							<td style="text-align: center; padding: 12px; font-weight: 600; color: #d63638;"><?php echo esc_html( absint( $totals['deny'] ) ); ?></td>
+							<td style="text-align: center; padding: 12px; font-weight: 600; color: #dba617;"><?php echo esc_html( absint( $totals['pay'] ) ); ?></td>
+							<td style="text-align: center; padding: 12px; font-weight: 600; color: #6b21a8;"><?php echo esc_html( absint( $totals['rate_limit'] ) ); ?></td>
 						</tr>
 					</tfoot>
 				</table>
@@ -832,7 +833,8 @@ class Admin {
 							<?php esc_html_e( 'Managed by Yoast', 'openbotauth' ); ?>
 						</span>
 						<?php else : ?>
-						<span class="openbotauth-status-badge <?php echo $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
+						<?php $llms_status_class = 'openbotauth-status-badge ' . ( $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled' ); ?>
+						<span class="<?php echo esc_attr( $llms_status_class ); ?>">
 							<?php echo $llms_enabled ? esc_html__( 'Enabled', 'openbotauth' ) : esc_html__( 'Disabled', 'openbotauth' ); ?>
 						</span>
 						<?php endif; ?>
@@ -848,7 +850,8 @@ class Admin {
 							<?php esc_html_e( 'Managed by Yoast', 'openbotauth' ); ?>
 						</span>
 						<?php else : ?>
-						<span class="openbotauth-status-badge <?php echo $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
+						<?php $llms_wellknown_class = 'openbotauth-status-badge ' . ( $llms_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled' ); ?>
+						<span class="<?php echo esc_attr( $llms_wellknown_class ); ?>">
 							<?php echo $llms_enabled ? esc_html__( 'Enabled', 'openbotauth' ) : esc_html__( 'Disabled', 'openbotauth' ); ?>
 						</span>
 						<?php endif; ?>
@@ -859,7 +862,8 @@ class Admin {
 					<div class="openbotauth-url-label"><?php esc_html_e( 'JSON Feed', 'openbotauth' ); ?></div>
 					<div class="openbotauth-url-value"><?php echo esc_html( esc_url( $feed_url ) ); ?></div>
 					<div class="openbotauth-url-status">
-						<span class="openbotauth-status-badge <?php echo $feed_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
+						<?php $feed_status_class = 'openbotauth-status-badge ' . ( $feed_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled' ); ?>
+						<span class="<?php echo esc_attr( $feed_status_class ); ?>">
 							<?php echo $feed_enabled ? esc_html__( 'Enabled', 'openbotauth' ) : esc_html__( 'Disabled', 'openbotauth' ); ?>
 						</span>
 					</div>
@@ -870,7 +874,8 @@ class Admin {
 					<div class="openbotauth-url-label"><?php esc_html_e( 'Example Markdown', 'openbotauth' ); ?></div>
 					<div class="openbotauth-url-value"><?php echo esc_html( esc_url( $sample_md_url ) ); ?></div>
 					<div class="openbotauth-url-status">
-						<span class="openbotauth-status-badge <?php echo $feed_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled'; ?>">
+						<?php $sample_status_class = 'openbotauth-status-badge ' . ( $feed_enabled ? 'openbotauth-badge-enabled' : 'openbotauth-badge-disabled' ); ?>
+						<span class="<?php echo esc_attr( $sample_status_class ); ?>">
 							<?php echo $feed_enabled ? esc_html__( 'Enabled', 'openbotauth' ) : esc_html__( 'Disabled', 'openbotauth' ); ?>
 						</span>
 					</div>
@@ -1230,7 +1235,8 @@ class Admin {
 			</label>
 		</p>
 		
-		<div id="openbotauth-policy-fields" style="<?php echo $enabled ? '' : 'display:none;'; ?>">
+		<?php $policy_fields_style = $enabled ? '' : 'display:none;'; ?>
+		<div id="openbotauth-policy-fields" style="<?php echo esc_attr( $policy_fields_style ); ?>">
 			<p>
 				<label><?php esc_html_e( 'Effect', 'openbotauth' ); ?></label><br>
 				<select name="openbotauth_effect" style="width: 100%;">
@@ -1432,4 +1438,3 @@ class Admin {
 		return $sanitized;
 	}
 }
-
