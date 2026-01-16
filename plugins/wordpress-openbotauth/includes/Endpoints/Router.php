@@ -280,7 +280,8 @@ class Router {
 			 * @param array    $item The feed item data.
 			 * @param \WP_Post $post The post object.
 			 */
-			$items[] = apply_filters( 'openbotauth_feed_item', $item, $post );
+			$filtered = apply_filters( 'openbotauth_feed_item', $item, $post );
+			$items[]  = $this->sanitize_feed_item( $filtered );
 		}
 
 		$feed = array(
@@ -470,5 +471,27 @@ class Router {
 		if ( $noindex ) {
 			header( 'X-Robots-Tag: noindex' ); // Prevent search engine indexing of raw data.
 		}
+	}
+
+	/**
+	 * Sanitize feed item data for JSON output.
+	 *
+	 * @param mixed $item Feed item data.
+	 * @return array Sanitized feed item.
+	 */
+	private function sanitize_feed_item( $item ): array {
+		if ( ! is_array( $item ) ) {
+			return array();
+		}
+
+		return array(
+			'id'            => isset( $item['id'] ) ? absint( $item['id'] ) : 0,
+			'type'          => isset( $item['type'] ) ? sanitize_key( $item['type'] ) : '',
+			'title'         => isset( $item['title'] ) ? sanitize_text_field( $item['title'] ) : '',
+			'canonical_url' => isset( $item['canonical_url'] ) ? esc_url_raw( $item['canonical_url'] ) : '',
+			'description'   => isset( $item['description'] ) ? sanitize_text_field( $item['description'] ) : '',
+			'last_modified' => isset( $item['last_modified'] ) ? sanitize_text_field( $item['last_modified'] ) : '',
+			'markdown_url'  => isset( $item['markdown_url'] ) ? esc_url_raw( $item['markdown_url'] ) : '',
+		);
 	}
 }
