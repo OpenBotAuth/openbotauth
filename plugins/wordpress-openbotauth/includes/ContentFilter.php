@@ -1,135 +1,183 @@
 <?php
+/**
+ * Content Filter
+ *
+ * Filters post content based on policy decisions (e.g., teasers for unverified bots).
+ *
+ * @package OpenBotAuth
+ * @since 0.1.0
+ */
+
 namespace OpenBotAuth;
 
-// Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
+// Prevent direct access.
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
- * Content Filter
- * Filters post content based on policy (e.g., teasers)
+ * Content Filter.
+ *
+ * Filters post content based on policy (e.g., teasers).
  */
 class ContentFilter {
-    private $verifier;
-    private $policy_engine;
-    private $plugin;
-    
-    public function __construct($verifier, $policy_engine, $plugin) {
-        $this->verifier = $verifier;
-        $this->policy_engine = $policy_engine;
-        $this->plugin = $plugin;
-    }
-    
-    /**
-     * Filter content based on policy
-     */
-    public function filter_content($content) {
-        // Skip for admin or logged-in users
-        if (is_admin() || is_user_logged_in()) {
-            return $content;
-        }
-        
-        // Only filter on singular posts/pages
-        if (!is_singular()) {
-            return $content;
-        }
-        
-        // Bypass filtering for requests without signature headers (normal browsers)
-        // OpenBotAuth only applies to agent requests with RFC 9421 signatures
-        if (!$this->verifier->has_signature_headers()) {
-            return $content;
-        }
-        
-        global $post;
-        
-        // Get cached verification (to avoid duplicate verification)
-        $verification = $this->plugin->get_verification();
-        
-        // Get policy
-        $policy = $this->policy_engine->get_policy($post);
-        
-        // Apply policy
-        $result = $this->policy_engine->apply_policy($policy, $verification, $post);
-        
-        // Set response header based on decision
-        $this->set_decision_header($result['effect']);
-        
-        // Handle different effects
-        switch ($result['effect']) {
-            case 'deny':
-                status_header(403);
-                return '<p>Access denied.</p>';
-                
-            // Note: This branch only executes if check_access() is disabled or skipped,
-            // since Plugin::check_access() exits on 402 before content filtering runs.
-            case 'pay':
-                status_header(402);
-                if (!empty($result['pay_url']) && !headers_sent()) {
-                    $safe_url = esc_url_raw($result['pay_url'], array('http', 'https'));
-                    $safe_url = trim(str_replace(array("\r", "\n", '<', '>'), '', $safe_url));
-                    if (!empty($safe_url)) {
-                        header('Link: <' . $safe_url . '>; rel="payment"', false);
-                    }
-                }
-                return '<p>Payment required to access this content.</p>';
-                
-            case 'rate_limit':
-                status_header(429);
-                if (!empty($result['retry_after'])) {
-                    header('Retry-After: ' . $result['retry_after']);
-                }
-                return '<p>Rate limit exceeded. Please try again later.</p>';
-                
-            case 'teaser':
-                $teaser_words = $result['teaser_words'] ?? $policy['teaser_words'] ?? 100;
-                return $this->create_teaser($content, $teaser_words);
-                
-            case 'allow':
-            default:
-                return $content;
-        }
-    }
-    
-    /**
-     * Set X-OBA-Decision header
-     */
-    private function set_decision_header($effect) {
-        if (!headers_sent()) {
-            header('X-OBA-Decision: ' . $effect);
-        }
-    }
-    
-    /**
-     * Create teaser from content
-     */
-    private function create_teaser($content, $word_count) {
-        // Strip HTML tags for word count
-        $text = wp_strip_all_tags($content);
-        
-        // Split into words
-        $words = preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
-        
-        if (count($words) <= $word_count) {
-            return $content; // Content is shorter than teaser
-        }
-        
-        // Get first N words
-        $teaser_words = array_slice($words, 0, $word_count);
-        $teaser_text = implode(' ', $teaser_words);
-        
-        // Build teaser HTML (escape text to prevent XSS from literal < or > in content)
-        // Use wp_specialchars_decode first to avoid double-encoding entities (e.g., &amp; → &amp;amp;)
-        $decoded = wp_specialchars_decode($teaser_text . '...', ENT_QUOTES);
-        $teaser = '<div class="openbotauth-teaser">';
-        $teaser .= '<div class="teaser-content">' . wpautop(esc_html($decoded)) . '</div>';
-        $teaser .= '<div class="teaser-notice">';
-        $teaser .= '<p><strong>' . esc_html__('Content Preview', 'openbotauth') . '</strong></p>';
-        $teaser .= '<p>' . esc_html__('This is a preview. Authenticated bots can access the full content.', 'openbotauth') . '</p>';
-        $teaser .= '</div>';
-        $teaser .= '</div>';
 
-        return $teaser;
-    }
+	/**
+	 * The verifier instance.
+	 *
+	 * @var Verifier
+	 */
+	private $verifier;
+
+	/**
+	 * The policy engine instance.
+	 *
+	 * @var PolicyEngine
+	 */
+	private $policy_engine;
+
+	/**
+	 * The plugin instance.
+	 *
+	 * @var Plugin
+	 */
+	private $plugin;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Verifier     $verifier      The verifier instance.
+	 * @param PolicyEngine $policy_engine The policy engine instance.
+	 * @param Plugin       $plugin        The plugin instance.
+	 */
+	public function __construct( $verifier, $policy_engine, $plugin ) {
+		$this->verifier      = $verifier;
+		$this->policy_engine = $policy_engine;
+		$this->plugin        = $plugin;
+	}
+
+	/**
+	 * Filter content based on policy.
+	 *
+	 * @param string $content The post content.
+	 * @return string The filtered content.
+	 */
+	public function filter_content( $content ) {
+		// Skip for admin or logged-in users.
+		if ( is_admin() || is_user_logged_in() ) {
+			return $content;
+		}
+
+		// Only filter on singular posts/pages.
+		if ( ! is_singular() ) {
+			return $content;
+		}
+
+		// Bypass filtering for requests without signature headers (normal browsers).
+		// OpenBotAuth only applies to agent requests with RFC 9421 signatures.
+		if ( ! $this->verifier->has_signature_headers() ) {
+			return $content;
+		}
+
+		global $post;
+
+		// Get cached verification (to avoid duplicate verification).
+		$verification = $this->plugin->get_verification();
+
+		// Get policy.
+		$policy = $this->policy_engine->get_policy( $post );
+
+		// Apply policy.
+		$result = $this->policy_engine->apply_policy( $policy, $verification, $post );
+
+		// Set response header based on decision.
+		$this->set_decision_header( $result['effect'] );
+
+		// Handle different effects.
+		switch ( $result['effect'] ) {
+			case 'deny':
+				status_header( 403 );
+				return '<p>Access denied.</p>';
+
+			// Note: This branch only executes if check_access() is disabled or skipped.
+			// since Plugin::check_access() exits on 402 before content filtering runs.
+			case 'pay':
+				status_header( 402 );
+				if ( ! empty( $result['pay_url'] ) && ! headers_sent() ) {
+					$safe_url = esc_url_raw( $result['pay_url'], array( 'http', 'https' ) );
+					$safe_url = trim( str_replace( array( "\r", "\n", '<', '>' ), '', $safe_url ) );
+					if ( ! empty( $safe_url ) ) {
+						header( 'Link: <' . $safe_url . '>; rel="payment"', false );
+					}
+				}
+				return '<p>Payment required to access this content.</p>';
+
+			case 'rate_limit':
+				status_header( 429 );
+				if ( ! empty( $result['retry_after'] ) ) {
+					header( 'Retry-After: ' . intval( $result['retry_after'] ) );
+				}
+				return '<p>Rate limit exceeded. Please try again later.</p>';
+
+			case 'teaser':
+				$teaser_words = $result['teaser_words'] ?? $policy['teaser_words'] ?? 100;
+				return $this->create_teaser( $content, $teaser_words );
+
+			case 'allow':
+			default:
+				return $content;
+		}
+	}
+
+	/**
+	 * Set X-OBA-Decision header
+	 *
+	 * Validates the effect value against allowed values to prevent header injection.
+	 *
+	 * @param string $effect The policy effect (allow, teaser, deny, pay, rate_limit).
+	 */
+	private function set_decision_header( $effect ) {
+		if ( ! headers_sent() ) {
+			// Validate effect is one of allowed values to prevent header injection.
+			$valid_effects = array( 'allow', 'teaser', 'deny', 'pay', 'rate_limit' );
+			$safe_effect   = in_array( $effect, $valid_effects, true ) ? $effect : 'deny';
+			header( 'X-OBA-Decision: ' . $safe_effect );
+		}
+	}
+
+	/**
+	 * Create teaser from content.
+	 *
+	 * @param string $content    The full content.
+	 * @param int    $word_count The number of words for the teaser.
+	 * @return string The teaser HTML.
+	 */
+	private function create_teaser( $content, $word_count ) {
+		// Strip HTML tags for word count.
+		$text = wp_strip_all_tags( $content );
+
+		// Split into words.
+		$words = preg_split( '/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY );
+
+		if ( $word_count >= count( $words ) ) {
+			return $content; // Content is shorter than teaser.
+		}
+
+		// Get first N words.
+		$teaser_words = array_slice( $words, 0, $word_count );
+		$teaser_text  = implode( ' ', $teaser_words );
+
+		// Build teaser HTML (escape text to prevent XSS from literal < or > in content).
+		// Use wp_specialchars_decode first to avoid double-encoding entities (e.g., &amp; → &amp;amp;).
+		$decoded = wp_specialchars_decode( $teaser_text . '...', ENT_QUOTES );
+		$teaser  = '<div class="openbotauth-teaser">';
+		$teaser .= '<div class="teaser-content">' . wpautop( esc_html( $decoded ) ) . '</div>';
+		$teaser .= '<div class="teaser-notice">';
+		$teaser .= '<p><strong>' . esc_html__( 'Content Preview', 'openbotauth' ) . '</strong></p>';
+		$teaser .= '<p>' . esc_html__( 'This is a preview. Authenticated bots can access the full content.', 'openbotauth' ) . '</p>';
+		$teaser .= '</div>';
+		$teaser .= '</div>';
+
+		return $teaser;
+	}
 }
-

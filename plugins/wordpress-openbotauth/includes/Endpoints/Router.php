@@ -15,9 +15,9 @@
 
 namespace OpenBotAuth\Endpoints;
 
-// Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
+// Prevent direct access.
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 use OpenBotAuth\Content\MetadataProviderInterface;
@@ -28,437 +28,448 @@ use OpenBotAuth\Plugin;
  */
 class Router {
 
-    /**
-     * @var MetadataProviderInterface
-     */
-    private $metadata;
+	/**
+	 * The metadata provider.
+	 *
+	 * @var MetadataProviderInterface
+	 */
+	private $metadata;
 
-    /**
-     * Constructor.
-     *
-     * @param MetadataProviderInterface $metadata The metadata provider.
-     */
-    public function __construct(MetadataProviderInterface $metadata) {
-        $this->metadata = $metadata;
-    }
+	/**
+	 * Constructor.
+	 *
+	 * @param MetadataProviderInterface $metadata The metadata provider.
+	 */
+	public function __construct( MetadataProviderInterface $metadata ) {
+		$this->metadata = $metadata;
+	}
 
-    /**
-     * Handle incoming request.
-     *
-     * Called on parse_request hook at priority 0.
-     * Exits early if serving an AI endpoint, otherwise returns for normal WP routing.
-     *
-     * @param \WP $wp The WordPress environment instance.
-     * @return void
-     */
-    public function handle_request($wp): void {
-        $route = $this->get_relative_route();
+	/**
+	 * Handle incoming request.
+	 *
+	 * Called on parse_request hook at priority 0.
+	 * Exits early if serving an AI endpoint, otherwise returns for normal WP routing.
+	 *
+	 * @param \WP $wp The WordPress environment instance.
+	 * @return void
+	 */
+	public function handle_request( $wp ): void {
+		$route = $this->get_relative_route();
 
-        // llms.txt (both paths)
-        if (in_array($route, ['/llms.txt', '/.well-known/llms.txt'], true)) {
-            Plugin::track_referrer_stat();
-            if ($this->is_llms_enabled()) {
-                $this->serve_llms_txt();
-            } else {
-                $this->serve_disabled_endpoint();
-            }
-            return;
-        }
+		// llms.txt (both paths).
+		if ( in_array( $route, array( '/llms.txt', '/.well-known/llms.txt' ), true ) ) {
+			Plugin::track_referrer_stat();
+			if ( $this->is_llms_enabled() ) {
+				$this->serve_llms_txt();
+			} else {
+				$this->serve_disabled_endpoint();
+			}
+			return;
+		}
 
-        // feed.json
-        if ($route === '/.well-known/openbotauth-feed.json') {
-            Plugin::track_referrer_stat();
-            if ($this->is_feed_enabled()) {
-                $this->serve_feed_json();
-            } else {
-                $this->serve_disabled_endpoint();
-            }
-            return;
-        }
+		// feed.json.
+		if ( '/.well-known/openbotauth-feed.json' === $route ) {
+			Plugin::track_referrer_stat();
+			if ( $this->is_feed_enabled() ) {
+				$this->serve_feed_json();
+			} else {
+				$this->serve_disabled_endpoint();
+			}
+			return;
+		}
 
-        // markdown posts
-        if (preg_match('#^/\.well-known/openbotauth/posts/(\d+)\.md$#', $route, $matches)) {
-            Plugin::track_referrer_stat();
-            if ($this->is_markdown_enabled()) {
-                $this->serve_post_markdown((int) $matches[1]);
-            } else {
-                $this->serve_disabled_endpoint();
-            }
-            return;
-        }
+		// Markdown posts.
+		if ( preg_match( '#^/\.well-known/openbotauth/posts/(\d+)\.md$#', $route, $matches ) ) {
+			Plugin::track_referrer_stat();
+			if ( $this->is_markdown_enabled() ) {
+				$this->serve_post_markdown( (int) $matches[1] );
+			} else {
+				$this->serve_disabled_endpoint();
+			}
+			return;
+		}
 
-        // No match - let WP continue routing
-    }
+		// No match - let WP continue routing.
+	}
 
-    /**
-     * Get relative route from request URI.
-     *
-     * Handles subdirectory installs correctly by stripping the base path.
-     *
-     * @return string The relative route (e.g., "/llms.txt").
-     */
-    private function get_relative_route(): string {
-        // Sanitize REQUEST_URI: wp_unslash removes slashes, esc_url_raw sanitizes the URL
-        // wp_parse_url() safely extracts the path component without executing any code
-        $raw_uri = isset($_SERVER['REQUEST_URI'])
-            ? esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) )
-            : '/';
-        $request_uri = wp_parse_url( $raw_uri, PHP_URL_PATH );
-        
-        if ($request_uri === null || $request_uri === false) {
-            $request_uri = '/';
-        }
+	/**
+	 * Get relative route from request URI.
+	 *
+	 * Handles subdirectory installs correctly by stripping the base path.
+	 *
+	 * @return string The relative route (e.g., "/llms.txt").
+	 */
+	private function get_relative_route(): string {
+		// Sanitize REQUEST_URI: wp_unslash removes slashes, esc_url_raw sanitizes the URL.
+		// wp_parse_url() safely extracts the path component without executing any code.
+		$raw_uri     = isset( $_SERVER['REQUEST_URI'] )
+			? esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) )
+			: '/';
+		$request_uri = wp_parse_url( $raw_uri, PHP_URL_PATH );
 
-        $base_path = wp_parse_url(home_url('/'), PHP_URL_PATH);
-        if ($base_path === null || $base_path === false) {
-            $base_path = '/';
-        }
+		if ( null === $request_uri || false === $request_uri ) {
+			$request_uri = '/';
+		}
 
-        // Normalize: remove trailing slash from base (except for root)
-        $base = rtrim($base_path, '/');
+		$base_path = wp_parse_url( home_url( '/' ), PHP_URL_PATH );
+		if ( null === $base_path || false === $base_path ) {
+			$base_path = '/';
+		}
 
-        // If we have a base path and request starts with it, strip it
-        // Must check directory boundary to avoid /blog matching /blog2
-        if ($base !== '' && strpos($request_uri, $base) === 0) {
-            $next_char = substr($request_uri, strlen($base), 1);
-            // Only match if next char is '/' (directory boundary) or empty (exact match)
-            if ($next_char === '/' || $next_char === '' || $next_char === false) {
-                $route = substr($request_uri, strlen($base));
-                if ($route === '' || $route === false) {
-                    $route = '/';
-                }
-            } else {
-                // Not a directory boundary match (e.g., /blog2 when base is /blog)
-                $route = $request_uri;
-            }
-        } else {
-            $route = $request_uri;
-        }
+		// Normalize: remove trailing slash from base (except for root).
+		$base = rtrim( $base_path, '/' );
 
-        // Ensure route always starts with /
-        if ($route === '' || $route[0] !== '/') {
-            $route = '/' . ltrim($route, '/');
-        }
+		// If we have a base path and request starts with it, strip it.
+		// Must check directory boundary to avoid /blog matching /blog2.
+		if ( '' !== $base && 0 === strpos( $request_uri, $base ) ) {
+			$next_char = substr( $request_uri, strlen( $base ), 1 );
+			// Only match if next char is '/' (directory boundary) or empty (exact match).
+			if ( '/' === $next_char || '' === $next_char || false === $next_char ) {
+				$route = substr( $request_uri, strlen( $base ) );
+				if ( '' === $route || false === $route ) {
+					$route = '/';
+				}
+			} else {
+				// Not a directory boundary match (e.g., /blog2 when base is /blog).
+				$route = $request_uri;
+			}
+		} else {
+			$route = $request_uri;
+		}
 
-        return $route;
-    }
+		// Ensure route always starts with /.
+		if ( '' === $route || '/' !== $route[0] ) {
+			$route = '/' . ltrim( $route, '/' );
+		}
 
-    /**
-     * Check if llms.txt endpoint is enabled.
-     *
-     * @return bool
-     */
-    private function is_llms_enabled(): bool {
-        if (!get_option('openbotauth_llms_enabled', true)) {
-            return false;
-        }
+		return $route;
+	}
 
-        /**
-         * Filter whether to serve llms.txt.
-         *
-         * Use this filter to disable the endpoint when using Yoast or other plugins.
-         *
-         * @param bool $should_serve Whether to serve the endpoint.
-         */
-        return apply_filters('openbotauth_should_serve_llms_txt', true);
-    }
+	/**
+	 * Check if llms.txt endpoint is enabled.
+	 *
+	 * @return bool
+	 */
+	private function is_llms_enabled(): bool {
+		if ( ! get_option( 'openbotauth_llms_enabled', true ) ) {
+			return false;
+		}
 
-    /**
-     * Check if feed endpoint is enabled.
-     *
-     * @return bool
-     */
-    private function is_feed_enabled(): bool {
-        if (!get_option('openbotauth_feed_enabled', true)) {
-            return false;
-        }
+		/**
+		 * Filter whether to serve llms.txt.
+		 *
+		 * Use this filter to disable the endpoint when using Yoast or other plugins.
+		 *
+		 * @param bool $should_serve Whether to serve the endpoint.
+		 */
+		return apply_filters( 'openbotauth_should_serve_llms_txt', true );
+	}
 
-        /**
-         * Filter whether to serve feed endpoints.
-         *
-         * @param bool $should_serve Whether to serve the endpoint.
-         */
-        return apply_filters('openbotauth_should_serve_feed', true);
-    }
+	/**
+	 * Check if feed endpoint is enabled.
+	 *
+	 * @return bool
+	 */
+	private function is_feed_enabled(): bool {
+		if ( ! get_option( 'openbotauth_feed_enabled', true ) ) {
+			return false;
+		}
 
-    /**
-     * Check if markdown endpoint is enabled.
-     *
-     * @return bool
-     */
-    private function is_markdown_enabled(): bool {
-        if (!get_option('openbotauth_feed_enabled', true)) {
-            return false;
-        }
+		/**
+		 * Filter whether to serve feed endpoints.
+		 *
+		 * @param bool $should_serve Whether to serve the endpoint.
+		 */
+		return apply_filters( 'openbotauth_should_serve_feed', true );
+	}
 
-        /**
-         * Filter whether to serve markdown endpoints.
-         *
-         * @param bool $should_serve Whether to serve the endpoint.
-         */
-        return apply_filters('openbotauth_should_serve_markdown', true);
-    }
+	/**
+	 * Check if markdown endpoint is enabled.
+	 *
+	 * @return bool
+	 */
+	private function is_markdown_enabled(): bool {
+		if ( ! get_option( 'openbotauth_feed_enabled', true ) ) {
+			return false;
+		}
 
-    /**
-     * Serve llms.txt content.
-     */
-    private function serve_llms_txt(): void {
-        // llms.txt should be discoverable by crawlers, so don't set noindex
-        $this->send_headers('text/plain; charset=UTF-8', false);
+		/**
+		 * Filter whether to serve markdown endpoints.
+		 *
+		 * @param bool $should_serve Whether to serve the endpoint.
+		 */
+		return apply_filters( 'openbotauth_should_serve_markdown', true );
+	}
 
-        $site_url = home_url();
-        // Decode HTML entities for plain text output
-        $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
-        $feed_url = home_url('/.well-known/openbotauth-feed.json');
-        $md_pattern = home_url('/.well-known/openbotauth/posts/{ID}.md');
+	/**
+	 * Serve llms.txt content.
+	 *
+	 * @return void
+	 */
+	private function serve_llms_txt(): void {
+		// llms.txt should be discoverable by crawlers, so don't set noindex.
+		$this->send_headers( 'text/plain; charset=UTF-8', false );
 
-        $output = "# {$site_name}\n";
-        $output .= "# Site: {$site_url}\n";
+		$site_url = home_url();
+		// Decode HTML entities for plain text output.
+		$site_name  = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
+		$feed_url   = home_url( '/.well-known/openbotauth-feed.json' );
+		$md_pattern = home_url( '/.well-known/openbotauth/posts/{ID}.md' );
 
-        // Note if site discourages indexing
-        if (!get_option('blog_public', true)) {
-            $output .= "# Note: This site discourages search engine indexing\n";
-        }
+		$output  = "# {$site_name}\n";
+		$output .= "# Site: {$site_url}\n";
 
-        $output .= "\n# Machine-readable JSON feed:\n";
-        $output .= "{$feed_url}\n\n";
+		// Note if site discourages indexing.
+		if ( ! get_option( 'blog_public', true ) ) {
+			$output .= "# Note: This site discourages search engine indexing\n";
+		}
 
-        // Only include markdown URLs if markdown endpoint is enabled
-        if ($this->is_markdown_enabled()) {
-            $output .= "# Markdown endpoint pattern (replace {ID} with post ID):\n";
-            $output .= "# {$md_pattern}\n\n";
+		$output .= "\n# Machine-readable JSON feed:\n";
+		$output .= "{$feed_url}\n\n";
 
-            // Get posts for listing
-            $posts = $this->get_feed_posts();
-            $limit = count($posts);
+		// Only include markdown URLs if markdown endpoint is enabled.
+		if ( $this->is_markdown_enabled() ) {
+			$output .= "# Markdown endpoint pattern (replace {ID} with post ID):\n";
+			$output .= "# {$md_pattern}\n\n";
 
-            $output .= "# Latest {$limit} posts (markdown):\n";
+			// Get posts for listing.
+			$posts = $this->get_feed_posts();
+			$limit = count( $posts );
 
-            foreach ($posts as $post) {
-                $md_url = home_url('/.well-known/openbotauth/posts/' . $post->ID . '.md');
-                $output .= "{$md_url}\n";
-            }
-        }
+			$output .= "# Latest {$limit} posts (markdown):\n";
 
-        // Output plain text - wp_strip_all_tags removes HTML, Content-Type: text/plain prevents rendering
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- text/plain content-type, not HTML context
-        echo wp_strip_all_tags( $output );
-        exit;
-    }
+			foreach ( $posts as $post ) {
+				$md_url  = home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' );
+				$output .= "{$md_url}\n";
+			}
+		}
 
-    /**
-     * Serve feed.json content.
-     */
-    private function serve_feed_json(): void {
-        $this->send_headers('application/json; charset=UTF-8');
+		// Output plain text - wp_strip_all_tags removes HTML, Content-Type: text/plain prevents rendering.
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- text/plain content-type, not HTML context
+		echo wp_strip_all_tags( $output );
+		exit;
+	}
 
-        $posts = $this->get_feed_posts();
+	/**
+	 * Serve feed.json content.
+	 *
+	 * @return void
+	 */
+	private function serve_feed_json(): void {
+		$this->send_headers( 'application/json; charset=UTF-8' );
 
-        $items = [];
-        foreach ($posts as $post) {
-            $item = [
-                'id'           => $post->ID,
-                'type'         => $post->post_type,
-                'title'        => $this->metadata->getTitle($post),
-                'canonical_url' => $this->metadata->getCanonicalUrl($post),
-                'description'  => $this->metadata->getDescription($post),
-                'last_modified' => $this->metadata->getLastModifiedIso($post),
-                'markdown_url' => home_url('/.well-known/openbotauth/posts/' . $post->ID . '.md'),
-            ];
+		$posts = $this->get_feed_posts();
 
-            /**
-             * Filter individual feed items.
-             *
-             * Allows other plugins to augment feed item data.
-             *
-             * @param array    $item The feed item data.
-             * @param \WP_Post $post The post object.
-             */
-            $items[] = apply_filters('openbotauth_feed_item', $item, $post);
-        }
+		$items = array();
+		foreach ( $posts as $post ) {
+			$item = array(
+				'id'            => $post->ID,
+				'type'          => $post->post_type,
+				'title'         => $this->metadata->getTitle( $post ),
+				'canonical_url' => $this->metadata->getCanonicalUrl( $post ),
+				'description'   => $this->metadata->getDescription( $post ),
+				'last_modified' => $this->metadata->getLastModifiedIso( $post ),
+				'markdown_url'  => home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' ),
+			);
 
-        $feed = [
-            'generated_at' => gmdate('c'),
-            'site'         => home_url(),
-            // Decode HTML entities for clean JSON output
-            'site_name'    => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
-            'total_items'  => count($items),
-            'items'        => $items,
-        ];
+			/**
+			 * Filter individual feed items.
+			 *
+			 * Allows other plugins to augment feed item data.
+			 *
+			 * @param array    $item The feed item data.
+			 * @param \WP_Post $post The post object.
+			 */
+			$items[] = apply_filters( 'openbotauth_feed_item', $item, $post );
+		}
 
-        // wp_json_encode() safely encodes data for JSON output
-        echo wp_json_encode( $feed, JSON_PRETTY_PRINT );
-        exit;
-    }
+		$feed = array(
+			'generated_at' => gmdate( 'c' ),
+			'site'         => home_url(),
+			// Decode HTML entities for clean JSON output.
+			'site_name'    => wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
+			'total_items'  => count( $items ),
+			'items'        => $items,
+		);
 
-    /**
-     * Serve markdown content for a single post.
-     *
-     * @param int $post_id The post ID.
-     */
-    private function serve_post_markdown(int $post_id): void {
-        $post = get_post($post_id);
+		// wp_json_encode() safely encodes data for JSON output.
+		echo wp_json_encode( $feed, JSON_PRETTY_PRINT );
+		exit;
+	}
 
-        // Validate: must exist, be published, and not password-protected
-        if (!$post || $post->post_status !== 'publish' || !empty($post->post_password)) {
-            status_header(404);
-            header('Content-Type: text/plain; charset=UTF-8');
-            echo "Post not found";
-            exit;
-        }
+	/**
+	 * Serve markdown content for a single post.
+	 *
+	 * @param int $post_id The post ID.
+	 */
+	private function serve_post_markdown( int $post_id ): void {
+		$post = get_post( $post_id );
 
-        // Validate: post type must be in allowed list
-        $allowed_types = get_option('openbotauth_feed_post_types', ['post', 'page']);
-        if (!is_array($allowed_types)) {
-            $allowed_types = ['post', 'page'];
-        }
-        if (!in_array($post->post_type, $allowed_types, true)) {
-            status_header(404);
-            header('Content-Type: text/plain; charset=UTF-8');
-            echo "Post not found";
-            exit;
-        }
+		// Validate: must exist, be published, and not password-protected.
+		if ( ! $post || 'publish' !== $post->post_status || ! empty( $post->post_password ) ) {
+			status_header( 404 );
+			header( 'Content-Type: text/plain; charset=UTF-8' );
+			echo 'Post not found';
+			exit;
+		}
 
-        // Conditional GET: check If-Modified-Since
-        $lastmod = $this->metadata->getLastModifiedTimestamp($post);
-        $lastmod_http = gmdate('D, d M Y H:i:s', $lastmod) . ' GMT';
+		// Validate: post type must be in allowed list.
+		$allowed_types = get_option( 'openbotauth_feed_post_types', array( 'post', 'page' ) );
+		if ( ! is_array( $allowed_types ) ) {
+			$allowed_types = array( 'post', 'page' );
+		}
+		if ( ! in_array( $post->post_type, $allowed_types, true ) ) {
+			status_header( 404 );
+			header( 'Content-Type: text/plain; charset=UTF-8' );
+			echo 'Post not found';
+			exit;
+		}
 
-        if (isset($_SERVER['HTTP_IF_MODIFIED_SINCE'])) {
-            $if_modified = strtotime( sanitize_text_field( wp_unslash( $_SERVER['HTTP_IF_MODIFIED_SINCE'] ) ) );
-            // Guard against strtotime returning false
-            if ($if_modified && $if_modified >= $lastmod) {
-                status_header(304);
-                exit;
-            }
-        }
+		// Conditional GET: check If-Modified-Since.
+		$lastmod      = $this->metadata->getLastModifiedTimestamp( $post );
+		$lastmod_http = gmdate( 'D, d M Y H:i:s', $lastmod ) . ' GMT';
 
-        // Send headers
-        header('Content-Type: text/markdown; charset=UTF-8');
-        header('Cache-Control: public, max-age=300');
-        header('Last-Modified: ' . $lastmod_http);
-        header('X-Robots-Tag: noindex'); // Prevent search engine indexing of raw markdown
+		if ( isset( $_SERVER['HTTP_IF_MODIFIED_SINCE'] ) ) {
+			$if_modified = strtotime( sanitize_text_field( wp_unslash( $_SERVER['HTTP_IF_MODIFIED_SINCE'] ) ) );
+			// Guard against strtotime returning false.
+			if ( $if_modified && $if_modified >= $lastmod ) {
+				status_header( 304 );
+				exit;
+			}
+		}
 
-        // Output markdown - render_post_markdown already strips HTML, Content-Type prevents rendering
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- text/markdown content-type, not HTML context
-        echo $this->render_post_markdown( $post );
-        exit;
-    }
+		// Send headers.
+		header( 'Content-Type: text/markdown; charset=UTF-8' );
+		header( 'Cache-Control: public, max-age=300' );
+		header( 'Last-Modified: ' . $lastmod_http );
+		header( 'X-Robots-Tag: noindex' ); // Prevent search engine indexing of raw markdown.
 
-    /**
-     * Render a post as markdown.
-     *
-     * @param \WP_Post $post The post object.
-     * @return string The markdown content.
-     */
-    private function render_post_markdown(\WP_Post $post): string {
-        // Sanitize metadata fields for safe output
-        $title = sanitize_text_field( $this->metadata->getTitle($post) );
-        $url = esc_url_raw( $this->metadata->getCanonicalUrl($post) );
-        $lastmod = sanitize_text_field( $this->metadata->getLastModifiedIso($post) );
+		// Output markdown - render_post_markdown strips HTML, additional wp_strip_all_tags for defense in depth.
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- text/markdown content-type, not HTML context
+		echo wp_strip_all_tags( $this->render_post_markdown( $post ) );
+		exit;
+	}
 
-        // Process content: strip shortcodes BEFORE stripping tags
-        $content = $post->post_content;
-        $content = strip_shortcodes($content);
-        $content = wp_strip_all_tags($content);
-        $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+	/**
+	 * Render a post as markdown.
+	 *
+	 * @param \WP_Post $post The post object.
+	 * @return string The markdown content.
+	 */
+	private function render_post_markdown( \WP_Post $post ): string {
+		// Sanitize metadata fields for safe output.
+		$title   = sanitize_text_field( $this->metadata->getTitle( $post ) );
+		$url     = esc_url_raw( $this->metadata->getCanonicalUrl( $post ) );
+		$lastmod = sanitize_text_field( $this->metadata->getLastModifiedIso( $post ) );
 
-        // Normalize whitespace: collapse 3+ newlines to 2
-        $content = preg_replace('/\n{3,}/', "\n\n", $content);
-        $content = trim($content);
+		// Process content: strip shortcodes BEFORE stripping tags.
+		$content = $post->post_content;
+		$content = strip_shortcodes( $content );
+		$content = wp_strip_all_tags( $content );
+		$content = html_entity_decode( $content, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 
-        $markdown = "# {$title}\n\n"
-            . "Canonical: {$url}\n"
-            . "Last Updated: {$lastmod}\n\n"
-            . $content . "\n";
+		// Normalize whitespace: collapse 3+ newlines to 2.
+		$content = preg_replace( '/\n{3,}/', "\n\n", $content );
+		$content = trim( $content );
 
-        /**
-         * Filter the rendered markdown content.
-         *
-         * Allows other plugins to post-process markdown output.
-         *
-         * @param string   $markdown The rendered markdown.
-         * @param \WP_Post $post     The post object.
-         */
-        return apply_filters('openbotauth_markdown_content', $markdown, $post);
-    }
+		$markdown = "# {$title}\n\n"
+			. "Canonical: {$url}\n"
+			. "Last Updated: {$lastmod}\n\n"
+			. $content . "\n";
 
-    /**
-     * Get posts for the feed.
-     *
-     * Returns published, non-password-protected posts ordered by last modified.
-     *
-     * @return \WP_Post[] Array of post objects.
-     */
-    private function get_feed_posts(): array {
-        $limit = min(500, max(1, (int) get_option('openbotauth_feed_limit', 100)));
-        $post_types = get_option('openbotauth_feed_post_types', ['post', 'page']);
+		/**
+		 * Filter the rendered markdown content.
+		 *
+		 * Allows other plugins to post-process markdown output.
+		 *
+		 * @param string   $markdown The rendered markdown.
+		 * @param \WP_Post $post     The post object.
+		 */
+		$filtered = apply_filters( 'openbotauth_markdown_content', $markdown, $post );
 
-        // Ensure post_types is an array
-        if (!is_array($post_types)) {
-            $post_types = ['post', 'page'];
-        }
+		// Ensure filtered result is a string and strip any HTML that filters might add (defense in depth).
+		if ( ! is_string( $filtered ) ) {
+			return $markdown;
+		}
 
-        // If no post types are enabled, return empty array
-        if (empty($post_types)) {
-            return [];
-        }
+		return $filtered;
+	}
 
-        $query = new \WP_Query([
-            'post_type'           => $post_types,
-            'post_status'         => 'publish',
-            'posts_per_page'      => $limit,
-            'orderby'             => 'modified',
-            'order'               => 'DESC',
-            'no_found_rows'       => true,    // Skip pagination count for performance
-            'ignore_sticky_posts' => true,    // Consistent ordering
-            'fields'              => 'ids',   // Fast - just IDs, hydrate later
-        ]);
+	/**
+	 * Get posts for the feed.
+	 *
+	 * Returns published, non-password-protected posts ordered by last modified.
+	 *
+	 * @return \WP_Post[] Array of post objects.
+	 */
+	private function get_feed_posts(): array {
+		$limit      = min( 500, max( 1, (int) get_option( 'openbotauth_feed_limit', 100 ) ) );
+		$post_types = get_option( 'openbotauth_feed_post_types', array( 'post', 'page' ) );
 
-        // Filter out password-protected posts (password is on post row, not meta)
-        $posts = [];
-        foreach ($query->posts as $post_id) {
-            $post = get_post($post_id);
-            if ($post && empty($post->post_password)) {
-                $posts[] = $post;
-            }
-        }
+		// Ensure post_types is an array.
+		if ( ! is_array( $post_types ) ) {
+			$post_types = array( 'post', 'page' );
+		}
 
-        return $posts;
-    }
+		// If no post types are enabled, return empty array.
+		if ( empty( $post_types ) ) {
+			return array();
+		}
 
-    /**
-     * Send common response headers.
-     *
-     * @param string $content_type The Content-Type header value.
-     * @param bool   $noindex      Whether to set X-Robots-Tag: noindex (default true).
-     */
-    /**
-     * Serve a 404 response for disabled endpoints.
-     *
-     * Called when a route matches but the endpoint is disabled.
-     * Exits immediately to prevent WordPress from continuing routing.
-     */
-    private function serve_disabled_endpoint(): void {
-        status_header(404);
-        header('Content-Type: text/plain; charset=UTF-8');
-        header('X-Robots-Tag: noindex');
-        echo "Not found";
-        exit;
-    }
+		$query = new \WP_Query(
+			array(
+				'post_type'           => $post_types,
+				'post_status'         => 'publish',
+				'posts_per_page'      => $limit,
+				'orderby'             => 'modified',
+				'order'               => 'DESC',
+				'no_found_rows'       => true,    // Skip pagination count for performance.
+				'ignore_sticky_posts' => true,    // Consistent ordering.
+				'fields'              => 'ids',   // Fast - just IDs, hydrate later.
+			)
+		);
 
-    /**
-     * Send common response headers.
-     *
-     * @param string $content_type The Content-Type header value.
-     * @param bool   $noindex      Whether to set X-Robots-Tag: noindex (default true).
-     */
-    private function send_headers(string $content_type, bool $noindex = true): void {
-        status_header(200);
-        header('Content-Type: ' . $content_type);
-        header('Cache-Control: public, max-age=300');
-        if ($noindex) {
-            header('X-Robots-Tag: noindex'); // Prevent search engine indexing of raw data
-        }
-    }
+		// Filter out password-protected posts (password is on post row, not meta).
+		$posts = array();
+		foreach ( $query->posts as $post_id ) {
+			$post = get_post( $post_id );
+			if ( $post && empty( $post->post_password ) ) {
+				$posts[] = $post;
+			}
+		}
+
+		return $posts;
+	}
+
+	/**
+	 * Serve a 404 response for disabled endpoints.
+	 *
+	 * Called when a route matches but the endpoint is disabled.
+	 * Exits immediately to prevent WordPress from continuing routing.
+	 *
+	 * @return void
+	 */
+	private function serve_disabled_endpoint(): void {
+		status_header( 404 );
+		header( 'Content-Type: text/plain; charset=UTF-8' );
+		header( 'X-Robots-Tag: noindex' );
+		echo 'Not found';
+		exit;
+	}
+
+	/**
+	 * Send common response headers.
+	 *
+	 * @param string $content_type The Content-Type header value.
+	 * @param bool   $noindex      Whether to set X-Robots-Tag: noindex (default true).
+	 * @return void
+	 */
+	private function send_headers( string $content_type, bool $noindex = true ): void {
+		status_header( 200 );
+		header( 'Content-Type: ' . $content_type );
+		header( 'Cache-Control: public, max-age=300' );
+		if ( $noindex ) {
+			header( 'X-Robots-Tag: noindex' ); // Prevent search engine indexing of raw data.
+		}
+	}
 }
-

@@ -9,7 +9,7 @@
 
 // If uninstall not called from WordPress, exit.
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
-    exit;
+	exit;
 }
 
 // Delete plugin options.
@@ -25,12 +25,12 @@ delete_option( 'openbotauth_prefer_yoast_llms' );
 delete_option( 'openbotauth_markdown_enabled' );
 
 // Delete analytics options for the last 30 days.
-for ( $openbotauth_i = 0; $openbotauth_i < 30; $openbotauth_i++ ) {
-    $openbotauth_date = gmdate( 'Y-m-d', strtotime( "-{$openbotauth_i} days" ) );
-    delete_option( "openbotauth_stats_{$openbotauth_date}" );
-    delete_option( "openbotauth_stats_{$openbotauth_date}_requests" );
-    delete_option( "openbotauth_stats_{$openbotauth_date}_signed" );
-    delete_option( "openbotauth_stats_{$openbotauth_date}_verified" );
+for ( $openbotauth_i = 0; 30 > $openbotauth_i; $openbotauth_i++ ) {
+	$openbotauth_date = gmdate( 'Y-m-d', strtotime( "-{$openbotauth_i} days" ) );
+	delete_option( "openbotauth_stats_{$openbotauth_date}" );
+	delete_option( "openbotauth_stats_{$openbotauth_date}_requests" );
+	delete_option( "openbotauth_stats_{$openbotauth_date}_signed" );
+	delete_option( "openbotauth_stats_{$openbotauth_date}_verified" );
 }
 
 // Delete post meta using delete_metadata.

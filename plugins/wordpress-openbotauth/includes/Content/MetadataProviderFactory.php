@@ -11,9 +11,9 @@
 
 namespace OpenBotAuth\Content;
 
-// Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
+// Prevent direct access.
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -21,27 +21,16 @@ if (!defined('ABSPATH')) {
  */
 class MetadataProviderFactory {
 
-    /**
-     * Create a metadata provider instance.
-     *
-     * Currently returns DefaultMetadataProvider.
-     * Future versions can detect Yoast/Rank Math and return appropriate providers.
-     *
-     * @return MetadataProviderInterface The metadata provider instance.
-     */
-    public static function make(): MetadataProviderInterface {
-        // Future: Yoast integration
-        // if (class_exists('WPSEO_Meta')) {
-        //     return new YoastMetadataProvider();
-        // }
-
-        // Future: Rank Math integration
-        // if (class_exists('RankMath')) {
-        //     return new RankMathMetadataProvider();
-        // }
-
-        // Default: WordPress core functions only
-        return new DefaultMetadataProvider();
-    }
+	/**
+	 * Create a metadata provider instance.
+	 *
+	 * Currently returns DefaultMetadataProvider.
+	 * Future versions can detect Yoast/Rank Math and return appropriate providers.
+	 *
+	 * @return MetadataProviderInterface The metadata provider instance.
+	 */
+	public static function make(): MetadataProviderInterface {
+		// Default: WordPress core functions only.
+		return new DefaultMetadataProvider();
+	}
 }
-
