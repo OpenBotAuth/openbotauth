@@ -1299,6 +1299,8 @@ class Admin {
 				'price_cents'  => absint( wp_unslash( $_POST['openbotauth_price_cents'] ?? 0 ) ),
 			);
 
+			$policy = $this->sanitize_policy_array( $policy );
+
 			update_post_meta( $post_id, '_openbotauth_policy', wp_json_encode( $policy ) );
 		} else {
 			delete_post_meta( $post_id, '_openbotauth_policy' );
@@ -1363,7 +1365,7 @@ class Admin {
 		}
 
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON is validated and sanitized below
-		$policy_raw = isset( $_POST['policy'] ) ? wp_unslash( $_POST['policy'] ) : '';
+		$policy_raw = isset( $_POST['policy'] ) ? sanitize_textarea_field( wp_unslash( $_POST['policy'] ) ) : '';
 
 		// Validate JSON syntax.
 		$decoded = json_decode( $policy_raw, true );
