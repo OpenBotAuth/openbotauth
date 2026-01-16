@@ -368,12 +368,13 @@ class Plugin {
 			header( 'Content-Type: application/json' );
 		}
 
-		$response = array(
+		$post_title = sanitize_text_field( $post->post_title );
+		$response   = array(
 			'error'       => 'Payment required',
-			'price_cents' => $result['price_cents'],
+			'price_cents' => absint( $result['price_cents'] ),
 			'currency'    => $result['currency'] ?? 'USD',
-			'post_id'     => $post->ID,
-			'post_title'  => $post->post_title,
+			'post_id'     => absint( $post->ID ),
+			'post_title'  => $post_title,
 		);
 
 		// Add payment link if available (sanitized to prevent header injection).
