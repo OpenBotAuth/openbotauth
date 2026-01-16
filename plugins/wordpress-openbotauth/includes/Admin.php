@@ -311,7 +311,7 @@ class Admin {
 		}
 		// Filter out the empty hidden field marker and validate post types.
 		$value = array_filter(
-			$value,
+			array_map( 'sanitize_key', $value ),
 			function ( $type ) {
 				return '' !== $type && post_type_exists( $type );
 			}
