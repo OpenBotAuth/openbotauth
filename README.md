@@ -1,13 +1,13 @@
 ![generated-image-2-2](https://github.com/user-attachments/assets/eeda5efb-43e2-488b-9cd7-19ca67e2f4f0)
 
-## OpenBotAuth — Social Identities for Agents over HTTP 
+## OpenBotAuth — The Identity Layer for AI Agents 
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache2.0-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/OpenBotAuth/openbotauth)
 
-## Demo (1 min)
+## Demo: Register a crawler and sign requests (1 min)
 
 <p align="center">
   <a href="https://youtu.be/8W5tScru5Us" target="_blank">
