@@ -353,16 +353,16 @@ class PolicyEngine {
 	 * @return string|null The payment URL or null.
 	 */
 	private function generate_payment_url( $agent, $post ) {
-		$base_url = get_option( 'openbotauth_payment_url', '' );
+		$base_url = esc_url_raw( get_option( 'openbotauth_payment_url', '' ) );
 
 		if ( empty( $base_url ) ) {
 			return null;
 		}
 
 		$params = array(
-			'post_id'    => $post->ID,
-			'agent'      => $agent['jwks_url'] ?? 'unknown',
-			'return_url' => get_permalink( $post->ID ),
+			'post_id'    => absint( $post->ID ),
+			'agent'      => sanitize_text_field( $agent['jwks_url'] ?? 'unknown' ),
+			'return_url' => esc_url_raw( get_permalink( $post->ID ) ),
 		);
 
 		return add_query_arg( $params, $base_url );
