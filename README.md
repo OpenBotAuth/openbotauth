@@ -17,17 +17,46 @@
   </a>
 </p>
 
-OpenBotAuth is a way for agents to browse the internet on their owners' behalf. Written as an extension to Web Bot Auth, it hosts OpenBotRegistry to curate human <> agent identities and offers origin server plugins for websites to identity and monetize agentic movements. There's no CDN lock-in and the directory can be used by other origin server implementations to identify agents. 
+Open source tooling for the [IETF Web Bot Auth draft](https://datatracker.ietf.org/doc/draft-ietf-httpbis-unprompted-auth/). Verify AI crawlers and agents using RFC 9421 HTTP Message Signatures. No CDN lock-in.
 
-This monorepo contains:
-1. **Github Auth Flow** - for SSO auth
-2. **Registry Verification** - that generates Signature Agent Cards
-3. **Origin Verifier** — Node.js verifier service with nonce replay protection
-4. **WordPress Plugin** — for custom content policy, block/unblock and x402 payments
+---
 
-This repo also explores integrations with local MCP server (Claude Desktop integration) + A2A agent cards. However, these are exploratory features. 
+## Packages
 
-OpenBotAuth works with any origin behind NGINX/Caddy/Envoy, eliminating CDN dependency.
+### Install via npm/pip
+
+| Package | Description | Install |
+|---------|-------------|---------|
+| **[@openbotauth/verifier-client](https://www.npmjs.com/package/@openbotauth/verifier-client)** | Node.js middleware (Express/Next.js) | `npm i @openbotauth/verifier-client` |
+| **[@openbotauth/proxy](https://www.npmjs.com/package/@openbotauth/proxy)** | Zero-code reverse proxy | `npx @openbotauth/proxy` |
+| **[@openbotauth/registry-signer](https://www.npmjs.com/package/@openbotauth/registry-signer)** | Ed25519 keygen + JWKS utilities | `npm i @openbotauth/registry-signer` |
+| **[@openbotauth/bot-cli](https://www.npmjs.com/package/@openbotauth/bot-cli)** | Test crawler + key generation | `npm i -g @openbotauth/bot-cli` |
+| **[openbotauth-verifier](https://pypi.org/project/openbotauth-verifier/)** | Python middleware (FastAPI/Flask) | `pip install openbotauth-verifier` |
+
+### WordPress
+
+```bash
+git clone https://github.com/OpenBotAuth/openbotauth.git
+cp -r openbotauth/plugins/wordpress-openbotauth /path/to/wp-content/plugins/
+```
+
+### Docker
+
+```bash
+docker run -p 8080:8080 ghcr.io/openbotauth/proxy
+```
+
+---
+
+## What is this?
+
+Authenticate bots and AI crawlers at your origin using cryptographic signatures (RFC 9421). Publishers can verify who's crawling, enforce policies, and build pay-per-crawl programs.
+
+This monorepo also includes:
+- **Registry Service** — JWKS hosting + agent identity management
+- **GitHub OAuth Flow** — SSO for crawler registration
+- **MCP Server** — Claude Desktop integration (experimental)
+- **A2A Cards** — Agent-to-Agent discovery (experimental)
 
 ---
 
