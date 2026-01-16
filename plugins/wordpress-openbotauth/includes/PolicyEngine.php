@@ -37,6 +37,8 @@ class PolicyEngine {
 			// Guard against invalid JSON - fall back to default if decode fails.
 			if ( ! is_array( $policy ) ) {
 				$policy = $this->get_default_policy();
+			} else {
+				$policy = $this->sanitize_policy_array( $policy );
 			}
 		} else {
 			// Fall back to default policy.
@@ -54,6 +56,8 @@ class PolicyEngine {
 		// Final safety check - ensure we always return an array.
 		if ( ! is_array( $policy ) ) {
 			$policy = $this->get_default_policy();
+		} else {
+			$policy = $this->sanitize_policy_array( $policy );
 		}
 
 		return $policy;
