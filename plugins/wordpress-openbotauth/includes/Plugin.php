@@ -208,7 +208,7 @@ class Plugin {
 
 		// 1. Check HTTP Referer header.
 		$ref = isset( $_SERVER['HTTP_REFERER'] )
-			? sanitize_text_field( wp_unslash( $_SERVER['HTTP_REFERER'] ) )
+			? esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) )
 			: '';
 		if ( ! empty( $ref ) ) {
 			$host = wp_parse_url( $ref, PHP_URL_HOST );
@@ -368,12 +368,15 @@ class Plugin {
 			header( 'Content-Type: application/json' );
 		}
 
-		$response = array(
+		$post_title = sanitize_text_field( $post->post_title );
+		$currency   = $result['currency'] ?? 'USD';
+		$currency   = strtoupper( substr( preg_replace( '/[^A-Za-z]/', '', sanitize_text_field( $currency ) ), 0, 3 ) );
+		$response   = array(
 			'error'       => 'Payment required',
-			'price_cents' => $result['price_cents'],
-			'currency'    => $result['currency'] ?? 'USD',
-			'post_id'     => $post->ID,
-			'post_title'  => $post->post_title,
+			'price_cents' => absint( $result['price_cents'] ),
+			'currency'    => $currency ? $currency : 'USD',
+			'post_id'     => absint( $post->ID ),
+			'post_title'  => $post_title,
 		);
 
 		// Add payment link if available (sanitized to prevent header injection).
@@ -421,7 +424,7 @@ class Plugin {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function get_policy_rest( $request ) {
-		$post_id = $request->get_param( 'post_id' );
+		$post_id = absint( $request->get_param( 'post_id' ) );
 
 		if ( $post_id ) {
 			$post = get_post( $post_id );
@@ -429,6 +432,8 @@ class Plugin {
 				return new \WP_Error( 'not_found', 'Post not found', array( 'status' => 404 ) );
 			}
 			$policy = $this->policy_engine->get_policy( $post );
+		} elseif ( null !== $request->get_param( 'post_id' ) ) {
+			return new \WP_Error( 'invalid_post_id', 'Invalid post_id', array( 'status' => 400 ) );
 		} else {
 			$policy = $this->policy_engine->get_default_policy();
 		}
