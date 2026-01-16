@@ -369,10 +369,12 @@ class Plugin {
 		}
 
 		$post_title = sanitize_text_field( $post->post_title );
+		$currency   = $result['currency'] ?? 'USD';
+		$currency   = strtoupper( substr( preg_replace( '/[^A-Za-z]/', '', sanitize_text_field( $currency ) ), 0, 3 ) );
 		$response   = array(
 			'error'       => 'Payment required',
 			'price_cents' => absint( $result['price_cents'] ),
-			'currency'    => $result['currency'] ?? 'USD',
+			'currency'    => $currency ? $currency : 'USD',
 			'post_id'     => absint( $post->ID ),
 			'post_title'  => $post_title,
 		);
