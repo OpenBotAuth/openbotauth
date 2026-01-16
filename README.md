@@ -19,7 +19,7 @@
 
 Open source tooling for the [IETF Web Bot Auth draft](https://datatracker.ietf.org/doc/draft-ietf-httpbis-unprompted-auth/). Verify AI crawlers and agents using RFC 9421 HTTP Message Signatures. No CDN lock-in.
 
-OpenBotAuth is the identity layer for AI agents. Today that means verifying crawlers at your origin. Tomorrow it means sub-agent identities, delegation chains with x509 certs, and agents that browse on behalf of their owners. Check the open PRs—we're building toward a web where every bot has a verifiable identity.
+OpenBotAuth is the identity layer for AI agents. Today this repo lets you verify crawlers at your origin. As we track the IETF Web Bot Auth drafts, we'll implement sub-agent identities, delegation chains with x509 certs, and agents that browse on behalf of their owners. Check the open PRs—we'd love collaborators.
 
 ---
 
