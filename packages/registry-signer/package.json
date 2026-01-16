@@ -1,7 +1,7 @@
 {
   "name": "@openbotauth/registry-signer",
-  "version": "0.1.0",
-  "description": "Shared Ed25519 key generation and JWKS utilities for OpenBotAuth",
+  "version": "0.2.0",
+  "description": "Ed25519 key generation and JWKS utilities for OpenBotAuth and Web Bot Auth",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,20 +11,37 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "test": "vitest"
+    "test": "vitest",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "ed25519",
     "jwks",
     "crypto",
-    "signing"
+    "signing",
+    "web-bot-auth",
+    "openbotauth",
+    "http-signatures"
   ],
-  "author": "",
+  "author": "OpenBotAuth",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenBotAuth/openbotauth.git",
+    "directory": "packages/registry-signer"
+  },
+  "homepage": "https://openbotauth.com/developers",
+  "bugs": {
+    "url": "https://github.com/OpenBotAuth/openbotauth/issues"
+  },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "typescript": "^5.4.5",
