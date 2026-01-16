@@ -262,16 +262,14 @@ class Router {
 
 		$items = array();
 		foreach ( $posts as $post ) {
-			$item = $this->sanitize_feed_item(
-				array(
-					'id'            => $post->ID,
-					'type'          => $post->post_type,
-					'title'         => $this->metadata->getTitle( $post ),
-					'canonical_url' => $this->metadata->getCanonicalUrl( $post ),
-					'description'   => $this->metadata->getDescription( $post ),
-					'last_modified' => $this->metadata->getLastModifiedIso( $post ),
-					'markdown_url'  => home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' ),
-				)
+			$item = array(
+				'id'            => absint( $post->ID ),
+				'type'          => sanitize_key( $post->post_type ),
+				'title'         => sanitize_text_field( $this->metadata->getTitle( $post ) ),
+				'canonical_url' => esc_url_raw( $this->metadata->getCanonicalUrl( $post ) ),
+				'description'   => sanitize_text_field( $this->metadata->getDescription( $post ) ),
+				'last_modified' => sanitize_text_field( $this->metadata->getLastModifiedIso( $post ) ),
+				'markdown_url'  => esc_url_raw( home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' ) ),
 			);
 
 			/**
