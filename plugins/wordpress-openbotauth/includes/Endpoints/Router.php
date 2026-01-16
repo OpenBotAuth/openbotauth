@@ -210,11 +210,11 @@ class Router {
 		// llms.txt should be discoverable by crawlers, so don't set noindex.
 		$this->send_headers( 'text/plain; charset=UTF-8', false );
 
-		$site_url = home_url();
+		$site_url = esc_url_raw( home_url() );
 		// Decode HTML entities for plain text output.
-		$site_name  = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
-		$feed_url   = home_url( '/.well-known/openbotauth-feed.json' );
-		$md_pattern = home_url( '/.well-known/openbotauth/posts/{ID}.md' );
+		$site_name  = sanitize_text_field( wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) );
+		$feed_url   = esc_url_raw( home_url( '/.well-known/openbotauth-feed.json' ) );
+		$md_pattern = esc_url_raw( home_url( '/.well-known/openbotauth/posts/{ID}.md' ) );
 
 		$output  = "# {$site_name}\n";
 		$output .= "# Site: {$site_url}\n";
@@ -239,7 +239,7 @@ class Router {
 			$output .= "# Latest {$limit} posts (markdown):\n";
 
 			foreach ( $posts as $post ) {
-				$md_url  = home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' );
+				$md_url  = esc_url_raw( home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' ) );
 				$output .= "{$md_url}\n";
 			}
 		}
@@ -262,14 +262,16 @@ class Router {
 
 		$items = array();
 		foreach ( $posts as $post ) {
-			$item = array(
-				'id'            => $post->ID,
-				'type'          => $post->post_type,
-				'title'         => $this->metadata->getTitle( $post ),
-				'canonical_url' => $this->metadata->getCanonicalUrl( $post ),
-				'description'   => $this->metadata->getDescription( $post ),
-				'last_modified' => $this->metadata->getLastModifiedIso( $post ),
-				'markdown_url'  => home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' ),
+			$item = $this->sanitize_feed_item(
+				array(
+					'id'            => $post->ID,
+					'type'          => $post->post_type,
+					'title'         => $this->metadata->getTitle( $post ),
+					'canonical_url' => $this->metadata->getCanonicalUrl( $post ),
+					'description'   => $this->metadata->getDescription( $post ),
+					'last_modified' => $this->metadata->getLastModifiedIso( $post ),
+					'markdown_url'  => home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' ),
+				)
 			);
 
 			/**
@@ -280,14 +282,15 @@ class Router {
 			 * @param array    $item The feed item data.
 			 * @param \WP_Post $post The post object.
 			 */
-			$items[] = apply_filters( 'openbotauth_feed_item', $item, $post );
+			$filtered = apply_filters( 'openbotauth_feed_item', $item, $post );
+			$items[]  = $this->sanitize_feed_item( $filtered );
 		}
 
 		$feed = array(
 			'generated_at' => gmdate( 'c' ),
-			'site'         => home_url(),
+			'site'         => esc_url_raw( home_url() ),
 			// Decode HTML entities for clean JSON output.
-			'site_name'    => wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
+			'site_name'    => sanitize_text_field( wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) ),
 			'total_items'  => count( $items ),
 			'items'        => $items,
 		);
@@ -405,9 +408,15 @@ class Router {
 		$limit      = min( 500, max( 1, (int) get_option( 'openbotauth_feed_limit', 100 ) ) );
 		$post_types = get_option( 'openbotauth_feed_post_types', array( 'post', 'page' ) );
 
-		// Ensure post_types is an array.
+		// Ensure post_types is an array and sanitize values.
 		if ( ! is_array( $post_types ) ) {
 			$post_types = array( 'post', 'page' );
+		} else {
+			$post_types = array_filter(
+				array_map( 'sanitize_key', $post_types ),
+				'post_type_exists'
+			);
+			$post_types = array_values( $post_types );
 		}
 
 		// If no post types are enabled, return empty array.
@@ -470,5 +479,27 @@ class Router {
 		if ( $noindex ) {
 			header( 'X-Robots-Tag: noindex' ); // Prevent search engine indexing of raw data.
 		}
+	}
+
+	/**
+	 * Sanitize feed item data for JSON output.
+	 *
+	 * @param mixed $item Feed item data.
+	 * @return array Sanitized feed item.
+	 */
+	private function sanitize_feed_item( $item ): array {
+		if ( ! is_array( $item ) ) {
+			return array();
+		}
+
+		return array(
+			'id'            => isset( $item['id'] ) ? absint( $item['id'] ) : 0,
+			'type'          => isset( $item['type'] ) ? sanitize_key( $item['type'] ) : '',
+			'title'         => isset( $item['title'] ) ? sanitize_text_field( $item['title'] ) : '',
+			'canonical_url' => isset( $item['canonical_url'] ) ? esc_url_raw( $item['canonical_url'] ) : '',
+			'description'   => isset( $item['description'] ) ? sanitize_text_field( $item['description'] ) : '',
+			'last_modified' => isset( $item['last_modified'] ) ? sanitize_text_field( $item['last_modified'] ) : '',
+			'markdown_url'  => isset( $item['markdown_url'] ) ? esc_url_raw( $item['markdown_url'] ) : '',
+		);
 	}
 }

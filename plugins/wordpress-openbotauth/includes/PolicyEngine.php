@@ -37,6 +37,8 @@ class PolicyEngine {
 			// Guard against invalid JSON - fall back to default if decode fails.
 			if ( ! is_array( $policy ) ) {
 				$policy = $this->get_default_policy();
+			} else {
+				$policy = $this->sanitize_policy_array( $policy );
 			}
 		} else {
 			// Fall back to default policy.
@@ -54,6 +56,8 @@ class PolicyEngine {
 		// Final safety check - ensure we always return an array.
 		if ( ! is_array( $policy ) ) {
 			$policy = $this->get_default_policy();
+		} else {
+			$policy = $this->sanitize_policy_array( $policy );
 		}
 
 		return $policy;
@@ -68,9 +72,28 @@ class PolicyEngine {
 		$policy_json = get_option( 'openbotauth_policy', '{}' );
 		$policy      = json_decode( $policy_json, true );
 
-		return $policy['default'] ?? array(
-			'effect'       => 'teaser',
-			'teaser_words' => 100,
+		if ( ! is_array( $policy ) ) {
+			return array(
+				'effect'       => 'teaser',
+				'teaser_words' => 100,
+			);
+		}
+
+		$default = $policy['default'] ?? array();
+		if ( ! is_array( $default ) ) {
+			$default = array();
+		}
+
+		$default = $this->sanitize_policy_array( $default );
+
+		return array(
+			'effect'       => $default['effect'] ?? 'teaser',
+			'teaser_words' => $default['teaser_words'] ?? 100,
+			'price_cents'  => $default['price_cents'] ?? 0,
+			'currency'     => $default['currency'] ?? 'USD',
+			'whitelist'    => $default['whitelist'] ?? array(),
+			'blacklist'    => $default['blacklist'] ?? array(),
+			'rate_limit'   => $default['rate_limit'] ?? array(),
 		);
 	}
 
@@ -167,7 +190,7 @@ class PolicyEngine {
 			case 'teaser':
 				return array(
 					'effect'       => 'teaser',
-					'teaser_words' => $policy['teaser_words'] ?? 100,
+					'teaser_words' => absint( $policy['teaser_words'] ?? 100 ),
 				);
 
 			case 'allow':
@@ -257,6 +280,57 @@ class PolicyEngine {
 	}
 
 	/**
+	 * Recursively sanitize policy array values.
+	 *
+	 * Mirrors admin-side sanitization to protect against malformed options.
+	 *
+	 * @param mixed $policy The decoded policy value (array or scalar).
+	 * @return array Sanitized policy array.
+	 */
+	private function sanitize_policy_array( $policy ) {
+		if ( ! is_array( $policy ) ) {
+			return array();
+		}
+
+		$sanitized      = array();
+		$valid_effects  = array( 'allow', 'teaser', 'deny', 'pay', 'rate_limit' );
+		$integer_fields = array( 'teaser_words', 'price_cents', 'max_requests', 'window_seconds' );
+
+		foreach ( $policy as $key => $value ) {
+			// Sanitize the key.
+			$key = sanitize_key( $key );
+			if ( empty( $key ) ) {
+				continue;
+			}
+
+			if ( is_array( $value ) ) {
+				// Handle whitelist/blacklist URL arrays specially.
+				if ( in_array( $key, array( 'whitelist', 'blacklist' ), true ) ) {
+					$sanitized[ $key ] = array_values( array_filter( array_map( 'esc_url_raw', $value ) ) );
+				} else {
+					// Recursively sanitize nested arrays (like 'rate_limit').
+					$sanitized[ $key ] = $this->sanitize_policy_array( $value );
+				}
+			} elseif ( 'effect' === $key ) {
+				// Validate effect is one of allowed values.
+				$sanitized[ $key ] = in_array( $value, $valid_effects, true ) ? $value : 'teaser';
+			} elseif ( in_array( $key, $integer_fields, true ) ) {
+				// Integer fields.
+				$sanitized[ $key ] = absint( $value );
+			} elseif ( 'currency' === $key ) {
+				// Currency code (3 uppercase letters, e.g., USD, EUR).
+				$clean             = preg_replace( '/[^A-Za-z]/', '', (string) $value );
+				$sanitized[ $key ] = strtoupper( substr( $clean, 0, 3 ) );
+			} else {
+				// Default: sanitize as text field.
+				$sanitized[ $key ] = sanitize_text_field( (string) $value );
+			}
+		}
+
+		return $sanitized;
+	}
+
+	/**
 	 * Check if agent has paid for post.
 	 *
 	 * @param array $agent   The agent data.
@@ -279,16 +353,16 @@ class PolicyEngine {
 	 * @return string|null The payment URL or null.
 	 */
 	private function generate_payment_url( $agent, $post ) {
-		$base_url = get_option( 'openbotauth_payment_url', '' );
+		$base_url = esc_url_raw( get_option( 'openbotauth_payment_url', '' ) );
 
 		if ( empty( $base_url ) ) {
 			return null;
 		}
 
 		$params = array(
-			'post_id'    => $post->ID,
-			'agent'      => $agent['jwks_url'] ?? 'unknown',
-			'return_url' => get_permalink( $post->ID ),
+			'post_id'    => absint( $post->ID ),
+			'agent'      => sanitize_text_field( $agent['jwks_url'] ?? 'unknown' ),
+			'return_url' => esc_url_raw( get_permalink( $post->ID ) ),
 		);
 
 		return add_query_arg( $params, $base_url );
