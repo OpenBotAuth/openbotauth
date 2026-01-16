@@ -208,7 +208,7 @@ class Plugin {
 
 		// 1. Check HTTP Referer header.
 		$ref = isset( $_SERVER['HTTP_REFERER'] )
-			? sanitize_text_field( wp_unslash( $_SERVER['HTTP_REFERER'] ) )
+			? esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) )
 			: '';
 		if ( ! empty( $ref ) ) {
 			$host = wp_parse_url( $ref, PHP_URL_HOST );
@@ -422,7 +422,7 @@ class Plugin {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function get_policy_rest( $request ) {
-		$post_id = $request->get_param( 'post_id' );
+		$post_id = absint( $request->get_param( 'post_id' ) );
 
 		if ( $post_id ) {
 			$post = get_post( $post_id );
@@ -430,6 +430,8 @@ class Plugin {
 				return new \WP_Error( 'not_found', 'Post not found', array( 'status' => 404 ) );
 			}
 			$policy = $this->policy_engine->get_policy( $post );
+		} elseif ( null !== $request->get_param( 'post_id' ) ) {
+			return new \WP_Error( 'invalid_post_id', 'Invalid post_id', array( 'status' => 400 ) );
 		} else {
 			$policy = $this->policy_engine->get_default_policy();
 		}
