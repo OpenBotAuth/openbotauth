@@ -1033,21 +1033,25 @@ class Admin {
 			}
 
 			if ( isset( $_POST['openbotauth_teaser_words'] ) ) {
-				$policy['default']['teaser_words'] = intval( $_POST['openbotauth_teaser_words'] );
+				$policy['default']['teaser_words'] = absint( wp_unslash( $_POST['openbotauth_teaser_words'] ) );
 			}
             // phpcs:enable WordPress.Security.NonceVerification.Missing
 
-			return wp_json_encode( $policy );
+			// Sanitize the entire policy to ensure all values are safe.
+			$sanitized = $this->sanitize_policy_array( $policy );
+			return wp_json_encode( $sanitized );
 		}
 
-		// Otherwise, validate and return the JSON as-is.
+		// Otherwise, validate and sanitize the JSON.
 		$decoded = json_decode( $value, true );
 		if ( JSON_ERROR_NONE !== json_last_error() ) {
 			add_settings_error( 'openbotauth_policy', 'invalid_json', 'Invalid policy JSON' );
 			return get_option( 'openbotauth_policy', '{}' );
 		}
 
-		return $value;
+		// Sanitize the decoded policy to prevent header injection and XSS.
+		$sanitized = $this->sanitize_policy_array( $decoded );
+		return wp_json_encode( $sanitized );
 	}
 
 	/**
@@ -1285,8 +1289,8 @@ class Admin {
 		if ( isset( $_POST['openbotauth_enabled'] ) && sanitize_text_field( wp_unslash( $_POST['openbotauth_enabled'] ) ) ) {
 			$policy = array(
 				'effect'       => sanitize_text_field( wp_unslash( $_POST['openbotauth_effect'] ?? 'allow' ) ),
-				'teaser_words' => intval( $_POST['openbotauth_teaser_words'] ?? 100 ),
-				'price_cents'  => intval( $_POST['openbotauth_price_cents'] ?? 0 ),
+				'teaser_words' => absint( wp_unslash( $_POST['openbotauth_teaser_words'] ?? 100 ) ),
+				'price_cents'  => absint( wp_unslash( $_POST['openbotauth_price_cents'] ?? 0 ) ),
 			);
 
 			update_post_meta( $post_id, '_openbotauth_policy', wp_json_encode( $policy ) );

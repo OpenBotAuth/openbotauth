@@ -344,9 +344,8 @@ class Router {
 		header( 'Last-Modified: ' . $lastmod_http );
 		header( 'X-Robots-Tag: noindex' ); // Prevent search engine indexing of raw markdown.
 
-		// Output markdown - render_post_markdown strips HTML, additional wp_strip_all_tags for defense in depth.
-		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- text/markdown content-type, not HTML context
-		echo wp_strip_all_tags( $this->render_post_markdown( $post ) );
+		// Output markdown - render_post_markdown strips HTML, esc_html for defense in depth against filter injection.
+		echo esc_html( wp_strip_all_tags( $this->render_post_markdown( $post ) ) );
 		exit;
 	}
 
