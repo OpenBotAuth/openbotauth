@@ -210,11 +210,11 @@ class Router {
 		// llms.txt should be discoverable by crawlers, so don't set noindex.
 		$this->send_headers( 'text/plain; charset=UTF-8', false );
 
-		$site_url = home_url();
+		$site_url = esc_url_raw( home_url() );
 		// Decode HTML entities for plain text output.
-		$site_name  = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
-		$feed_url   = home_url( '/.well-known/openbotauth-feed.json' );
-		$md_pattern = home_url( '/.well-known/openbotauth/posts/{ID}.md' );
+		$site_name  = sanitize_text_field( wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) );
+		$feed_url   = esc_url_raw( home_url( '/.well-known/openbotauth-feed.json' ) );
+		$md_pattern = esc_url_raw( home_url( '/.well-known/openbotauth/posts/{ID}.md' ) );
 
 		$output  = "# {$site_name}\n";
 		$output .= "# Site: {$site_url}\n";
@@ -239,7 +239,7 @@ class Router {
 			$output .= "# Latest {$limit} posts (markdown):\n";
 
 			foreach ( $posts as $post ) {
-				$md_url  = home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' );
+				$md_url  = esc_url_raw( home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' ) );
 				$output .= "{$md_url}\n";
 			}
 		}
@@ -263,13 +263,13 @@ class Router {
 		$items = array();
 		foreach ( $posts as $post ) {
 			$item = array(
-				'id'            => $post->ID,
-				'type'          => $post->post_type,
-				'title'         => $this->metadata->getTitle( $post ),
-				'canonical_url' => $this->metadata->getCanonicalUrl( $post ),
-				'description'   => $this->metadata->getDescription( $post ),
-				'last_modified' => $this->metadata->getLastModifiedIso( $post ),
-				'markdown_url'  => home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' ),
+				'id'            => absint( $post->ID ),
+				'type'          => sanitize_key( $post->post_type ),
+				'title'         => sanitize_text_field( $this->metadata->getTitle( $post ) ),
+				'canonical_url' => esc_url_raw( $this->metadata->getCanonicalUrl( $post ) ),
+				'description'   => sanitize_text_field( $this->metadata->getDescription( $post ) ),
+				'last_modified' => sanitize_text_field( $this->metadata->getLastModifiedIso( $post ) ),
+				'markdown_url'  => esc_url_raw( home_url( '/.well-known/openbotauth/posts/' . $post->ID . '.md' ) ),
 			);
 
 			/**
@@ -285,9 +285,9 @@ class Router {
 
 		$feed = array(
 			'generated_at' => gmdate( 'c' ),
-			'site'         => home_url(),
+			'site'         => esc_url_raw( home_url() ),
 			// Decode HTML entities for clean JSON output.
-			'site_name'    => wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
+			'site_name'    => sanitize_text_field( wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) ),
 			'total_items'  => count( $items ),
 			'items'        => $items,
 		);
