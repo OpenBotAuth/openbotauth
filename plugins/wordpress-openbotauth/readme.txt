@@ -1,5 +1,5 @@
 === OpenBotAuth – AI Crawler Access Control ===
-Contributors: openbotauth, hammadtq
+Contributors: hammadtq
 Tags: ai, crawler, bots, security, llms.txt
 Requires at least: 6.0
 Tested up to: 6.9
