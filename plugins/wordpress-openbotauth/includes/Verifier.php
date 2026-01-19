@@ -129,7 +129,8 @@ class Verifier {
 
 			$error_msg = 'Verifier service returned status ' . $status_code;
 			if ( $error_details && isset( $error_details['error'] ) ) {
-				$error_msg .= ': ' . $error_details['error'];
+				// Sanitize error message from external service for defense in depth.
+				$error_msg .= ': ' . sanitize_text_field( $error_details['error'] );
 			}
 
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
@@ -193,12 +194,18 @@ class Verifier {
 		// Get all headers.
 		if ( function_exists( 'getallheaders' ) ) {
 			$all_headers = getallheaders();
+			// Sanitize all header values.
+			if ( is_array( $all_headers ) ) {
+				$all_headers = array_map( array( $this, 'sanitize_header_value' ), $all_headers );
+			} else {
+				$all_headers = array();
+			}
 		} else {
 			$all_headers = array();
 			foreach ( $_SERVER as $name => $value ) {
 				if ( 'HTTP_' === substr( $name, 0, 5 ) ) {
 					$header_name                 = str_replace( ' ', '-', ucwords( strtolower( str_replace( '_', ' ', substr( $name, 5 ) ) ) ) );
-					$all_headers[ $header_name ] = $value;
+					$all_headers[ $header_name ] = $this->sanitize_header_value( $value );
 				}
 			}
 		}
@@ -233,12 +240,14 @@ class Verifier {
 
 				// Check if it's a sensitive header.
 				if ( in_array( $lower_covered, $sensitive_headers, true ) ) {
+					// Sanitize header name for logging and error messages.
+					$safe_header = sanitize_text_field( $covered_header );
 					if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 						// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging when WP_DEBUG enabled.
-						error_log( '[OpenBotAuth] Cannot verify: Signature-Input covers sensitive header: ' . $covered_header );
+						error_log( '[OpenBotAuth] Cannot verify: Signature-Input covers sensitive header: ' . $safe_header );
 					}
 					return array(
-						'error' => 'Cannot verify: Signature-Input covers sensitive header \'' . $covered_header . '\' which is not forwarded.',
+						'error' => 'Cannot verify: Signature-Input covers sensitive header \'' . esc_html( $safe_header ) . '\' which is not forwarded.',
 					);
 				}
 
@@ -303,5 +312,29 @@ class Verifier {
 		// Preserve request scheme to avoid proxy setup issues.
 		$scheme = is_ssl() ? 'https' : 'http';
 		return home_url( $request_uri, $scheme );
+	}
+
+	/**
+	 * Sanitize an HTTP header value.
+	 *
+	 * Removes control characters and enforces length limits to prevent
+	 * header injection and DoS attacks.
+	 *
+	 * @param mixed $value The header value to sanitize.
+	 * @return string The sanitized header value.
+	 */
+	private function sanitize_header_value( $value ) {
+		// Ensure string type.
+		if ( ! is_string( $value ) ) {
+			return '';
+		}
+		// Limit length to prevent DoS (RFC 7230 suggests 8KB max header line).
+		if ( strlen( $value ) > 8192 ) {
+			return '';
+		}
+		// Remove control characters (NUL, CR, LF, etc.) to prevent header injection.
+		// Keep printable ASCII and extended UTF-8.
+		$value = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $value );
+		return $value;
 	}
 }
