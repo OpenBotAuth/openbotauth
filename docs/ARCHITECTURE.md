@@ -395,10 +395,9 @@ docker-compose up
 - Set trusted directories
 
 **WordPress**:
-- Install plugin via wp-admin
-- Configure policy via settings page
-- Ensure NGINX auth_request is configured
-- Set verifier URL in NGINX config
+- Install plugin from [WordPress.org](https://wordpress.org/plugins/openbotauth/) or search "OpenBotAuth" in Plugins → Add New
+- Configure verifier URL and policy via Settings → OpenBotAuth
+- Optional: Configure NGINX auth_request for edge verification
 
 ## Monitoring
 
