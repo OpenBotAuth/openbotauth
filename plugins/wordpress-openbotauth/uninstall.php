@@ -24,14 +24,36 @@ delete_option( 'openbotauth_llms_enabled' );
 delete_option( 'openbotauth_prefer_yoast_llms' );
 delete_option( 'openbotauth_markdown_enabled' );
 
-// Delete analytics options for the last 30 days.
-for ( $openbotauth_i = 0; 30 > $openbotauth_i; $openbotauth_i++ ) {
-	$openbotauth_date = gmdate( 'Y-m-d', strtotime( "-{$openbotauth_i} days" ) );
-	delete_option( "openbotauth_stats_{$openbotauth_date}" );
-	delete_option( "openbotauth_stats_{$openbotauth_date}_requests" );
-	delete_option( "openbotauth_stats_{$openbotauth_date}_signed" );
-	delete_option( "openbotauth_stats_{$openbotauth_date}_verified" );
+// Delete all analytics options using SQL LIKE query.
+// This ensures all stats are cleaned up regardless of date or format.
+global $wpdb;
+
+$openbotauth_prefixes = array(
+	'openbotauth_stats_',      // Daily decision stats.
+	'openbotauth_meta_stats_', // Meta stats (signed/verified totals).
+	'openbotauth_bot_stats_',  // Per-bot request counts.
+	'openbotauth_ref_stats_',  // Referrer traffic stats.
+);
+
+foreach ( $openbotauth_prefixes as $openbotauth_prefix ) {
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall cleanup requires direct query.
+	$openbotauth_options = $wpdb->get_col(
+		$wpdb->prepare(
+			"SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
+			$openbotauth_prefix . '%'
+		)
+	);
+
+	foreach ( $openbotauth_options as $openbotauth_option ) {
+		// Validate option name matches expected pattern (prefix + alphanumeric/underscore/hyphen).
+		if ( preg_match( '/^openbotauth_[a-z0-9_-]+$/i', $openbotauth_option ) ) {
+			delete_option( $openbotauth_option );
+		}
+	}
 }
+
+// Delete cleanup transient.
+delete_transient( 'openbotauth_cleanup_ran' );
 
 // Delete post meta using delete_metadata.
 delete_metadata( 'post', 0, '_openbotauth_policy', '', true );
