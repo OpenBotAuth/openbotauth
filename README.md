@@ -37,10 +37,9 @@ OpenBotAuth is the identity layer for AI agents. Today this repo lets you verify
 
 ### WordPress
 
-```bash
-git clone https://github.com/OpenBotAuth/openbotauth.git
-cp -r openbotauth/plugins/wordpress-openbotauth /path/to/wp-content/plugins/
-```
+**[Install from WordPress.org →](https://wordpress.org/plugins/openbotauth/)**
+
+Or search "OpenBotAuth" in your WordPress admin under Plugins → Add New.
 
 ### Docker
 
@@ -220,7 +219,7 @@ oba-bot fetch https://example.com/protected -v
 
 ### 🌐 WordPress Plugin
 
-**[📖 Full Documentation →](plugins/wordpress-openbotauth/README.md)**
+**[Install from WordPress.org →](https://wordpress.org/plugins/openbotauth/)** | **[📖 Full Documentation →](plugins/wordpress-openbotauth/README.md)**
 
 Policy engine and content gating for WordPress.
 
@@ -233,18 +232,17 @@ Policy engine and content gating for WordPress.
 - ✅ Whitelist/blacklist support
 - ✅ Per-post policy overrides
 - ✅ Admin UI for policy management
-- ✅ Bot analytics ready
+- ✅ Bot analytics dashboard
+- ✅ AI-ready endpoints (llms.txt, JSON feed, markdown)
 
 **Installation:**
-```bash
-cp -r plugins/wordpress-openbotauth /path/to/wordpress/wp-content/plugins/
-# Activate in WordPress Admin → Plugins
-# Configure in Settings → OpenBotAuth
-```
+1. Search "OpenBotAuth" in WordPress Admin → Plugins → Add New
+2. Click Install, then Activate
+3. Go to Settings → OpenBotAuth to configure
 
 **Configuration:**
-- **Verifier URL (Production):** `https://verifier.openbotauth.org/verify`
-- **Verifier URL (Local):** `http://localhost:8081/verify`
+- Check "Use hosted OpenBotAuth verifier" for quick setup, OR
+- Enter your self-hosted verifier URL (e.g., `http://localhost:8081/verify`)
 
 **Tech:** PHP, WordPress API
 

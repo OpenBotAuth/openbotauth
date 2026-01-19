@@ -127,12 +127,19 @@ This plugin is part of the [OpenBotAuth project](https://github.com/OpenBotAuth/
 ### Prerequisites
 
 1. **WordPress 6.0+** with PHP 7.4+
-2. **OpenBotAuth Verifier Service** running (see [main README](../../README.md))
-3. **OpenBotAuth Registry** for bot registration (see [main README](../../README.md))
+2. **OpenBotAuth Verifier Service** (use hosted verifier or self-host)
 
 ### Install Plugin
 
-**Option 1: Manual Installation**
+**Option 1: WordPress.org (Recommended)**
+
+1. Go to **WordPress Admin → Plugins → Add New**
+2. Search for **"OpenBotAuth"**
+3. Click **Install Now**, then **Activate**
+
+Or install directly: **[wordpress.org/plugins/openbotauth](https://wordpress.org/plugins/openbotauth/)**
+
+**Option 2: Manual Installation (Development)**
 
 ```bash
 # Copy plugin to WordPress plugins directory
@@ -140,17 +147,6 @@ cp -r wordpress-openbotauth /path/to/wordpress/wp-content/plugins/
 
 # Or create a symlink for development
 ln -s /path/to/openbotauth/plugins/wordpress-openbotauth /path/to/wordpress/wp-content/plugins/
-```
-
-**Option 2: ZIP Upload**
-
-```bash
-# Create ZIP
-cd plugins
-zip -r wordpress-openbotauth.zip wordpress-openbotauth
-
-# Upload via WordPress Admin:
-# Plugins → Add New → Upload Plugin
 ```
 
 ### Activate Plugin
@@ -643,6 +639,7 @@ GPLv2 or later - see [LICENSE.txt](LICENSE.txt) for details
 
 ## 🔗 Links
 
+- **WordPress.org**: [wordpress.org/plugins/openbotauth](https://wordpress.org/plugins/openbotauth/)
 - **Main Project**: [github.com/OpenBotAuth/openbotauth](https://github.com/OpenBotAuth/openbotauth)
 - **Documentation**: [Main README](../../README.md)
 - **Registry Service**: [packages/registry-service](../../packages/registry-service)
