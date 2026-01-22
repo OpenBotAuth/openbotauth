@@ -144,6 +144,18 @@ export class SignatureVerifier {
         headers: request.headers,
       });
 
+      // Debug: Log signature verification details for ChatGPT
+      if (signatureAgent?.includes('chatgpt')) {
+        console.log('=== CHATGPT SIGNATURE DEBUG ===');
+        console.log('Signature-Agent:', signatureAgent);
+        console.log('JWKS URL:', jwksUrl);
+        console.log('Key ID:', components.keyId);
+        console.log('JWK kid:', jwk.kid);
+        console.log('Signature Base:\n' + signatureBase);
+        console.log('Signature (first 50 chars):', components.signature?.substring(0, 50));
+        console.log('=== END DEBUG ===');
+      }
+
       // 10. Verify signature
       const isValid = await this.verifyEd25519Signature(
         signatureBase,
@@ -152,6 +164,10 @@ export class SignatureVerifier {
       );
 
       if (!isValid) {
+        // Debug: Log failure for ChatGPT
+        if (signatureAgent?.includes('chatgpt')) {
+          console.log('CHATGPT VERIFICATION FAILED - signature mismatch');
+        }
         return {
           verified: false,
           error: 'Signature verification failed',

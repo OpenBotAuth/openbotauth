@@ -70,6 +70,13 @@ class Plugin {
 	private $router;
 
 	/**
+	 * REST API filter instance.
+	 *
+	 * @var RestApiFilter
+	 */
+	private $rest_api_filter;
+
+	/**
 	 * Cache verification result to avoid duplicate verifications.
 	 *
 	 * @var array|null
@@ -113,9 +120,10 @@ class Plugin {
 	 */
 	public function init() {
 		// Initialize components.
-		$this->verifier       = new Verifier();
-		$this->policy_engine  = new PolicyEngine();
-		$this->content_filter = new ContentFilter( $this->verifier, $this->policy_engine, $this );
+		$this->verifier        = new Verifier();
+		$this->policy_engine   = new PolicyEngine();
+		$this->content_filter  = new ContentFilter( $this->verifier, $this->policy_engine, $this );
+		$this->rest_api_filter = new RestApiFilter( $this->verifier, $this->policy_engine, $this );
 
 		// AI Artifacts: Initialize metadata provider and router.
 		$this->metadata_provider = Content\MetadataProviderFactory::make();
@@ -144,6 +152,9 @@ class Plugin {
 
 		// REST API.
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
+
+		// REST API protection (signature verification + policy for /wp-json/).
+		$this->rest_api_filter->register_hooks();
 	}
 
 	/**

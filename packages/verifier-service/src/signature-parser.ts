@@ -307,8 +307,9 @@ export async function resolveJwksUrl(
   const url = new URL(agentUrl);
   const origin = url.origin;
 
-  // Default discovery paths
+  // Default discovery paths (standard path first per draft-meunier-http-message-signatures-directory)
   const defaultPaths = [
+    "/.well-known/http-message-signatures-directory",
     "/.well-known/jwks.json",
     "/.well-known/openbotauth/jwks.json",
     "/jwks.json",
