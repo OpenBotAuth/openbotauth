@@ -16,12 +16,17 @@ type WindowType = 'today' | '7d';
 function formatAgentName(agentId: string | null | undefined): string {
   if (!agentId) return 'Unknown';
 
-  // Strip surrounding quotes if present
+  // Strip all surrounding quotes (handles multiple layers, escaped quotes, etc.)
   let cleaned = agentId.trim();
-  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
-      (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
-    cleaned = cleaned.slice(1, -1);
+  // Remove leading/trailing quotes repeatedly
+  while (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith("'") && cleaned.endsWith("'"))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
   }
+  // Also strip any remaining leading/trailing quotes that might be mismatched
+  cleaned = cleaned.replace(/^["']+|["']+$/g, '');
 
   // Known agent friendly names
   const knownAgents: Record<string, string> = {
@@ -188,11 +193,11 @@ const Radar = () => {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-muted-foreground">{title}</p>
-            <p className={`text-3xl font-bold ${color}`}>
+            <p className={`text-2xl sm:text-3xl font-bold ${color}`}>
               {typeof value === 'number' ? value.toLocaleString() : value}
             </p>
           </div>
-          <Icon className={`w-8 h-8 ${color} opacity-60`} />
+          <Icon className={`w-6 h-6 sm:w-8 sm:h-8 ${color} opacity-60`} />
         </div>
       </CardContent>
     </Card>
@@ -207,7 +212,7 @@ const Radar = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <SEO
         title="Radar - Ecosystem Telemetry"
         description="Real-time insights into the OpenBotAuth ecosystem. View verified requests, top agents, and publisher adoption."
@@ -217,11 +222,11 @@ const Radar = () => {
       />
       <Navigation />
 
-      <main className="container mx-auto px-4 py-12 max-w-6xl">
+      <main className="w-full max-w-6xl mx-auto px-4 py-8 sm:py-12">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-foreground">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground">
               OpenBotAuth Radar
             </h1>
             <p className="text-muted-foreground mt-2">
@@ -263,7 +268,7 @@ const Radar = () => {
         ) : (
           <>
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               <StatCard
                 title="Signed Requests"
                 value={overview?.signed || 0}
@@ -304,7 +309,7 @@ const Radar = () => {
             </Card>
 
             {/* Tables */}
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Top Agents */}
               <Card className="border shadow-sm">
                 <CardHeader>

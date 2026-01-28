@@ -430,6 +430,7 @@ describe("buildSignatureBase", () => {
       created: 1234567890,
       nonce: "abc123",
       headers: ["@method", "@path", "@authority"],
+      rawSignatureParams: '("@method" "@path" "@authority");created=1234567890;nonce="abc123";keyid="test-key";alg="ed25519"',
     };
 
     const request = {
@@ -454,6 +455,7 @@ describe("buildSignatureBase", () => {
       created: 1234567890,
       nonce: "abc123",
       headers: ["@method", "content-type", "accept"],
+      rawSignatureParams: '("@method" "content-type" "accept");created=1234567890;nonce="abc123";keyid="test-key";alg="ed25519"',
     };
 
     const request = {
@@ -479,6 +481,7 @@ describe("buildSignatureBase", () => {
       created: 1234567890,
       nonce: "abc123",
       headers: ["@method", "accept", "user-agent"],
+      rawSignatureParams: '("@method" "accept" "user-agent");created=1234567890;nonce="abc123";keyid="test-key";alg="ed25519"',
     };
 
     const request = {
@@ -501,6 +504,7 @@ describe("buildSignatureBase", () => {
       signature: "",
       algorithm: "ed25519",
       headers: ["@method", "custom-header"],
+      rawSignatureParams: '("@method" "custom-header");keyid="test-key";alg="ed25519"',
     };
 
     const request = {
@@ -530,6 +534,7 @@ describe("parseSignatureInput", () => {
       headers: ["@method", "@path", "content-type"],
       signature: "",
       expires: undefined,
+      rawSignatureParams: '("@method" "@path" "content-type");created=1618884473;keyid="test-key-ed25519";nonce="abc123"',
     });
   });
 
