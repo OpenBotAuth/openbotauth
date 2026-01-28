@@ -98,7 +98,17 @@ export function parseSignatureInput(
   signatureInput: string,
 ): SignatureComponents | null {
   try {
-    // Extract the signature label and parameters
+    // Extract the signature label and the raw params (everything after "label=")
+    const labelMatch = signatureInput.match(/^(\w+)=(.+)$/);
+    if (!labelMatch) {
+      return null;
+    }
+
+    // Store the raw signature params (everything after "sig1=")
+    // This is used verbatim in the signature base per RFC 9421
+    const rawSignatureParams = labelMatch[2];
+
+    // Now parse for validation and component extraction
     const match = signatureInput.match(/^(\w+)=\(([^)]+)\);(.+)$/);
     if (!match) {
       return null;
@@ -135,6 +145,7 @@ export function parseSignatureInput(
       nonce: params.nonce as string,
       headers,
       signature: "", // Will be filled from Signature header
+      rawSignatureParams,
     };
   } catch (error) {
     console.error("Error parsing Signature-Input:", error);
@@ -204,7 +215,7 @@ export function buildSignatureBase(
           console.warn(`Unknown derived component: ${component}`);
       }
     } else {
-      // Regular headers
+      // Regular headers - use raw value as-is per RFC 9421
       const headerValue = request.headers[component.toLowerCase()];
       if (headerValue !== undefined) {
         lines.push(`"${component}": ${headerValue}`);
@@ -215,27 +226,9 @@ export function buildSignatureBase(
     }
   }
 
-  // Add signature parameters
-  const params: string[] = [];
-  params.push(`(${components.headers.map((h) => `"${h}"`).join(" ")})`);
-
-  if (components.created) {
-    params.push(`created=${components.created}`);
-  }
-  if (components.expires) {
-    params.push(`expires=${components.expires}`);
-  }
-  if (components.nonce) {
-    params.push(`nonce="${components.nonce}"`);
-  }
-  if (components.keyId) {
-    params.push(`keyid="${components.keyId}"`);
-  }
-  if (components.algorithm) {
-    params.push(`alg="${components.algorithm}"`);
-  }
-
-  lines.push(`"@signature-params": ${params.join(";")}`);
+  // Add signature parameters - use the EXACT original value from Signature-Input
+  // per RFC 9421 Section 2.3 (must be byte-for-byte identical)
+  lines.push(`"@signature-params": ${components.rawSignatureParams}`);
 
   return lines.join("\n");
 }

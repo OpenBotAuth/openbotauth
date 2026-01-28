@@ -29,6 +29,8 @@ export interface SignatureComponents {
   expires?: number;
   nonce?: string;
   headers: string[];
+  /** Raw @signature-params value from Signature-Input (after stripping label) */
+  rawSignatureParams: string;
 }
 
 export interface JWKSCache {

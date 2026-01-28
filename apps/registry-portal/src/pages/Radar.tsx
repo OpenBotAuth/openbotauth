@@ -16,12 +16,17 @@ type WindowType = 'today' | '7d';
 function formatAgentName(agentId: string | null | undefined): string {
   if (!agentId) return 'Unknown';
 
-  // Strip surrounding quotes if present
+  // Strip all surrounding quotes (handles multiple layers, escaped quotes, etc.)
   let cleaned = agentId.trim();
-  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
-      (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
-    cleaned = cleaned.slice(1, -1);
+  // Remove leading/trailing quotes repeatedly
+  while (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith("'") && cleaned.endsWith("'"))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
   }
+  // Also strip any remaining leading/trailing quotes that might be mismatched
+  cleaned = cleaned.replace(/^["']+|["']+$/g, '');
 
   // Known agent friendly names
   const knownAgents: Record<string, string> = {
