@@ -9,6 +9,52 @@ import { Activity, CheckCircle, XCircle, Globe, Bot } from "lucide-react";
 
 type WindowType = 'today' | '7d';
 
+/**
+ * Parse agent identifier and return a friendly display name.
+ * Handles quoted URLs (e.g., "https://chatgpt.com") and extracts readable names.
+ */
+function formatAgentName(agentId: string | null | undefined): string {
+  if (!agentId) return 'Unknown';
+
+  // Strip surrounding quotes if present
+  let cleaned = agentId.trim();
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+      (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1);
+  }
+
+  // Known agent friendly names
+  const knownAgents: Record<string, string> = {
+    'chatgpt.com': 'ChatGPT',
+    'openai.com': 'OpenAI',
+    'anthropic.com': 'Claude',
+    'perplexity.ai': 'Perplexity',
+  };
+
+  // Try to extract hostname from URL
+  try {
+    const url = new URL(cleaned);
+    const hostname = url.hostname.replace(/^www\./, '');
+
+    // Check for known agent
+    if (knownAgents[hostname]) {
+      return knownAgents[hostname];
+    }
+
+    // For JWKS URLs like api.openbotauth.org/jwks/username.json, extract username
+    const jwksMatch = url.pathname.match(/\/jwks\/([^.]+)\.json$/);
+    if (jwksMatch) {
+      return jwksMatch[1];
+    }
+
+    // Return hostname for other URLs
+    return hostname;
+  } catch {
+    // Not a URL, return as-is (but stripped of quotes)
+    return cleaned || 'Unknown';
+  }
+}
+
 const Radar = () => {
   const [window, setWindow] = useState<WindowType>('7d');
   const [overview, setOverview] = useState<RadarOverview | null>(null);
@@ -279,11 +325,11 @@ const Radar = () => {
                         >
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">
-                              {agent.client_name || agent.agent_id || 'Unknown'}
+                              {formatAgentName(agent.client_name || agent.agent_id)}
                             </p>
-                            {agent.client_name && agent.agent_id && (
+                            {agent.agent_id && (
                               <p className="text-xs text-muted-foreground truncate">
-                                {agent.agent_id}
+                                {formatAgentName(agent.agent_id)}
                               </p>
                             )}
                           </div>
