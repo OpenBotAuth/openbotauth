@@ -9,7 +9,7 @@
 import crypto from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import type { Database } from '@openbotauth/github-connector';
-import { hashToken } from '../middleware/token-auth.js';
+import { hashToken } from '../utils/crypto.js';
 import { createRateLimiter } from '../middleware/rate-limit.js';
 
 export const tokensRouter: Router = Router();
@@ -81,6 +81,8 @@ const deleteLimiter = createRateLimiter({
  * Create a new personal access token. Returns the raw token exactly once.
  */
 tokensRouter.post('/', requireSessionAuth, createLimiter, async (req: Request, res: Response): Promise<void> => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
   try {
     const session = req.session!;
     const db: Database = req.app.locals.db;
@@ -151,8 +153,6 @@ tokensRouter.post('/', requireSessionAuth, createLimiter, async (req: Request, r
       [session.user.id, trimmedName, hash, prefix, scopeArray, expiresAt]
     );
 
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Pragma', 'no-cache');
     res.status(201).json({
       ...result.rows[0],
       token: rawToken, // returned exactly once
@@ -169,6 +169,8 @@ tokensRouter.post('/', requireSessionAuth, createLimiter, async (req: Request, r
  * List all tokens for the current user. Never returns raw token or hash.
  */
 tokensRouter.get('/', requireSessionAuth, listLimiter, async (req: Request, res: Response): Promise<void> => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
   try {
     const session = req.session!;
     const db: Database = req.app.locals.db;
@@ -181,8 +183,6 @@ tokensRouter.get('/', requireSessionAuth, listLimiter, async (req: Request, res:
       [session.user.id]
     );
 
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Pragma', 'no-cache');
     res.json(result.rows);
   } catch (error) {
     console.error('Error listing tokens:', error);

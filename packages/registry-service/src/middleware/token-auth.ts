@@ -9,9 +9,9 @@
  * owns the response — it will never fall through to session auth on failure.
  */
 
-import crypto from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import type { Database } from '@openbotauth/github-connector';
+import { hashToken } from '../utils/crypto.js';
 
 const TOKEN_RE = /^oba_[0-9a-f]{64}$/i;
 const BEARER_RE = /^Bearer\s+(.+)$/i;
@@ -62,12 +62,8 @@ function getRetryAfter(req: Request): number {
   return Math.ceil((entry.resetAt - Date.now()) / 1000);
 }
 
-/**
- * SHA-256 hash a raw token string. Returns lowercase hex.
- */
-export function hashToken(raw: string): string {
-  return crypto.createHash('sha256').update(raw).digest('hex');
-}
+// Re-export for convenience (canonical source: utils/crypto.ts)
+export { hashToken } from '../utils/crypto.js';
 
 export async function tokenAuthMiddleware(
   req: Request,
@@ -133,7 +129,7 @@ export async function tokenAuthMiddleware(
     const token = result.rows[0];
 
     // Check expiry
-    if (token.expires_at && new Date(token.expires_at) < new Date()) {
+    if (token.expires_at && new Date(token.expires_at) <= new Date()) {
       fail(401, 'Token expired');
       return;
     }
