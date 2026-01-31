@@ -174,7 +174,6 @@ export async function tokenAuthMiddleware(
     next();
   } catch (error) {
     console.error('Token auth error:', error);
-    recordFailure(req);
-    res.status(500).json({ error: 'Internal server error' });
+    fail(500, 'Internal server error');
   }
 }

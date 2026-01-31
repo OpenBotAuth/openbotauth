@@ -196,6 +196,7 @@ tokensRouter.get('/', requireSessionAuth, listLimiter, async (req: Request, res:
  * Revoke (hard delete) a token.
  */
 tokensRouter.delete('/:id', requireSessionAuth, deleteLimiter, async (req: Request, res: Response): Promise<void> => {
+  res.setHeader('Cache-Control', 'no-store');
   try {
     const session = req.session!;
     const tokenId = req.params.id;
