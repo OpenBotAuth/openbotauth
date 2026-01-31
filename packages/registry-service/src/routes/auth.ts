@@ -13,8 +13,12 @@ import {
   deleteSessionCookie,
   parseSessionCookie,
 } from '@openbotauth/github-connector';
+import { tokensRouter } from './tokens.js';
 
 export const authRouter: Router = Router();
+
+// Mount token management routes
+authRouter.use('/tokens', tokensRouter);
 
 // In-memory state storage for demo (use Redis in production)
 const oauthStates = new Map<string, { created: number }>();

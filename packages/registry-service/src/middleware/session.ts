@@ -23,6 +23,9 @@ declare global {
           client_name: string | null;
         };
       };
+      authMethod?: 'session' | 'token';
+      authTokenId?: string;
+      authScopes?: string[];
     }
   }
 }
@@ -33,8 +36,14 @@ export async function sessionMiddleware(
   next: NextFunction
 ): Promise<void> {
   try {
+    // If token-auth middleware already authenticated, skip cookie parsing
+    if (req.session) {
+      next();
+      return;
+    }
+
     const sessionToken = parseSessionCookie(req.headers.cookie || null);
-    
+
     if (!sessionToken) {
       next();
       return;
@@ -57,6 +66,7 @@ export async function sessionMiddleware(
           client_name: result.profile.client_name,
         },
       };
+      req.authMethod = 'session';
     }
 
     next();
