@@ -3,11 +3,15 @@ import { hashToken, tokenAuthMiddleware } from '../token-auth.js';
 
 // --- Helpers ---
 
+let ipCounter = 0;
+
 function mockReq(overrides: Record<string, any> = {}) {
+  // Unique IP per test to avoid shared rate-limit state
+  const ip = overrides.ip ?? `10.0.0.${++ipCounter}`;
   return {
     headers: {},
-    ip: '127.0.0.1',
-    socket: { remoteAddress: '127.0.0.1' },
+    ip,
+    socket: { remoteAddress: ip },
     app: { locals: { db: mockDb() } },
     ...overrides,
   } as any;
@@ -97,6 +101,37 @@ describe('tokenAuthMiddleware', () => {
     await tokenAuthMiddleware(req, res, next);
 
     expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles lowercase "bearer" (case-insensitive)', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const req = mockReq({
+      headers: { authorization: `bearer ${VALID_TOKEN}` },
+      app: { locals: { db: mockDb({ query }) } },
+    });
+    const res = mockRes();
+    const next = vi.fn();
+
+    await tokenAuthMiddleware(req, res, next);
+
+    // Should reach token validation, not pass through
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('handles extra whitespace after Bearer', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const req = mockReq({
+      headers: { authorization: `Bearer   ${VALID_TOKEN}` },
+      app: { locals: { db: mockDb({ query }) } },
+    });
+    const res = mockRes();
+    const next = vi.fn();
+
+    await tokenAuthMiddleware(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(401);
   });
 
   it('rejects malformed oba_ token with 401', async () => {

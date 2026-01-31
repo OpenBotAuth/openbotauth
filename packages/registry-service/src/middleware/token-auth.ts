@@ -12,16 +12,55 @@
 import crypto from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import type { Database } from '@openbotauth/github-connector';
-import { createRateLimiter } from './rate-limit.js';
 
 const TOKEN_RE = /^oba_[0-9a-f]{64}$/i;
+const BEARER_RE = /^Bearer\s+(.+)$/i;
 
-/** Rate-limit failed auth attempts: 10 per minute per IP */
-const authFailLimiter = createRateLimiter({
-  max: 10,
-  windowMs: 60_000,
-  message: 'Too many authentication failures',
-});
+// --- Failure-only rate limiter (10 failures/min/IP) ---
+
+const AUTH_FAIL_MAX = 10;
+const AUTH_FAIL_WINDOW_MS = 60_000;
+
+interface FailEntry {
+  count: number;
+  resetAt: number;
+}
+
+const failStore = new Map<string, FailEntry>();
+
+const failCleanup = setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of failStore.entries()) {
+    if (now > entry.resetAt) failStore.delete(key);
+  }
+}, 60_000);
+failCleanup.unref();
+
+function getClientIp(req: Request): string {
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
+
+/**
+ * Record an auth failure and return true if the IP is over the limit.
+ */
+function recordFailure(req: Request): boolean {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  let entry = failStore.get(ip);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + AUTH_FAIL_WINDOW_MS };
+    failStore.set(ip, entry);
+  }
+  entry.count++;
+  return entry.count > AUTH_FAIL_MAX;
+}
+
+function getRetryAfter(req: Request): number {
+  const ip = getClientIp(req);
+  const entry = failStore.get(ip);
+  if (!entry) return 0;
+  return Math.ceil((entry.resetAt - Date.now()) / 1000);
+}
 
 /**
  * SHA-256 hash a raw token string. Returns lowercase hex.
@@ -43,13 +82,14 @@ export async function tokenAuthMiddleware(
     return;
   }
 
-  // Authorization header present but not a Bearer token — pass through
-  if (!authHeader.startsWith('Bearer ')) {
+  // Parse Bearer token (case-insensitive, tolerant of extra whitespace)
+  const bearerMatch = BEARER_RE.exec(authHeader);
+  if (!bearerMatch) {
     next();
     return;
   }
 
-  const rawToken = authHeader.slice(7); // strip "Bearer "
+  const rawToken = bearerMatch[1].trim();
 
   // Non-oba_ bearer token — pass through (could be another scheme)
   if (!rawToken.startsWith('oba_')) {
@@ -59,18 +99,20 @@ export async function tokenAuthMiddleware(
 
   // --- From here on, we OWN the response. No more next() on failure. ---
 
-  // Apply rate limiter for failed attempts
-  authFailLimiter(req, res, () => {
-    /* not rate limited */
-  });
-  if (res.headersSent) {
-    // Rate limiter already sent 429
-    return;
-  }
+  // Helper: record failure and return 429 if over limit, otherwise the given status
+  const fail = (status: number, error: string): void => {
+    if (recordFailure(req)) {
+      const retryAfter = getRetryAfter(req);
+      res.setHeader('Retry-After', retryAfter.toString());
+      res.status(429).json({ error: 'Too many authentication failures', retry_after: retryAfter });
+    } else {
+      res.status(status).json({ error });
+    }
+  };
 
   // Validate format
   if (!TOKEN_RE.test(rawToken)) {
-    res.status(401).json({ error: 'Malformed token' });
+    fail(401, 'Malformed token');
     return;
   }
 
@@ -84,7 +126,7 @@ export async function tokenAuthMiddleware(
     );
 
     if (result.rows.length === 0) {
-      res.status(401).json({ error: 'Invalid token' });
+      fail(401, 'Invalid token');
       return;
     }
 
@@ -92,20 +134,20 @@ export async function tokenAuthMiddleware(
 
     // Check expiry
     if (token.expires_at && new Date(token.expires_at) < new Date()) {
-      res.status(401).json({ error: 'Token expired' });
+      fail(401, 'Token expired');
       return;
     }
 
     // Load user + profile
     const user = await db.findUserById(token.user_id);
     if (!user) {
-      res.status(401).json({ error: 'Invalid token' });
+      fail(401, 'Invalid token');
       return;
     }
 
     const profile = await db.findProfileByUserId(user.id);
     if (!profile) {
-      res.status(401).json({ error: 'Invalid token' });
+      fail(401, 'Invalid token');
       return;
     }
 
@@ -136,6 +178,7 @@ export async function tokenAuthMiddleware(
     next();
   } catch (error) {
     console.error('Token auth error:', error);
+    recordFailure(req);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

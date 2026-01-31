@@ -109,6 +109,10 @@ tokensRouter.post('/', requireSessionAuth, createLimiter, async (req: Request, r
       return;
     }
     for (const s of scopeArray) {
+      if (typeof s !== 'string') {
+        res.status(400).json({ error: 'Each scope must be a string' });
+        return;
+      }
       if (!(VALID_SCOPES as readonly string[]).includes(s)) {
         res.status(400).json({ error: `Invalid scope: ${s}` });
         return;
@@ -147,6 +151,8 @@ tokensRouter.post('/', requireSessionAuth, createLimiter, async (req: Request, r
       [session.user.id, trimmedName, hash, prefix, scopeArray, expiresAt]
     );
 
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
     res.status(201).json({
       ...result.rows[0],
       token: rawToken, // returned exactly once
@@ -175,6 +181,8 @@ tokensRouter.get('/', requireSessionAuth, listLimiter, async (req: Request, res:
       [session.user.id]
     );
 
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
     res.json(result.rows);
   } catch (error) {
     console.error('Error listing tokens:', error);

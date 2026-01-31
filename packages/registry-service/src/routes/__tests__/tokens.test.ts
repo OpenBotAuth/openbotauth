@@ -166,6 +166,14 @@ describe('POST /auth/tokens', () => {
     expect(res.body.error).toMatch(/printable ASCII/);
   });
 
+  it('rejects non-string scope entries', async () => {
+    const req = mockReq({ body: { name: 'test', scopes: [123] } });
+    const res = mockRes();
+    await callRoute(tokensRouter, 'POST', '/', req, res);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/must be a string/);
+  });
+
   it('rejects invalid scope', async () => {
     const req = mockReq({ body: { name: 'test', scopes: ['admin:nuke'] } });
     const res = mockRes();
