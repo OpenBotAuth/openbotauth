@@ -105,11 +105,11 @@ tokensRouter.post('/', requireSessionAuth, createLimiter, async (req: Request, r
     }
 
     // Validate scopes
-    const scopeArray: string[] = scopes ?? [];
-    if (!Array.isArray(scopeArray)) {
+    if (scopes != null && !Array.isArray(scopes)) {
       res.status(400).json({ error: 'scopes must be an array' });
       return;
     }
+    const scopeArray: unknown[] = scopes ?? [];
     for (const s of scopeArray) {
       if (typeof s !== 'string') {
         res.status(400).json({ error: 'Each scope must be a string' });

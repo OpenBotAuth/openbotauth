@@ -1,9 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { hashToken, tokenAuthMiddleware } from '../token-auth.js';
 
 // --- Helpers ---
 
 let ipCounter = 0;
+
+beforeEach(() => {
+  ipCounter = 0;
+});
 
 function mockReq(overrides: Record<string, any> = {}) {
   // Unique IP per test to avoid shared rate-limit state
