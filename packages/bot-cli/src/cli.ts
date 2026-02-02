@@ -25,11 +25,11 @@ program
   .command('keygen')
   .description('Generate Ed25519 key pair and save configuration')
   .requiredOption('--jwks-url <url>', 'JWKS URL for this bot')
-  .requiredOption('--kid <id>', 'Key ID (kid) for this bot')
+  .option('--kid <id>', 'Key ID (kid) - auto-generated from public key if omitted')
   .action(async (options) => {
     await keygenCommand({
       jwksUrl: options.jwksUrl,
-      kid: options.kid,
+      kid: options.kid || undefined,
     });
   });
 

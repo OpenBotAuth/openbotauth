@@ -4,13 +4,13 @@
  * Generates Ed25519 key pair and saves configuration
  */
 
-import { generateKeyPair } from '@openbotauth/registry-signer';
+import { generateKeyPair, generateKid } from '@openbotauth/registry-signer';
 import { KeyStorage } from '../key-storage.js';
 import type { BotConfig } from '../types.js';
 
 export async function keygenCommand(options: {
   jwksUrl: string;
-  kid: string;
+  kid?: string;
 }): Promise<void> {
   console.log('🔑 Generating Ed25519 key pair...\n');
 
@@ -18,10 +18,13 @@ export async function keygenCommand(options: {
     // Generate key pair
     const keyPair = await generateKeyPair();
 
+    // Derive kid from public key if not explicitly provided
+    const kid = options.kid || generateKid(keyPair.publicKey);
+
     // Create configuration
     const config: BotConfig = {
       jwks_url: options.jwksUrl,
-      kid: options.kid,
+      kid,
       private_key: keyPair.privateKey,
       public_key: keyPair.publicKey,
     };

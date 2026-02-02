@@ -7,7 +7,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import type { Database } from '@openbotauth/github-connector';
-import { base64PublicKeyToJWK, createWebBotAuthJWKS } from '@openbotauth/registry-signer';
+import { base64PublicKeyToJWK, createWebBotAuthJWKS, generateKidFromJWK } from '@openbotauth/registry-signer';
 
 export const jwksRouter: Router = Router();
 
@@ -59,13 +59,15 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       return;
     }
 
-    // Convert keys to JWK format
+    // Convert keys to JWK format, deriving kid from key material (not DB UUID)
     const jwks = keys.map(keyData => {
-      return base64PublicKeyToJWK(
+      const jwk = base64PublicKeyToJWK(
         keyData.public_key,
         keyData.id,
         keyData.created_at
       );
+      jwk.kid = generateKidFromJWK(jwk);
+      return jwk;
     });
 
     // Build Web Bot Auth response
