@@ -18,6 +18,7 @@ import { activityRouter } from './routes/activity.js';
 import { profilesRouter } from './routes/profiles.js';
 import { keysRouter } from './routes/keys.js';
 import { telemetryRouter } from './routes/telemetry.js';
+import { tokenAuthMiddleware } from './middleware/token-auth.js';
 import { sessionMiddleware } from './middleware/session.js';
 
 const app = express();
@@ -71,7 +72,8 @@ const oauth = new GitHubOAuth({
 app.locals.db = db;
 app.locals.oauth = oauth;
 
-// Session middleware
+// Authentication middleware (token auth checked first, then session cookie)
+app.use(tokenAuthMiddleware);
 app.use(sessionMiddleware);
 
 // Mount A2A Card

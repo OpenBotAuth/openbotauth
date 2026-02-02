@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { createClient } from 'redis';
 import { Pool } from 'pg';
+import { requireScope } from '../middleware/scopes.js';
 
 const router: Router = Router();
 
@@ -21,7 +22,7 @@ redisClient.connect().catch((err: Error) => {
 });
 
 // Initialize PostgreSQL pool
-const dbPool = process.env.NEON_DATABASE_URL 
+const dbPool = process.env.NEON_DATABASE_URL
   ? new Pool({
       connectionString: process.env.NEON_DATABASE_URL,
       ssl: { rejectUnauthorized: false },
@@ -38,13 +39,13 @@ const dbPool = process.env.NEON_DATABASE_URL
 function getDateKeys(window: string): string[] {
   const dates: string[] = [];
   const days = window === 'today' ? 1 : 7;
-  
+
   for (let i = 0; i < days; i++) {
     const date = new Date();
     date.setDate(date.getDate() - i);
     dates.push(date.toISOString().split('T')[0]); // YYYY-MM-DD
   }
-  
+
   return dates;
 }
 
@@ -56,57 +57,59 @@ router.get('/overview', async (req: Request, res: Response) => {
   try {
     const window = (req.query.window as string) || '7d';
     const validWindows = ['today', '7d'];
-    
+
     if (!validWindows.includes(window)) {
       res.status(400).json({ error: 'Invalid window. Use "today" or "7d"' });
       return;
     }
-    
+
     const dateKeys = getDateKeys(window);
-    
+
     // Fetch counts from Redis
     const signedPromises = dateKeys.map(d => redisClient.get(`stats:global:signed:${d}`));
     const verifiedPromises = dateKeys.map(d => redisClient.get(`stats:global:verified:${d}`));
     const failedPromises = dateKeys.map(d => redisClient.get(`stats:global:failed:${d}`));
-    
+
     const [signedResults, verifiedResults, failedResults] = await Promise.all([
       Promise.all(signedPromises),
       Promise.all(verifiedPromises),
       Promise.all(failedPromises),
     ]);
-    
+
     const signed = signedResults.reduce((sum, val) => sum + parseInt(val || '0', 10), 0);
     const verified = verifiedResults.reduce((sum, val) => sum + parseInt(val || '0', 10), 0);
     const failed = failedResults.reduce((sum, val) => sum + parseInt(val || '0', 10), 0);
-    
+
     // Get unique counts from Postgres
     let uniqueOrigins = 0;
     let uniqueAgents = 0;
-    
+
     if (dbPool) {
       try {
-        const interval = window === 'today' ? '1 day' : '7 days';
-        
+        const days = window === 'today' ? 1 : 7;
+
         const [originsResult, agentsResult] = await Promise.all([
           dbPool.query(
-            `SELECT COUNT(DISTINCT target_origin) as count 
-             FROM signed_attempt_logs 
-             WHERE timestamp > NOW() - INTERVAL '${interval}'`
+            `SELECT COUNT(DISTINCT target_origin) as count
+             FROM signed_attempt_logs
+             WHERE timestamp > NOW() - $1 * INTERVAL '1 day'`,
+            [days]
           ),
           dbPool.query(
-            `SELECT COUNT(DISTINCT COALESCE(username, signature_agent)) as count 
-             FROM signed_attempt_logs 
-             WHERE timestamp > NOW() - INTERVAL '${interval}'`
+            `SELECT COUNT(DISTINCT COALESCE(username, signature_agent)) as count
+             FROM signed_attempt_logs
+             WHERE timestamp > NOW() - $1 * INTERVAL '1 day'`,
+            [days]
           ),
         ]);
-        
+
         uniqueOrigins = parseInt(originsResult.rows[0]?.count || '0', 10);
         uniqueAgents = parseInt(agentsResult.rows[0]?.count || '0', 10);
       } catch (err) {
         console.error('Error fetching unique counts:', err);
       }
     }
-    
+
     res.json({
       window,
       signed,
@@ -129,33 +132,33 @@ router.get('/timeseries', async (req: Request, res: Response) => {
   try {
     const metric = (req.query.metric as string) || 'verified';
     const window = (req.query.window as string) || '7d';
-    
+
     const validMetrics = ['signed', 'verified', 'failed'];
     if (!validMetrics.includes(metric)) {
       res.status(400).json({ error: 'Invalid metric. Use "signed", "verified", or "failed"' });
       return;
     }
-    
+
     const validWindows = ['today', '7d'];
     if (!validWindows.includes(window)) {
       res.status(400).json({ error: 'Invalid window. Use "today" or "7d"' });
       return;
     }
-    
+
     const dateKeys = getDateKeys(window);
-    
+
     // Fetch counts from Redis for each date
     const promises = dateKeys.map(d => redisClient.get(`stats:global:${metric}:${d}`));
     const results = await Promise.all(promises);
-    
+
     const points = dateKeys.map((date, i) => ({
       date,
       count: parseInt(results[i] || '0', 10),
     }));
-    
+
     // Sort by date ascending for chart display
     points.sort((a, b) => a.date.localeCompare(b.date));
-    
+
     res.json({
       metric,
       window,
@@ -175,34 +178,34 @@ router.get('/top/agents', async (req: Request, res: Response) => {
   try {
     const window = (req.query.window as string) || '7d';
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
-    
+
     const validWindows = ['today', '7d'];
     if (!validWindows.includes(window)) {
       res.status(400).json({ error: 'Invalid window. Use "today" or "7d"' });
       return;
     }
-    
+
     if (!dbPool) {
       res.status(500).json({ error: 'Database not configured' });
       return;
     }
-    
-    const interval = window === 'today' ? '1 day' : '7 days';
-    
+
+    const days = window === 'today' ? 1 : 7;
+
     const result = await dbPool.query(
-      `SELECT 
+      `SELECT
         COALESCE(username, signature_agent) as agent_id,
         MAX(client_name) as client_name,
         COUNT(*) FILTER (WHERE verified) as verified_count,
         COUNT(*) FILTER (WHERE NOT verified) as failed_count
       FROM signed_attempt_logs
-      WHERE timestamp > NOW() - INTERVAL '${interval}'
+      WHERE timestamp > NOW() - $1 * INTERVAL '1 day'
       GROUP BY COALESCE(username, signature_agent)
       ORDER BY verified_count DESC
-      LIMIT $1`,
-      [limit]
+      LIMIT $2`,
+      [days, limit]
     );
-    
+
     res.json(result.rows.map(row => ({
       agent_id: row.agent_id,
       client_name: row.client_name,
@@ -223,33 +226,33 @@ router.get('/top/origins', async (req: Request, res: Response) => {
   try {
     const window = (req.query.window as string) || '7d';
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
-    
+
     const validWindows = ['today', '7d'];
     if (!validWindows.includes(window)) {
       res.status(400).json({ error: 'Invalid window. Use "today" or "7d"' });
       return;
     }
-    
+
     if (!dbPool) {
       res.status(500).json({ error: 'Database not configured' });
       return;
     }
-    
-    const interval = window === 'today' ? '1 day' : '7 days';
-    
+
+    const days = window === 'today' ? 1 : 7;
+
     const result = await dbPool.query(
-      `SELECT 
+      `SELECT
         target_origin,
         COUNT(*) FILTER (WHERE verified) as verified_count,
         COUNT(*) FILTER (WHERE NOT verified) as failed_count
       FROM signed_attempt_logs
-      WHERE timestamp > NOW() - INTERVAL '${interval}'
+      WHERE timestamp > NOW() - $1 * INTERVAL '1 day'
       GROUP BY target_origin
       ORDER BY (COUNT(*) FILTER (WHERE verified) + COUNT(*) FILTER (WHERE NOT verified)) DESC
-      LIMIT $1`,
-      [limit]
+      LIMIT $2`,
+      [days, limit]
     );
-    
+
     res.json(result.rows.map(row => ({
       origin: row.target_origin,
       verified_count: parseInt(row.verified_count, 10),
@@ -286,6 +289,15 @@ router.get('/:username', async (req: Request, res: Response) => {
       }
     }
 
+    // Enforce privacy server-side: if not public and requester is not the owner, return minimal data
+    if (!isPublic) {
+      const isOwner = req.session?.profile?.username === username;
+      if (!isOwner) {
+        res.json({ username, is_public: false });
+        return;
+      }
+    }
+
     // Fetch from Redis (real-time data)
     const [lastSeen, requests, origins] = await Promise.all([
       redisClient.get(`stats:${username}:last_seen`),
@@ -295,7 +307,7 @@ router.get('/:username', async (req: Request, res: Response) => {
 
     const requestVolume = parseInt(requests || '0', 10);
     const siteDiversity = origins || 0;
-    
+
     // Calculate karma score
     const baseScore = Math.floor(requestVolume / 100);
     const diversityBonus = siteDiversity * 10;
@@ -316,39 +328,48 @@ router.get('/:username', async (req: Request, res: Response) => {
 });
 
 // Update telemetry visibility
-router.put('/:username/visibility', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { username } = req.params;
-    const { is_public } = req.body;
+router.put(
+  '/:username/visibility',
+  requireScope('profile:write'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { username } = req.params;
+      const { is_public } = req.body;
 
-    if (typeof is_public !== 'boolean') {
-      res.status(400).json({ error: 'is_public must be a boolean' });
-      return;
+      if (typeof is_public !== 'boolean') {
+        res.status(400).json({ error: 'is_public must be a boolean' });
+        return;
+      }
+
+      if (!req.session) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+      if (req.session.profile.username !== username) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+
+      if (!dbPool) {
+        res.status(500).json({ error: 'Database not configured' });
+        return;
+      }
+
+      // Upsert the privacy setting
+      await dbPool.query(
+        `INSERT INTO user_stats (username, is_public, updated_at)
+         VALUES ($1, $2, now())
+         ON CONFLICT (username)
+         DO UPDATE SET is_public = $2, updated_at = now()`,
+        [username, is_public]
+      );
+
+      res.json({ success: true, is_public });
+    } catch (error: any) {
+      console.error('Telemetry visibility update error:', error);
+      res.status(500).json({ error: 'Failed to update visibility setting' });
     }
-
-    // TODO: Add authentication check - only profile owner should be able to update
-    // For now, we'll allow any request (will be secured when auth is added)
-
-    if (!dbPool) {
-      res.status(500).json({ error: 'Database not configured' });
-      return;
-    }
-
-    // Upsert the privacy setting
-    await dbPool.query(
-      `INSERT INTO user_stats (username, is_public, updated_at)
-       VALUES ($1, $2, now())
-       ON CONFLICT (username) 
-       DO UPDATE SET is_public = $2, updated_at = now()`,
-      [username, is_public]
-    );
-
-    res.json({ success: true, is_public });
-  } catch (error: any) {
-    console.error('Telemetry visibility update error:', error);
-    res.status(500).json({ error: 'Failed to update visibility setting' });
   }
-});
+);
 
 export { router as telemetryRouter };
-
