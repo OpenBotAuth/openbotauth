@@ -86,18 +86,20 @@ router.get('/overview', async (req: Request, res: Response) => {
 
     if (dbPool) {
       try {
-        const interval = window === 'today' ? '1 day' : '7 days';
+        const days = window === 'today' ? 1 : 7;
 
         const [originsResult, agentsResult] = await Promise.all([
           dbPool.query(
             `SELECT COUNT(DISTINCT target_origin) as count
              FROM signed_attempt_logs
-             WHERE timestamp > NOW() - INTERVAL '${interval}'`
+             WHERE timestamp > NOW() - $1 * INTERVAL '1 day'`,
+            [days]
           ),
           dbPool.query(
             `SELECT COUNT(DISTINCT COALESCE(username, signature_agent)) as count
              FROM signed_attempt_logs
-             WHERE timestamp > NOW() - INTERVAL '${interval}'`
+             WHERE timestamp > NOW() - $1 * INTERVAL '1 day'`,
+            [days]
           ),
         ]);
 
@@ -188,7 +190,7 @@ router.get('/top/agents', async (req: Request, res: Response) => {
       return;
     }
 
-    const interval = window === 'today' ? '1 day' : '7 days';
+    const days = window === 'today' ? 1 : 7;
 
     const result = await dbPool.query(
       `SELECT
@@ -197,11 +199,11 @@ router.get('/top/agents', async (req: Request, res: Response) => {
         COUNT(*) FILTER (WHERE verified) as verified_count,
         COUNT(*) FILTER (WHERE NOT verified) as failed_count
       FROM signed_attempt_logs
-      WHERE timestamp > NOW() - INTERVAL '${interval}'
+      WHERE timestamp > NOW() - $1 * INTERVAL '1 day'
       GROUP BY COALESCE(username, signature_agent)
       ORDER BY verified_count DESC
-      LIMIT $1`,
-      [limit]
+      LIMIT $2`,
+      [days, limit]
     );
 
     res.json(result.rows.map(row => ({
@@ -236,7 +238,7 @@ router.get('/top/origins', async (req: Request, res: Response) => {
       return;
     }
 
-    const interval = window === 'today' ? '1 day' : '7 days';
+    const days = window === 'today' ? 1 : 7;
 
     const result = await dbPool.query(
       `SELECT
@@ -244,11 +246,11 @@ router.get('/top/origins', async (req: Request, res: Response) => {
         COUNT(*) FILTER (WHERE verified) as verified_count,
         COUNT(*) FILTER (WHERE NOT verified) as failed_count
       FROM signed_attempt_logs
-      WHERE timestamp > NOW() - INTERVAL '${interval}'
+      WHERE timestamp > NOW() - $1 * INTERVAL '1 day'
       GROUP BY target_origin
       ORDER BY (COUNT(*) FILTER (WHERE verified) + COUNT(*) FILTER (WHERE NOT verified)) DESC
-      LIMIT $1`,
-      [limit]
+      LIMIT $2`,
+      [days, limit]
     );
 
     res.json(result.rows.map(row => ({
