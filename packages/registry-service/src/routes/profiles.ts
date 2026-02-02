@@ -5,7 +5,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import type { Database } from '@openbotauth/github-connector';
+import { SAFE_PROFILE_COLUMNS, type Database } from '@openbotauth/github-connector';
 
 export const profilesRouter: Router = Router();
 
@@ -75,15 +75,48 @@ profilesRouter.get('/:username', async (req: Request, res: Response): Promise<vo
 profilesRouter.put('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const session = req.session!;
-    const updates = req.body;
     const db: Database = req.app.locals.db;
 
-    // Remove fields that shouldn't be updated
-    delete updates.id;
-    delete updates.created_at;
-    delete updates.updated_at;
+    const ARRAY_FIELDS = new Set(['contacts', 'known_urls', 'rfc9309_compliance']);
+    const URI_FIELDS = new Set(['client_uri', 'logo_uri']);
 
-    const updatedProfile = await db.updateProfile(session.user.id, updates);
+    // Whitelist: only allow known safe profile columns
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(req.body)) {
+      if (!SAFE_PROFILE_COLUMNS.has(key)) continue;
+
+      // null is always acceptable (clears the field)
+      if (value === null) {
+        sanitized[key] = value;
+        continue;
+      }
+
+      // Type validation for array fields
+      if (ARRAY_FIELDS.has(key)) {
+        if (!Array.isArray(value) || !value.every((v: unknown) => typeof v === 'string')) {
+          res.status(400).json({ error: `${key} must be an array of strings or null` });
+          return;
+        }
+        sanitized[key] = value;
+        continue;
+      }
+
+      // Type validation for string fields
+      if (typeof value !== 'string') {
+        res.status(400).json({ error: `${key} must be a string or null` });
+        return;
+      }
+
+      // URI length validation
+      if (URI_FIELDS.has(key) && value.length > 2048) {
+        res.status(400).json({ error: `${key} must be at most 2048 characters` });
+        return;
+      }
+
+      sanitized[key] = value;
+    }
+
+    const updatedProfile = await db.updateProfile(session.user.id, sanitized);
 
     res.json(updatedProfile);
   } catch (error) {

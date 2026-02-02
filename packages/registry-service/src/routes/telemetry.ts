@@ -286,6 +286,15 @@ router.get('/:username', async (req: Request, res: Response) => {
       }
     }
 
+    // Enforce privacy server-side: if not public and requester is not the owner, return minimal data
+    if (!isPublic) {
+      const isOwner = req.session?.profile?.username === username;
+      if (!isOwner) {
+        res.json({ username, is_public: false });
+        return;
+      }
+    }
+
     // Fetch from Redis (real-time data)
     const [lastSeen, requests, origins] = await Promise.all([
       redisClient.get(`stats:${username}:last_seen`),
@@ -295,7 +304,7 @@ router.get('/:username', async (req: Request, res: Response) => {
 
     const requestVolume = parseInt(requests || '0', 10);
     const siteDiversity = origins || 0;
-    
+
     // Calculate karma score
     const baseScore = Math.floor(requestVolume / 100);
     const diversityBonus = siteDiversity * 10;
@@ -326,8 +335,14 @@ router.put('/:username/visibility', async (req: Request, res: Response): Promise
       return;
     }
 
-    // TODO: Add authentication check - only profile owner should be able to update
-    // For now, we'll allow any request (will be secured when auth is added)
+    if (!req.session) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    if (req.session.profile.username !== username) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
 
     if (!dbPool) {
       res.status(500).json({ error: 'Database not configured' });

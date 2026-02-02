@@ -4,6 +4,7 @@
 
 import type { Pool, PoolClient } from 'pg';
 import type { User, Profile, Session, GitHubUser } from './types.js';
+import { SAFE_PROFILE_COLUMNS } from './constants.js';
 
 export class Database {
   constructor(private pool: Pool) {}
@@ -122,7 +123,7 @@ export class Database {
     let paramIndex = 2;
 
     Object.entries(updates).forEach(([key, value]) => {
-      if (value !== undefined) {
+      if (value !== undefined && SAFE_PROFILE_COLUMNS.has(key)) {
         fields.push(`${key} = $${paramIndex}`);
         values.push(value);
         paramIndex++;
