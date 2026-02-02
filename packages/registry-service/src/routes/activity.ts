@@ -7,6 +7,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import type { Database } from '@openbotauth/github-connector';
+import { requireScope } from '../middleware/require-scope.js';
 
 export const activityRouter: Router = Router();
 
@@ -14,17 +15,23 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const VALID_METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']);
 
 /**
+ * Middleware to check authentication
+ */
+const requireAuth = (req: Request, res: Response, next: Function) => {
+  if (!req.session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  next();
+};
+
+/**
  * POST /agent-activity
  *
  * Log agent HTTP activity
  */
-activityRouter.post('/', async (req: Request, res: Response): Promise<void> => {
+activityRouter.post('/', requireAuth, requireScope('agents:write'), async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.session) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
     const { agent_id, target_url, method, status_code, response_time_ms } = req.body;
     const db: Database = req.app.locals.db;
 

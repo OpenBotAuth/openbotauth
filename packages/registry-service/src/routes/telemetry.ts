@@ -1,8 +1,20 @@
 import { Router, Request, Response } from 'express';
 import { createClient } from 'redis';
 import { Pool } from 'pg';
+import { requireScope } from '../middleware/require-scope.js';
 
 const router: Router = Router();
+
+/**
+ * Middleware to check authentication
+ */
+const requireAuth = (req: Request, res: Response, next: Function) => {
+  if (!req.session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  next();
+};
 
 // Initialize Redis client
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -325,7 +337,7 @@ router.get('/:username', async (req: Request, res: Response) => {
 });
 
 // Update telemetry visibility
-router.put('/:username/visibility', async (req: Request, res: Response): Promise<void> => {
+router.put('/:username/visibility', requireAuth, requireScope('profile:write'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { username } = req.params;
     const { is_public } = req.body;
@@ -335,10 +347,6 @@ router.put('/:username/visibility', async (req: Request, res: Response): Promise
       return;
     }
 
-    if (!req.session) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     if (req.session.profile.username !== username) {
       res.status(403).json({ error: 'Forbidden' });
       return;
@@ -366,4 +374,3 @@ router.put('/:username/visibility', async (req: Request, res: Response): Promise
 });
 
 export { router as telemetryRouter };
-

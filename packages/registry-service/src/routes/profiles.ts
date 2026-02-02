@@ -6,6 +6,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { SAFE_PROFILE_COLUMNS, type Database } from '@openbotauth/github-connector';
+import { requireScope } from '../middleware/require-scope.js';
 
 export const profilesRouter: Router = Router();
 
@@ -72,7 +73,7 @@ profilesRouter.get('/:username', async (req: Request, res: Response): Promise<vo
  * 
  * Update current user's profile
  */
-profilesRouter.put('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
+profilesRouter.put('/', requireAuth, requireScope('profile:write'), async (req: Request, res: Response): Promise<void> => {
   try {
     const session = req.session!;
     const db: Database = req.app.locals.db;
@@ -124,4 +125,3 @@ profilesRouter.put('/', requireAuth, async (req: Request, res: Response): Promis
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });
-

@@ -7,6 +7,7 @@
 import { Router, type Request, type Response } from 'express';
 import type { Database } from '@openbotauth/github-connector';
 import { validateJWK } from '@openbotauth/registry-signer';
+import { requireScope } from '../middleware/require-scope.js';
 
 export const agentsAPIRouter: Router = Router();
 
@@ -26,7 +27,7 @@ const requireAuth = (req: Request, res: Response, next: Function) => {
  * 
  * List all agents for the current user
  */
-agentsAPIRouter.get('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
+agentsAPIRouter.get('/', requireAuth, requireScope('agents:read'), async (req: Request, res: Response): Promise<void> => {
   try {
     const session = req.session!;
     const db: Database = req.app.locals.db;
@@ -51,7 +52,7 @@ agentsAPIRouter.get('/', requireAuth, async (req: Request, res: Response): Promi
  * 
  * Get a specific agent
  */
-agentsAPIRouter.get('/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+agentsAPIRouter.get('/:id', requireAuth, requireScope('agents:read'), async (req: Request, res: Response): Promise<void> => {
   try {
     const session = req.session!;
     const agentId = req.params.id;
@@ -81,7 +82,7 @@ agentsAPIRouter.get('/:id', requireAuth, async (req: Request, res: Response): Pr
  * 
  * Create a new agent
  */
-agentsAPIRouter.post('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
+agentsAPIRouter.post('/', requireAuth, requireScope('agents:write'), async (req: Request, res: Response): Promise<void> => {
   try {
     const session = req.session!;
     const { name, description, agent_type, public_key } = req.body;
@@ -118,7 +119,7 @@ agentsAPIRouter.post('/', requireAuth, async (req: Request, res: Response): Prom
  * 
  * Update an agent
  */
-agentsAPIRouter.put('/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+agentsAPIRouter.put('/:id', requireAuth, requireScope('agents:write'), async (req: Request, res: Response): Promise<void> => {
   try {
     const session = req.session!;
     const agentId = req.params.id;
@@ -196,7 +197,7 @@ agentsAPIRouter.put('/:id', requireAuth, async (req: Request, res: Response): Pr
  * 
  * Delete an agent
  */
-agentsAPIRouter.delete('/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+agentsAPIRouter.delete('/:id', requireAuth, requireScope('agents:write'), async (req: Request, res: Response): Promise<void> => {
   try {
     const session = req.session!;
     const agentId = req.params.id;
@@ -220,4 +221,3 @@ agentsAPIRouter.delete('/:id', requireAuth, async (req: Request, res: Response):
     res.status(500).json({ error: 'Failed to delete agent' });
   }
 });
-
