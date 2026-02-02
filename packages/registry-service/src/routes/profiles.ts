@@ -1,12 +1,12 @@
 /**
  * Profile API endpoints
- * 
+ *
  * User profile management
  */
 
 import { Router, type Request, type Response } from 'express';
 import { SAFE_PROFILE_COLUMNS, type Database } from '@openbotauth/github-connector';
-import { requireScope } from '../middleware/require-scope.js';
+import { requireScope } from '../middleware/scopes.js';
 
 export const profilesRouter: Router = Router();
 
@@ -23,7 +23,7 @@ const requireAuth = (req: Request, res: Response, next: Function) => {
 
 /**
  * GET /profiles
- * 
+ *
  * Get all profiles (public registry)
  */
 profilesRouter.get('/', async (req: Request, res: Response): Promise<void> => {
@@ -32,8 +32,8 @@ profilesRouter.get('/', async (req: Request, res: Response): Promise<void> => {
     const pool = db.getPool();
 
     const result = await pool.query(
-      `SELECT username, created_at 
-       FROM profiles 
+      `SELECT username, created_at
+       FROM profiles
        ORDER BY created_at DESC`
     );
 
@@ -46,7 +46,7 @@ profilesRouter.get('/', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * GET /profiles/:username
- * 
+ *
  * Get profile by username (public)
  */
 profilesRouter.get('/:username', async (req: Request, res: Response): Promise<void> => {
@@ -70,58 +70,63 @@ profilesRouter.get('/:username', async (req: Request, res: Response): Promise<vo
 
 /**
  * PUT /profiles
- * 
+ *
  * Update current user's profile
  */
-profilesRouter.put('/', requireAuth, requireScope('profile:write'), async (req: Request, res: Response): Promise<void> => {
-  try {
-    const session = req.session!;
-    const db: Database = req.app.locals.db;
+profilesRouter.put(
+  '/',
+  requireAuth,
+  requireScope('profile:write'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const session = req.session!;
+      const db: Database = req.app.locals.db;
 
-    const ARRAY_FIELDS = new Set(['contacts', 'known_urls', 'rfc9309_compliance']);
-    const URI_FIELDS = new Set(['client_uri', 'logo_uri']);
+      const ARRAY_FIELDS = new Set(['contacts', 'known_urls', 'rfc9309_compliance']);
+      const URI_FIELDS = new Set(['client_uri', 'logo_uri']);
 
-    // Whitelist: only allow known safe profile columns
-    const sanitized: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(req.body)) {
-      if (!SAFE_PROFILE_COLUMNS.has(key)) continue;
+      // Whitelist: only allow known safe profile columns
+      const sanitized: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(req.body)) {
+        if (!SAFE_PROFILE_COLUMNS.has(key)) continue;
 
-      // null is always acceptable (clears the field)
-      if (value === null) {
-        sanitized[key] = value;
-        continue;
-      }
+        // null is always acceptable (clears the field)
+        if (value === null) {
+          sanitized[key] = value;
+          continue;
+        }
 
-      // Type validation for array fields
-      if (ARRAY_FIELDS.has(key)) {
-        if (!Array.isArray(value) || !value.every((v: unknown) => typeof v === 'string')) {
-          res.status(400).json({ error: `${key} must be an array of strings or null` });
+        // Type validation for array fields
+        if (ARRAY_FIELDS.has(key)) {
+          if (!Array.isArray(value) || !value.every((v: unknown) => typeof v === 'string')) {
+            res.status(400).json({ error: `${key} must be an array of strings or null` });
+            return;
+          }
+          sanitized[key] = value;
+          continue;
+        }
+
+        // Type validation for string fields
+        if (typeof value !== 'string') {
+          res.status(400).json({ error: `${key} must be a string or null` });
           return;
         }
+
+        // URI length validation
+        if (URI_FIELDS.has(key) && value.length > 2048) {
+          res.status(400).json({ error: `${key} must be at most 2048 characters` });
+          return;
+        }
+
         sanitized[key] = value;
-        continue;
       }
 
-      // Type validation for string fields
-      if (typeof value !== 'string') {
-        res.status(400).json({ error: `${key} must be a string or null` });
-        return;
-      }
+      const updatedProfile = await db.updateProfile(session.user.id, sanitized);
 
-      // URI length validation
-      if (URI_FIELDS.has(key) && value.length > 2048) {
-        res.status(400).json({ error: `${key} must be at most 2048 characters` });
-        return;
-      }
-
-      sanitized[key] = value;
+      res.json(updatedProfile);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      res.status(500).json({ error: 'Failed to update profile' });
     }
-
-    const updatedProfile = await db.updateProfile(session.user.id, sanitized);
-
-    res.json(updatedProfile);
-  } catch (error) {
-    console.error('Error updating profile:', error);
-    res.status(500).json({ error: 'Failed to update profile' });
   }
-});
+);
