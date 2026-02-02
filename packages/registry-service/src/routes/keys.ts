@@ -6,6 +6,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import type { Database } from '@openbotauth/github-connector';
+import { requireScope } from '../middleware/require-scope.js';
 
 export const keysRouter: Router = Router();
 
@@ -25,7 +26,7 @@ const requireAuth = (req: Request, res: Response, next: Function) => {
  * 
  * Register or update user's public key
  */
-keysRouter.post('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
+keysRouter.post('/', requireAuth, requireScope('keys:write'), async (req: Request, res: Response): Promise<void> => {
   try {
     const session = req.session!;
     const { public_key, is_update } = req.body;
@@ -90,7 +91,7 @@ keysRouter.post('/', requireAuth, async (req: Request, res: Response): Promise<v
  * 
  * Get current user's public key
  */
-keysRouter.get('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
+keysRouter.get('/', requireAuth, requireScope('keys:read'), async (req: Request, res: Response): Promise<void> => {
   try {
     const session = req.session!;
     const db: Database = req.app.locals.db;
@@ -117,7 +118,7 @@ keysRouter.get('/', requireAuth, async (req: Request, res: Response): Promise<vo
  * 
  * Get key history for current user
  */
-keysRouter.get('/history', requireAuth, async (req: Request, res: Response): Promise<void> => {
+keysRouter.get('/history', requireAuth, requireScope('keys:read'), async (req: Request, res: Response): Promise<void> => {
   try {
     const session = req.session!;
     const db: Database = req.app.locals.db;
@@ -133,4 +134,3 @@ keysRouter.get('/history', requireAuth, async (req: Request, res: Response): Pro
     res.status(500).json({ error: 'Failed to fetch key history' });
   }
 });
-
