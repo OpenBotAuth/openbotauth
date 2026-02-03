@@ -1,9 +1,13 @@
 /**
  * Authentication routes
- * 
- * GitHub OAuth flow implementation
+ *
+ * GitHub OAuth flow implementation.
+ * Supports two login modes:
+ *   - 'web'  — normal browser login, redirects to FRONTEND_URL
+ *   - 'cli'  — CLI tool login via /auth/cli, creates a PAT and redirects to localhost
  */
 
+import crypto from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import type { Database, GitHubOAuth } from '@openbotauth/github-connector';
 import {
@@ -13,6 +17,7 @@ import {
   deleteSessionCookie,
   parseSessionCookie,
 } from '@openbotauth/github-connector';
+import { hashToken } from '../utils/crypto.js';
 import { tokensRouter } from './tokens.js';
 
 export const authRouter: Router = Router();
@@ -20,8 +25,14 @@ export const authRouter: Router = Router();
 // Mount token management routes
 authRouter.use('/tokens', tokensRouter);
 
-// In-memory state storage for demo (use Redis in production)
-const oauthStates = new Map<string, { created: number }>();
+// In-memory state storage (use Redis in production)
+type OAuthStateData = {
+  created: number;
+  mode: 'web' | 'cli';
+  callbackPort?: number;  // cli only
+  cliState?: string;      // cli only — returned to CLI for its own CSRF check
+};
+const oauthStates = new Map<string, OAuthStateData>();
 
 // Clean up old states every 10 minutes
 setInterval(() => {
@@ -34,21 +45,54 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 
 /**
+ * GET /auth/cli
+ *
+ * Initiate GitHub OAuth flow for CLI tools.
+ * Accepts `port` (localhost callback port) and `state` (CLI-side CSRF token).
+ * After successful auth, OBA creates a PAT and redirects to http://127.0.0.1:PORT/callback.
+ */
+authRouter.get('/cli', (req, res) => {
+  const oauth: GitHubOAuth = req.app.locals.oauth;
+  const portStr = req.query.port as string | undefined;
+  const cliState = req.query.state as string | undefined;
+
+  // Validate port — only unprivileged ports allowed
+  const port = Number(portStr);
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+    res.status(400).json({ error: 'Invalid port (must be 1024-65535)' });
+    return;
+  }
+
+  // Validate CLI state (minimum 16 chars for CSRF token)
+  if (!cliState || typeof cliState !== 'string' || cliState.length < 16) {
+    res.status(400).json({ error: 'Invalid state parameter' });
+    return;
+  }
+
+  // Generate separate OAuth state for the GitHub leg
+  const oauthState = oauth.generateState();
+  oauthStates.set(oauthState, {
+    created: Date.now(),
+    mode: 'cli',
+    callbackPort: port,
+    cliState,
+  });
+
+  res.redirect(oauth.getAuthorizationUrl(oauthState));
+});
+
+/**
  * GET /auth/github
- * 
- * Initiate GitHub OAuth flow
+ *
+ * Initiate GitHub OAuth flow (web portal)
  */
 authRouter.get('/github', (req, res) => {
   const oauth: GitHubOAuth = req.app.locals.oauth;
 
-  // Generate state for CSRF protection
   const state = oauth.generateState();
-  oauthStates.set(state, { created: Date.now() });
+  oauthStates.set(state, { created: Date.now(), mode: 'web' });
 
-  // Get authorization URL
-  const authUrl = oauth.getAuthorizationUrl(state);
-
-  res.redirect(authUrl);
+  res.redirect(oauth.getAuthorizationUrl(state));
 });
 
 /**
@@ -63,7 +107,8 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
     const oauth: GitHubOAuth = req.app.locals.oauth;
 
     // Verify state
-    if (!state || !oauthStates.has(state as string)) {
+    const stateData = oauthStates.get(state as string);
+    if (!state || !stateData) {
       res.status(400).json({ error: 'Invalid state' });
       return;
     }
@@ -111,10 +156,33 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
     });
     res.setHeader('Set-Cookie', cookie);
 
-    // Get user's profile to redirect to their profile page
+    // Get user's profile for redirect
     const profile = await db.findProfileByUserId(user.id);
-    
-    // Redirect to user's profile page
+
+    if (stateData.mode === 'cli' && stateData.callbackPort) {
+      // ── CLI flow: create PAT server-side, redirect to localhost ──
+      const rawHex = crypto.randomBytes(32).toString('hex');
+      const rawToken = `oba_${rawHex}`;
+      const hash = hashToken(rawToken);
+      const prefix = `oba_${rawHex.slice(0, 4)}`;
+      const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000); // 90 days
+
+      await db.getPool().query(
+        `INSERT INTO api_tokens (user_id, name, token_hash, token_prefix, scopes, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [user.id, 'openclaw-cli', hash, prefix,
+         ['agents:read', 'agents:write', 'keys:read', 'keys:write', 'profile:read'],
+         expiresAt]
+      );
+
+      const callbackUrl = new URL(`http://127.0.0.1:${stateData.callbackPort}/callback`);
+      callbackUrl.searchParams.set('token', rawToken);
+      callbackUrl.searchParams.set('state', stateData.cliState!);
+      res.redirect(callbackUrl.toString());
+      return;
+    }
+
+    // ── Web flow: redirect to frontend ──
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const redirectPath = profile ? `/${profile.username}` : '/setup';
     res.redirect(`${frontendUrl}${redirectPath}`);
