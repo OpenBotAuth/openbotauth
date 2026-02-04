@@ -165,6 +165,18 @@ const CreateTokenModal = ({ open, onOpenChange, onSuccess }: CreateTokenModalPro
 
             <div className="space-y-3">
               <Label>Scopes</Label>
+              <div className="flex items-center gap-2 mb-1">
+                <Checkbox
+                  id="select-all"
+                  checked={scopes.length === AVAILABLE_SCOPES.length}
+                  onCheckedChange={(checked) =>
+                    setScopes(checked ? AVAILABLE_SCOPES.map((s) => s.value) : [])
+                  }
+                />
+                <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+                  Select all
+                </Label>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {AVAILABLE_SCOPES.map((scope) => (
                   <div key={scope.value} className="flex items-center gap-2">
