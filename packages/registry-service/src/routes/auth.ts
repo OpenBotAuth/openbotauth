@@ -18,7 +18,7 @@ import {
   parseSessionCookie,
 } from '@openbotauth/github-connector';
 import { hashToken } from '../utils/crypto.js';
-import { tokensRouter } from './tokens.js';
+import { MAX_TOKENS_PER_USER, tokensRouter } from './tokens.js';
 
 export const authRouter: Router = Router();
 
@@ -176,6 +176,18 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
           `DELETE FROM api_tokens WHERE user_id = $1 AND name = 'openclaw-cli'`,
           [user.id]
         );
+        const countResult = await client.query(
+          `SELECT count(*)::int AS cnt FROM api_tokens WHERE user_id = $1`,
+          [user.id]
+        );
+        if (countResult.rows[0].cnt >= MAX_TOKENS_PER_USER) {
+          await client.query('ROLLBACK');
+          const callbackUrl = new URL(`http://127.0.0.1:${stateData.callbackPort}/callback`);
+          callbackUrl.searchParams.set('error', 'token_limit');
+          callbackUrl.searchParams.set('state', stateData.cliState!);
+          res.redirect(callbackUrl.toString());
+          return;
+        }
         await client.query(
           `INSERT INTO api_tokens (user_id, name, token_hash, token_prefix, scopes, expires_at)
            VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -501,4 +513,3 @@ authRouter.post('/logout', async (req, res) => {
     res.status(500).json({ error: 'Logout failed' });
   }
 });
-

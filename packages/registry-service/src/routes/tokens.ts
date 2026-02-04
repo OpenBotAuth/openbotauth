@@ -23,7 +23,7 @@ const VALID_SCOPES = [
   'profile:write',
 ] as const;
 
-const MAX_TOKENS_PER_USER = 25;
+export const MAX_TOKENS_PER_USER = 25;
 const TOKEN_PREFIX_LEN = 4; // hex chars after "oba_" stored as prefix
 const NAME_MAX_LEN = 100;
 
@@ -149,7 +149,7 @@ tokensRouter.post('/', requireSessionAuth, createLimiter, async (req: Request, r
     const result = await db.getPool().query(
       `INSERT INTO api_tokens (user_id, name, token_hash, token_prefix, scopes, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, name, token_prefix, scopes, expires_at, created_at`,
+       RETURNING id, name, token_prefix, scopes, expires_at, last_used_at, created_at`,
       [session.user.id, trimmedName, hash, prefix, scopeArray, expiresAt]
     );
 

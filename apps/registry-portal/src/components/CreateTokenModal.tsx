@@ -64,6 +64,10 @@ const CreateTokenModal = ({ open, onOpenChange, onSuccess }: CreateTokenModalPro
       toast({ title: "Validation Error", description: "Token name is required", variant: "destructive" });
       return;
     }
+    if (scopes.length === 0) {
+      toast({ title: "Validation Error", description: "Select at least one scope", variant: "destructive" });
+      return;
+    }
 
     setIsCreating(true);
     try {
@@ -192,7 +196,7 @@ const CreateTokenModal = ({ open, onOpenChange, onSuccess }: CreateTokenModalPro
               <Button
                 className="flex-1"
                 onClick={handleCreate}
-                disabled={isCreating || !name.trim()}
+                disabled={isCreating || !name.trim() || scopes.length === 0}
               >
                 {isCreating ? "Creating..." : "Create Token"}
               </Button>
