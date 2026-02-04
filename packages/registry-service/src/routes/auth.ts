@@ -205,6 +205,7 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
           const callbackUrl = new URL(`http://127.0.0.1:${stateData.callbackPort}/callback`);
           callbackUrl.searchParams.set('error', 'token_limit');
           callbackUrl.searchParams.set('state', stateData.cliState!);
+          res.setHeader('Cache-Control', 'no-store');
           res.redirect(callbackUrl.toString());
           return;
         }
@@ -226,6 +227,7 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
       const callbackUrl = new URL(`http://127.0.0.1:${stateData.callbackPort}/callback`);
       callbackUrl.searchParams.set('token', rawToken);
       callbackUrl.searchParams.set('state', stateData.cliState!);
+      res.setHeader('Cache-Control', 'no-store');
       res.redirect(callbackUrl.toString());
       return;
     }
