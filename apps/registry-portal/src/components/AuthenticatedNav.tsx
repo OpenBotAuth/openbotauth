@@ -14,7 +14,7 @@ const AuthenticatedNav = () => {
   const location = useLocation();
   
   // Portal routes where we should never show center nav
-  const portalRoutes = ['/registry', '/setup', '/login', '/profile/edit', '/confirm-username', '/my-agents'];
+  const portalRoutes = ['/registry', '/setup', '/login', '/profile/edit', '/confirm-username', '/my-agents', '/tokens'];
   const isPortalRoute = portalRoutes.some(route => location.pathname.startsWith(route)) || 
                         (location.pathname !== '/' && !location.pathname.startsWith('/publishers') && 
                          !location.pathname.startsWith('/crawlers') && !location.pathname.startsWith('/contact'));
@@ -96,13 +96,19 @@ const AuthenticatedNav = () => {
                   >
                     Registry
                   </Button>
-                  <Button 
+                  <Button
                     variant="ghost"
                     className="font-serif px-6 text-foreground hover:text-foreground hover:bg-muted border-2 border-foreground invisible pointer-events-none"
                   >
                     My Profile
                   </Button>
-                  <Button 
+                  <Button
+                    variant="ghost"
+                    className="font-serif px-6 text-foreground hover:text-foreground hover:bg-muted border-2 border-foreground invisible pointer-events-none"
+                  >
+                    API Tokens
+                  </Button>
+                  <Button
                     variant="ghost"
                     className="font-serif px-6 border-2 border-foreground hover:bg-foreground hover:text-background invisible pointer-events-none"
                   >
@@ -121,14 +127,22 @@ const AuthenticatedNav = () => {
                     </Button>
                   </Link>
                   <Link to={`/${username}`}>
-                    <Button 
+                    <Button
                       variant="ghost"
                       className="font-serif px-6 text-foreground hover:text-foreground hover:bg-muted border-2 border-foreground transition-all"
                     >
                       My Profile
                     </Button>
                   </Link>
-                  <Button 
+                  <Link to="/tokens">
+                    <Button
+                      variant="ghost"
+                      className="font-serif px-6 text-foreground hover:text-foreground hover:bg-muted border-2 border-foreground transition-all"
+                    >
+                      API Tokens
+                    </Button>
+                  </Link>
+                  <Button
                     variant="ghost"
                     className="font-serif px-6 border-2 border-foreground hover:bg-foreground hover:text-background transition-all"
                     onClick={handleLogout}
@@ -194,6 +208,15 @@ const AuthenticatedNav = () => {
                     className="text-foreground hover:opacity-70 transition-opacity font-serif text-left py-3 px-2 rounded hover:bg-muted"
                   >
                     My Profile
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigate('/tokens');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="text-foreground hover:opacity-70 transition-opacity font-serif text-left py-3 px-2 rounded hover:bg-muted"
+                  >
+                    API Tokens
                   </button>
                   <button
                     onClick={() => {

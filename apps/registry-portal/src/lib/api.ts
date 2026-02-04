@@ -43,6 +43,20 @@ export interface Agent {
   updated_at: string;
 }
 
+export interface ApiToken {
+  id: string;
+  name: string;
+  token_prefix: string;
+  scopes: string[];
+  expires_at: string;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+export interface CreateTokenResponse extends ApiToken {
+  token: string; // raw token, returned exactly once
+}
+
 export interface Session {
   user: User;
   profile: Profile;
@@ -428,6 +442,52 @@ class RegistryAPI {
       throw new Error('Failed to fetch top origins');
     }
     return await response.json();
+  }
+
+  // ==========================================================================
+  // Personal Access Token (PAT) Methods
+  // ==========================================================================
+
+  /**
+   * List all tokens for the current user
+   */
+  async listTokens(): Promise<ApiToken[]> {
+    const response = await this.fetch('/auth/tokens');
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || 'Failed to list tokens');
+    }
+    return await response.json();
+  }
+
+  /**
+   * Create a new personal access token
+   */
+  async createToken(data: {
+    name: string;
+    scopes: string[];
+    expires_in_days?: number;
+  }): Promise<CreateTokenResponse> {
+    const response = await this.fetch('/auth/tokens', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || 'Failed to create token');
+    }
+    return await response.json();
+  }
+
+  /**
+   * Delete (revoke) a token
+   */
+  async deleteToken(tokenId: string): Promise<void> {
+    const response = await this.fetch(`/auth/tokens/${tokenId}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || 'Failed to delete token');
+    }
   }
 }
 
