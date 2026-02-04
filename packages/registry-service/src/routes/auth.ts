@@ -18,6 +18,7 @@ import {
   parseSessionCookie,
 } from '@openbotauth/github-connector';
 import { hashToken } from '../utils/crypto.js';
+import { requireScope } from '../middleware/scopes.js';
 import { createRateLimiter } from '../middleware/rate-limit.js';
 import { MAX_TOKENS_PER_USER, tokensRouter } from './tokens.js';
 
@@ -255,35 +256,24 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
  * 
  * Get current session info
  */
-authRouter.get('/session', async (req: Request, res: Response): Promise<void> => {
+authRouter.get('/session', requireScope('profile:read'), async (req: Request, res: Response): Promise<void> => {
   try {
-    const sessionToken = parseSessionCookie(req.headers.cookie || null);
-    const db: Database = req.app.locals.db;
-
-    if (!sessionToken) {
+    // Both token-auth and session middleware populate req.session
+    if (!req.session) {
       res.status(401).json({ error: 'Not authenticated' });
       return;
     }
 
-    const result = await db.getUserWithProfileBySession(sessionToken);
-
-    if (!result) {
-      res.status(401).json({ error: 'Invalid session' });
-      return;
-    }
-
-    const { user, profile } = result;
-
     res.json({
       user: {
-        id: user.id,
-        email: user.email,
-        github_username: user.github_username,
-        avatar_url: user.avatar_url,
+        id: req.session.user.id,
+        email: req.session.user.email,
+        github_username: req.session.user.github_username,
+        avatar_url: req.session.user.avatar_url,
       },
       profile: {
-        username: profile.username,
-        client_name: profile.client_name,
+        username: req.session.profile.username,
+        client_name: req.session.profile.client_name,
       },
     });
   } catch (error) {
