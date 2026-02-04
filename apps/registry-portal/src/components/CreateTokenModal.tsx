@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,14 @@ const CreateTokenModal = ({ open, onOpenChange, onSuccess }: CreateTokenModalPro
   const [isCreating, setIsCreating] = useState(false);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Clean up timeout on unmount to prevent state updates after unmount
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
 
   const toggleScope = (scope: string) => {
     setScopes((prev) =>
@@ -52,7 +60,7 @@ const CreateTokenModal = ({ open, onOpenChange, onSuccess }: CreateTokenModalPro
     try {
       await navigator.clipboard.writeText(createdToken);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
       toast({ title: "Copied", description: "Token copied to clipboard" });
     } catch {
       toast({ title: "Error", description: "Failed to copy token", variant: "destructive" });
@@ -80,10 +88,10 @@ const CreateTokenModal = ({ open, onOpenChange, onSuccess }: CreateTokenModalPro
       setCreatedToken(result.token);
       toast({ title: "Token Created", description: `Token "${name}" created successfully` });
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to create token",
+        description: error instanceof Error ? error.message : "Failed to create token",
         variant: "destructive",
       });
     } finally {
@@ -130,7 +138,7 @@ const CreateTokenModal = ({ open, onOpenChange, onSuccess }: CreateTokenModalPro
                 readOnly
                 className="font-mono text-sm"
               />
-              <Button variant="outline" size="icon" onClick={copyToken}>
+              <Button variant="outline" size="icon" onClick={copyToken} aria-label="Copy token to clipboard">
                 <Copy className="h-4 w-4" />
               </Button>
             </div>

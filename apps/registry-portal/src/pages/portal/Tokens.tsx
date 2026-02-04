@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +27,7 @@ const Tokens = () => {
   const [deleteTarget, setDeleteTarget] = useState<ApiToken | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchTokens = async () => {
+  const fetchTokens = useCallback(async () => {
     try {
       const session = await api.getSession();
       if (!session) {
@@ -37,7 +37,7 @@ const Tokens = () => {
 
       const data = await api.listTokens();
       setTokens(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching tokens:", error);
       toast({
         title: "Error",
@@ -47,11 +47,11 @@ const Tokens = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
 
   useEffect(() => {
     fetchTokens();
-  }, []);
+  }, [fetchTokens]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -64,10 +64,10 @@ const Tokens = () => {
       });
       setDeleteTarget(null);
       fetchTokens();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to revoke token",
+        description: error instanceof Error ? error.message : "Failed to revoke token",
         variant: "destructive",
       });
     } finally {

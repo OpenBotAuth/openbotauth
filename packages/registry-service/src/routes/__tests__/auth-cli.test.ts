@@ -260,6 +260,7 @@ describe('GET /auth/github/callback (cli mode)', () => {
     expect(url.searchParams.get('state')).toBe('cli-state-0123456789');
     expect(query.mock.calls.some(([sql]) => String(sql).startsWith('INSERT'))).toBe(true);
     expect(query.mock.calls.some(([sql]) => String(sql).startsWith('COMMIT'))).toBe(true);
-    expect(cbRes.headers['Set-Cookie']).toBeTruthy();
+    // CLI flow should NOT set a session cookie — only a PAT is returned
+    expect(cbRes.headers['Set-Cookie']).toBeFalsy();
   });
 });

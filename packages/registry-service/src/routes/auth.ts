@@ -18,6 +18,7 @@ import {
   parseSessionCookie,
 } from '@openbotauth/github-connector';
 import { hashToken } from '../utils/crypto.js';
+import { createRateLimiter } from '../middleware/rate-limit.js';
 import { MAX_TOKENS_PER_USER, tokensRouter } from './tokens.js';
 
 export const authRouter: Router = Router();
@@ -42,7 +43,27 @@ setInterval(() => {
       oauthStates.delete(state);
     }
   }
-}, 10 * 60 * 1000);
+}, 10 * 60 * 1000).unref();
+
+const OAUTH_STATES_MAX_SIZE = 10_000;
+const CLI_STATE_MAX_LEN = 128;
+
+// Rate limiter for OAuth initiation endpoints (by IP)
+const authInitLimiter = createRateLimiter({
+  max: 20,
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  message: 'Too many login attempts, try again later',
+});
+
+/** Escape HTML special characters to prevent XSS in server-rendered pages. */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 /**
  * GET /auth/cli
@@ -51,7 +72,7 @@ setInterval(() => {
  * Accepts `port` (localhost callback port) and `state` (CLI-side CSRF token).
  * After successful auth, OBA creates a PAT and redirects to http://127.0.0.1:PORT/callback.
  */
-authRouter.get('/cli', (req, res) => {
+authRouter.get('/cli', authInitLimiter, (req, res) => {
   const oauth: GitHubOAuth = req.app.locals.oauth;
   const portStr = req.query.port as string | undefined;
   const cliState = req.query.state as string | undefined;
@@ -64,8 +85,14 @@ authRouter.get('/cli', (req, res) => {
   }
 
   // Validate CLI state (minimum 16 chars for CSRF token)
-  if (!cliState || typeof cliState !== 'string' || cliState.length < 16) {
+  if (!cliState || typeof cliState !== 'string' || cliState.length < 16 || cliState.length > CLI_STATE_MAX_LEN) {
     res.status(400).json({ error: 'Invalid state parameter' });
+    return;
+  }
+
+  // Prevent memory exhaustion from state map flooding
+  if (oauthStates.size >= OAUTH_STATES_MAX_SIZE) {
+    res.status(503).json({ error: 'Service busy, try again later' });
     return;
   }
 
@@ -86,8 +113,13 @@ authRouter.get('/cli', (req, res) => {
  *
  * Initiate GitHub OAuth flow (web portal)
  */
-authRouter.get('/github', (req, res) => {
+authRouter.get('/github', authInitLimiter, (req, res) => {
   const oauth: GitHubOAuth = req.app.locals.oauth;
+
+  if (oauthStates.size >= OAUTH_STATES_MAX_SIZE) {
+    res.status(503).json({ error: 'Service busy, try again later' });
+    return;
+  }
 
   const state = oauth.generateState();
   oauthStates.set(state, { created: Date.now(), mode: 'web' });
@@ -144,19 +176,7 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
       });
     }
 
-    // Create session
-    const sessionToken = generateSessionToken();
-    const expiresAt = getSessionExpiration(30); // 30 days
-
-    await db.createSession(user.id, sessionToken, expiresAt);
-
-    // Set cookie
-    const cookie = createSessionCookie(sessionToken, {
-      secure: process.env.NODE_ENV === 'production',
-    });
-    res.setHeader('Set-Cookie', cookie);
-
-    // Get user's profile for redirect
+    // Get user's profile (needed for both CLI and web redirects)
     const profile = await db.findProfileByUserId(user.id);
 
     if (stateData.mode === 'cli' && stateData.callbackPort) {
@@ -210,7 +230,15 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
       return;
     }
 
-    // ── Web flow: redirect to frontend ──
+    // ── Web flow: create session + redirect to frontend ──
+    const sessionToken = generateSessionToken();
+    const sessionExpiry = getSessionExpiration(30); // 30 days
+    await db.createSession(user.id, sessionToken, sessionExpiry);
+    const cookie = createSessionCookie(sessionToken, {
+      secure: process.env.NODE_ENV === 'production',
+    });
+    res.setHeader('Set-Cookie', cookie);
+
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const redirectPath = profile ? `/${profile.username}` : '/setup';
     res.redirect(`${frontendUrl}${redirectPath}`);
@@ -416,10 +444,10 @@ authRouter.get('/success', async (req: Request, res: Response): Promise<void> =>
 
           <div class="user-info">
             <h3>👤 Your Profile</h3>
-            <p><strong>GitHub Username:</strong> ${user.github_username || 'N/A'}</p>
-            <p><strong>Email:</strong> ${user.email || 'N/A'}</p>
-            <p><strong>Username:</strong> ${profile.username}</p>
-            <p><strong>User ID:</strong> ${user.id}</p>
+            <p><strong>GitHub Username:</strong> ${escapeHtml(user.github_username || 'N/A')}</p>
+            <p><strong>Email:</strong> ${escapeHtml(user.email || 'N/A')}</p>
+            <p><strong>Username:</strong> ${escapeHtml(profile.username)}</p>
+            <p><strong>User ID:</strong> ${escapeHtml(user.id)}</p>
           </div>
 
           <div class="next-steps">
@@ -434,7 +462,7 @@ authRouter.get('/success', async (req: Request, res: Response): Promise<void> =>
           <h3>📡 API Endpoints</h3>
           <div class="api-links">
             <a href="/auth/session" target="_blank">View Session</a>
-            <a href="/jwks/${profile.username}.json" target="_blank">Your JWKS</a>
+            <a href="/jwks/${encodeURIComponent(profile.username)}.json" target="_blank">Your JWKS</a>
           </div>
 
           <h3>🔧 Using the CLI</h3>
