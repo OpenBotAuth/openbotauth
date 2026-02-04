@@ -167,20 +167,29 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
       const prefix = `oba_${rawHex.slice(0, 4)}`;
       const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000); // 90 days
 
-      // Rotate: delete any previous openclaw-cli tokens for this user
-      // so repeated `openclaw oba login` doesn't accumulate unbounded rows.
-      await db.getPool().query(
-        `DELETE FROM api_tokens WHERE user_id = $1 AND name = 'openclaw-cli'`,
-        [user.id]
-      );
-
-      await db.getPool().query(
-        `INSERT INTO api_tokens (user_id, name, token_hash, token_prefix, scopes, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [user.id, 'openclaw-cli', hash, prefix,
-         ['agents:read', 'agents:write', 'keys:read', 'keys:write', 'profile:read'],
-         expiresAt]
-      );
+      // Rotate inside a transaction so we never end up with "deleted but insert failed".
+      const pool = db.getPool();
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          `DELETE FROM api_tokens WHERE user_id = $1 AND name = 'openclaw-cli'`,
+          [user.id]
+        );
+        await client.query(
+          `INSERT INTO api_tokens (user_id, name, token_hash, token_prefix, scopes, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [user.id, 'openclaw-cli', hash, prefix,
+           ['agents:read', 'agents:write', 'keys:read', 'keys:write', 'profile:read'],
+           expiresAt]
+        );
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
 
       const callbackUrl = new URL(`http://127.0.0.1:${stateData.callbackPort}/callback`);
       callbackUrl.searchParams.set('token', rawToken);
