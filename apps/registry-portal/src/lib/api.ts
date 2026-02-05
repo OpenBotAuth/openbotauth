@@ -310,7 +310,10 @@ class RegistryAPI {
   /**
    * GitHub OAuth login URL
    */
-  getGitHubLoginUrl(): string {
+  getGitHubLoginUrl(returnTo?: string): string {
+    if (returnTo) {
+      return `${this.baseUrl}/auth/github?returnTo=${encodeURIComponent(returnTo)}`;
+    }
     return `${this.baseUrl}/auth/github`;
   }
 

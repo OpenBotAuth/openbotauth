@@ -152,14 +152,13 @@ const AuthenticatedNav = () => {
                   </Button>
                 </>
               ) : (
-                <Link to="/login">
-                  <Button 
-                    variant="outline"
-                    className="font-serif px-6 border-2 border-foreground hover:bg-foreground hover:text-background transition-all"
-                  >
-                    Sign in with GitHub
-                  </Button>
-                </Link>
+                <Button
+                  variant="outline"
+                  className="font-serif px-6 border-2 border-foreground hover:bg-foreground hover:text-background transition-all"
+                  onClick={() => (window.location.href = api.getGitHubLoginUrl(location.pathname === '/' ? undefined : location.pathname))}
+                >
+                  Sign in with GitHub
+                </Button>
               )}
             </div>
 
@@ -235,8 +234,8 @@ const AuthenticatedNav = () => {
                   <div className="border-t border-foreground/20 my-2"></div>
                   <button
                     onClick={() => {
-                      navigate('/login');
                       setMobileMenuOpen(false);
+                      window.location.href = api.getGitHubLoginUrl(location.pathname === '/' ? undefined : location.pathname);
                     }}
                     className="text-foreground hover:opacity-70 transition-opacity font-serif text-left py-3 px-2 rounded hover:bg-muted border-2 border-foreground"
                   >

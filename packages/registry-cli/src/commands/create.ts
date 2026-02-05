@@ -97,6 +97,8 @@ export const createCommand = new Command('create')
 
       console.log(chalk.red.bold('\n⚠️  PRIVATE KEY (Save this securely - it will not be shown again!):\n'));
       console.log(chalk.gray(privateKey));
+
+      console.log(chalk.dim('\n⭐ Like OpenBotAuth? Star us: https://github.com/OpenBotAuth/openbotauth'));
     } catch (error) {
       spinner.fail('Failed to create agent');
       console.error(chalk.red((error as Error).message));

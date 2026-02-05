@@ -33,6 +33,7 @@ type OAuthStateData = {
   mode: 'web' | 'cli';
   callbackPort?: number;  // cli only
   cliState?: string;      // cli only — returned to CLI for its own CSRF check
+  returnTo?: string;      // web only — redirect path after login (e.g. '/token')
 };
 const oauthStates = new Map<string, OAuthStateData>();
 
@@ -123,7 +124,15 @@ authRouter.get('/github', authInitLimiter, (req, res) => {
   }
 
   const state = oauth.generateState();
-  oauthStates.set(state, { created: Date.now(), mode: 'web' });
+  const stateData: OAuthStateData = { created: Date.now(), mode: 'web' };
+
+  // Validate and store returnTo if provided (safe relative paths only)
+  const rt = req.query.returnTo;
+  if (typeof rt === 'string' && rt.length <= 128 && /^\/[a-zA-Z0-9\-_/]*$/.test(rt)) {
+    stateData.returnTo = rt;
+  }
+
+  oauthStates.set(state, stateData);
 
   res.redirect(oauth.getAuthorizationUrl(state));
 });
@@ -243,7 +252,7 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
     res.setHeader('Set-Cookie', cookie);
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const redirectPath = profile ? `/${profile.username}` : '/setup';
+    const redirectPath = stateData.returnTo || (profile ? `/${profile.username}` : '/setup');
     res.redirect(`${frontendUrl}${redirectPath}`);
   } catch (error) {
     console.error('OAuth callback error:', error);

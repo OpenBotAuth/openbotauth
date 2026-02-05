@@ -25,6 +25,7 @@ import Index from "./pages/Index";
 import MyAgents from "./pages/portal/MyAgents";
 import AgentDetail from "./pages/portal/AgentDetail";
 import Tokens from "./pages/portal/Tokens";
+import Token from "./pages/portal/Token";
 import PublicProfile from "./pages/portal/PublicProfile";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ const App = () => (
             <Route path="/registry" element={<Registry />} />
             <Route path="/my-agents" element={<MyAgents />} />
             <Route path="/agents/:agentId" element={<AgentDetail />} />
+            <Route path="/token" element={<Token />} />
             <Route path="/tokens" element={<Tokens />} />
             
             {/* Legacy route - redirect to registry */}
