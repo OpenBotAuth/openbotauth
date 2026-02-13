@@ -46,10 +46,16 @@ function formatAgentName(agentId: string | null | undefined): string {
       return knownAgents[hostname];
     }
 
-    // For JWKS URLs like api.openbotauth.org/jwks/username.json, extract username
+    // For user JWKS URLs like /jwks/username.json, extract username
     const jwksMatch = url.pathname.match(/\/jwks\/([^.]+)\.json$/);
     if (jwksMatch) {
       return jwksMatch[1];
+    }
+
+    // For agent JWKS URLs like /agent-jwks/{uuid}, extract agent ID
+    const agentJwksMatch = url.pathname.match(/\/agent-jwks\/([^/]+)$/);
+    if (agentJwksMatch) {
+      return agentJwksMatch[1].slice(0, 8) + '…';
     }
 
     // Return hostname for other URLs
