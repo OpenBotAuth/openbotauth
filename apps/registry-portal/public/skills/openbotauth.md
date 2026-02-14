@@ -384,12 +384,12 @@ cat > /tmp/openbotauth-proxy.mjs << 'PROXY_EOF'
 import { createServer as createHttpServer, request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { createServer as createTlsServer } from "node:tls";
-import { connect } from "node:net";
-import { createPrivateKey, sign as cryptoSign, randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { connect, isIP } from "node:net";
+import { createPrivateKey, sign as cryptoSign, randomUUID, createHash } from "node:crypto";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 const OBA_DIR = join(homedir(), ".config", "openbotauth");
 const KEY_FILE = join(OBA_DIR, "key.json");
@@ -404,29 +404,38 @@ const obaKey = JSON.parse(readFileSync(KEY_FILE, "utf-8"));
 let jwksUrl = null;
 if (existsSync(CONFIG_FILE)) { const c = JSON.parse(readFileSync(CONFIG_FILE, "utf-8")); jwksUrl = c.jwksUrl || null; }
 
+// Strict hostname validation (blocks shell injection & path traversal)
+const HOSTNAME_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+function isValidHostname(h) {
+  return typeof h === "string" && h.length > 0 && h.length <= 253 && (HOSTNAME_RE.test(h) || isIP(h) > 0);
+}
+
 // Ensure CA exists
 mkdirSync(CA_DIR, { recursive: true, mode: 0o700 });
 if (!existsSync(CA_KEY) || !existsSync(CA_CRT)) {
   console.log("Generating proxy CA certificate (one-time)...");
-  execSync(`openssl req -x509 -new -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "${CA_KEY}" -out "${CA_CRT}" -days 3650 -subj "/CN=OpenBotAuth Proxy CA/O=OpenBotAuth"`, { stdio: "pipe" });
-  execSync(`chmod 600 "${CA_KEY}"`);
+  execFileSync("openssl", ["req", "-x509", "-new", "-nodes", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-keyout", CA_KEY, "-out", CA_CRT, "-days", "3650", "-subj", "/CN=OpenBotAuth Proxy CA/O=OpenBotAuth"], { stdio: "pipe" });
+  execFileSync("chmod", ["600", CA_KEY], { stdio: "pipe" });
 }
 
 // Per-domain cert cache
 const certCache = new Map();
 function getDomainCert(hostname) {
+  if (!isValidHostname(hostname)) throw new Error("Invalid hostname: " + hostname.slice(0, 50));
   if (certCache.has(hostname)) return certCache.get(hostname);
-  const tk = join(CA_DIR, `_t_${hostname}.key`), tc = join(CA_DIR, `_t_${hostname}.csr`);
-  const to = join(CA_DIR, `_t_${hostname}.crt`), te = join(CA_DIR, `_t_${hostname}.ext`);
+  // Use hash for filenames to prevent path traversal
+  const hHash = createHash("sha256").update(hostname).digest("hex").slice(0, 16);
+  const tk = join(CA_DIR, `_t_${hHash}.key`), tc = join(CA_DIR, `_t_${hHash}.csr`);
+  const to = join(CA_DIR, `_t_${hHash}.crt`), te = join(CA_DIR, `_t_${hHash}.ext`);
   try {
-    execSync(`openssl ecparam -genkey -name prime256v1 -noout -out "${tk}"`, { stdio: "pipe" });
-    execSync(`openssl req -new -key "${tk}" -out "${tc}" -subj "/CN=${hostname}"`, { stdio: "pipe" });
+    execFileSync("openssl", ["ecparam", "-genkey", "-name", "prime256v1", "-noout", "-out", tk], { stdio: "pipe" });
+    execFileSync("openssl", ["req", "-new", "-key", tk, "-out", tc, "-subj", `/CN=${hostname}`], { stdio: "pipe" });
     writeFileSync(te, `subjectAltName=DNS:${hostname}\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth`);
-    execSync(`openssl x509 -req -sha256 -in "${tc}" -CA "${CA_CRT}" -CAkey "${CA_KEY}" -CAcreateserial -out "${to}" -days 365 -extfile "${te}"`, { stdio: "pipe" });
+    execFileSync("openssl", ["x509", "-req", "-sha256", "-in", tc, "-CA", CA_CRT, "-CAkey", CA_KEY, "-CAcreateserial", "-out", to, "-days", "365", "-extfile", te], { stdio: "pipe" });
     const r = { key: readFileSync(tk, "utf-8"), cert: readFileSync(to, "utf-8") };
     certCache.set(hostname, r);
     return r;
-  } finally { for (const f of [tk, tc, to, te]) try { execSync(`rm -f "${f}"`, { stdio: "pipe" }); } catch {} }
+  } finally { for (const f of [tk, tc, to, te]) try { unlinkSync(f); } catch {} }
 }
 
 // RFC 9421 signing
@@ -460,6 +469,11 @@ const server = createHttpServer((cReq, cRes) => {
 
 server.on("connect", (req, cSock, head) => {
   const id = ++rc, [host, ps] = req.url.split(":"), tp = parseInt(ps) || 443;
+  // Validate host and port before processing
+  if (!isValidHostname(host) || tp < 1 || tp > 65535) {
+    log(id, `CONNECT rejected: invalid ${host}:${tp}`);
+    cSock.write("HTTP/1.1 400 Bad Request\r\n\r\n"); cSock.end(); return;
+  }
   log(id, `CONNECT ${host}:${tp} → MITM`);
   cSock.write("HTTP/1.1 200 Connection Established\r\nProxy-Agent: openbotauth-proxy\r\n\r\n");
   const dc = getDomainCert(host);
