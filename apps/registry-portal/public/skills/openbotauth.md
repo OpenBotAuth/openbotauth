@@ -304,6 +304,8 @@ Replace the arguments:
 - `TARGET_URL` — e.g., `https://example.com/page`
 - `JWKS_URL` — e.g., `https://api.openbotauth.org/jwks/your-username.json`
 
+**For strict verifiers:** If a site rejects signatures from this inline signer, use the reference implementation from `@openbotauth/bot-cli` or the `signing-ts` demo package for exact RFC 9421 canonicalization.
+
 ### Step 5: Apply headers to browser session
 
 **For single signed navigation (demo / Radar proof):**
@@ -346,46 +348,18 @@ console.log('Created:    ' + k.createdAt);
 
 ---
 
-### Enterprise SSO Registration (Okta / WorkOS / Descope) — TBD
+### Enterprise SSO Binding — Roadmap
 
-> **Note:** This endpoint (`/enterprise/keys`) is on the roadmap but not yet implemented. The code below is forward-looking.
+> **Status:** Not yet implemented. This describes the planned direction.
 
-For organizations that want to bind agent identities to their SSO:
+For organizations using Okta, WorkOS, or Descope: OBA will support binding agent keys to enterprise subjects issued by your IdP. OBA is **not replacing your IdP directory** — it attaches verifiable agent keys and audit trails to identities you already manage.
 
-```bash
-node -e "
-const { readFileSync } = require('fs');
-const { join } = require('path');
-const { homedir } = require('os');
+**Planned flow:**
+1. Authenticate via your IdP (SAML/OIDC)
+2. Bind an agent public key to that enterprise subject
+3. Signatures from that agent carry the enterprise identity anchor
 
-const PROVIDER = process.argv[1];
-const ORG_ID = process.argv[2];
-const TOKEN = process.argv[3];
-const API = process.argv[4] || 'https://api.openbotauth.org';
-
-const key = JSON.parse(readFileSync(join(homedir(), '.config', 'openbotauth', 'key.json'), 'utf-8'));
-
-fetch(API + '/enterprise/keys', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer ' + TOKEN,
-    'X-SSO-Provider': PROVIDER,
-    'X-Org-ID': ORG_ID
-  },
-  body: JSON.stringify({
-    key: { kty: 'OKP', crv: 'Ed25519', kid: key.kid, x: key.x, use: 'sig', alg: 'EdDSA' },
-    sso: { provider: PROVIDER, orgId: ORG_ID },
-    metadata: { tool: 'openbotauth', platform: 'openclaw' }
-  })
-})
-.then(r => r.json())
-.then(d => console.log(JSON.stringify(d, null, 2)))
-.catch(e => console.error('Failed:', e.message));
-" "PROVIDER" "ORG_ID" "SSO_TOKEN"
-```
-
-Supported providers: `okta`, `workos`, `descope`.
+This complements (not competes with) IdP-native agent features — you get portable keys + web verification surface.
 
 ---
 
@@ -613,7 +587,7 @@ The proxy:
 **Limitations:**
 - HTTP/2, WebSockets, and multiplexed connections are not reliably supported
 - Best for demos and basic browsing; not a production-grade proxy
-- IP addresses in hostnames use `DNS:<ip>` in SAN (some clients may reject this)
+- **IP-based hostnames:** If the CONNECT target is an IP address, consider rejecting it or use `subjectAltName=IP:<ip>` instead of `DNS:` (current code uses DNS, which strict clients may reject)
 
 **When to use Steps 4-5 instead:** Simple single-page-load scenarios where you control every navigation and can re-sign before each one.
 
@@ -656,6 +630,16 @@ The proxy:
 | skills.sh | ✅ Full | curl-based registration is safe |
 
 **For browser runtimes:** Complete registration in CLI mode. The signing proxy only needs the private key (local) and JWKS URL (public). No bearer token needed during browsing.
+
+### Official Packages
+
+For production integrations, prefer the official packages:
+- `@openbotauth/verifier-client` — verify signatures
+- `@openbotauth/registry-signer` — key generation and JWK utilities
+- `@openbotauth/bot-cli` — CLI for signing requests
+- `@openbotauth/proxy` — signing proxy
+
+For strict RFC 9421 signing, use the reference signer from `openbotauth-demos` (`packages/signing-ts`).
 
 ### Links
 
