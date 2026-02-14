@@ -37,7 +37,6 @@ export const listCommand = new Command('list')
         console.log(chalk.gray(`   ID: ${agent.id}`));
         console.log(chalk.gray(`   Type: ${agent.agent_type}`));
         console.log(chalk.gray(`   Status: ${agent.status}`));
-        console.log(chalk.gray(`   JWKS: ${options.apiUrl}/agent-jwks/${agent.id}`));
         console.log();
       });
     } catch (error) {

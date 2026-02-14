@@ -61,17 +61,33 @@ This document describes the behavior of the Supabase Edge Functions that need to
 }
 ```
 
-## 2. Agent JWKS Endpoint (`/agent-jwks/{agent_id}`)
+## 2. Agent JWKS Endpoint (`/agent-jwks/{agent_id}`) — DEPRECATED
+
+> **⚠️ DEPRECATED**: This endpoint has been removed and returns HTTP 410 Gone.
+> Use the user JWKS endpoint `/jwks/{username}.json` instead, which includes
+> all agent keys under the user's identity.
+
+**Status**: Returns 410 Gone with message:
+```json
+{
+  "error": "Gone",
+  "message": "The /agent-jwks endpoint is deprecated. Use /jwks/{username}.json."
+}
+```
+
+**Historical documentation preserved below for reference:**
+
+---
 
 **Original**: `supabase/functions/agent-jwks/index.ts`
 
-### Behavior
+### Behavior (Historical)
 
 - **Path**: `/agent-jwks/{agent_id}`
 - **Method**: GET
 - **Purpose**: Serve JWKS for a specific agent
 
-### Logic
+### Logic (Historical)
 
 1. Extract agent_id from path
 2. Query `agents` table by ID
@@ -87,7 +103,7 @@ This document describes the behavior of the Supabase Edge Functions that need to
    - `Verified`: true if github_username exists
 5. Return JSON
 
-### Response Example
+### Response Example (Historical)
 
 ```json
 {

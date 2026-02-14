@@ -68,9 +68,5 @@ export class RegistryAPI {
       body: JSON.stringify(data),
     });
   }
-
-  async getJWKSUrl(agentId: string): Promise<string> {
-    return `${this.baseUrl}/agent-jwks/${agentId}`;
-  }
 }
 

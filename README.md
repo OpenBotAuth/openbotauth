@@ -164,7 +164,6 @@ JWKS hosting and agent identity management.
 
 **Endpoints:**
 - `GET /jwks/{username}.json` — User JWKS
-- `GET /agent-jwks/{agent_id}` — Agent JWKS
 - `POST /auth/github` — GitHub OAuth login
 - `GET /agents` — List user agents
 - `POST /keys` — Register public key

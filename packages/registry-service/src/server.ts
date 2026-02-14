@@ -11,7 +11,6 @@ import { Pool } from 'pg';
 import { Database, GitHubOAuth } from '@openbotauth/github-connector';
 import { mountAgentCard } from '@openbotauth/a2a-card';
 import { jwksRouter } from './routes/jwks.js';
-import { agentRouter } from './routes/agents.js';
 import { agentsAPIRouter } from './routes/agents-api.js';
 import { authRouter } from './routes/auth.js';
 import { activityRouter } from './routes/activity.js';
@@ -94,7 +93,15 @@ app.get('/health', (_req: express.Request, res: express.Response) => {
 
 // Routes
 app.use('/jwks', jwksRouter);
-app.use('/agent-jwks', agentRouter);
+
+// Deprecated: agent-jwks endpoint removed in favor of user JWKS
+app.use('/agent-jwks', (_req, res) => {
+  res.status(410).json({
+    error: 'Gone',
+    message: 'The /agent-jwks endpoint is deprecated. Use /jwks/{username}.json.',
+  });
+});
+
 app.use('/agents', agentsAPIRouter);
 app.use('/auth', authRouter);
 app.use('/agent-activity', activityRouter);

@@ -175,6 +175,12 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
         // Create profile with username from GitHub
         await db.createProfile(newUser.id, githubUser.login);
 
+        // Sync github identity to profile
+        await db.getPool().query(
+          `UPDATE profiles SET github_username = $1, avatar_url = $2, updated_at = now() WHERE id = $3`,
+          [githubUser.login, githubUser.avatar_url || null, newUser.id]
+        );
+
         return newUser;
       });
     } else {
@@ -184,6 +190,12 @@ authRouter.get('/github/callback', async (req: Request, res: Response): Promise<
         github_username: githubUser.login,
         avatar_url: githubUser.avatar_url || undefined,
       });
+
+      // Also sync github_username to profile for existing users
+      await db.getPool().query(
+        `UPDATE profiles SET github_username = $1, avatar_url = $2, updated_at = now() WHERE id = $3`,
+        [githubUser.login, githubUser.avatar_url || null, user.id]
+      );
     }
 
     // Get user's profile (needed for both CLI and web redirects)
