@@ -1,6 +1,6 @@
 # openbotauth
 
-Cryptographic identity for AI agent browser sessions. Signs HTTP requests with Ed25519 keys using RFC 9421 Message Signatures via OpenBotAuth.
+Cryptographic identity for AI agents. Register once, then sign HTTP requests (RFC 9421) anywhere. Optional browser integrations via per-request signing proxy.
 
 ## When to trigger
 
@@ -193,6 +193,7 @@ fetch(API + '/agents', {
     headers: { 'Authorization': 'Bearer ' + token }
   }).then(r => { if (!r.ok) throw new Error('Session HTTP ' + r.status); return r.json(); });
   const username = session.profile?.username || session.user?.github_username;
+  if (!username) throw new Error('Could not resolve username from /auth/session');
   const jwksUrl = API + '/jwks/' + username + '.json';
 
   // Write config.json for the signing proxy
@@ -245,9 +246,9 @@ You should see your public key in the `keys` array. This is the URL that verifie
 
 ---
 
-### Step 4: Sign a browser session
+### Step 4: Sign a request
 
-Generate RFC 9421 signed headers for a target URL. The output is a JSON object for `set headers --json` (OpenClaw) or `agent-browser set headers`.
+Generate RFC 9421 signed headers for a target URL. The output is a JSON object for `agent-browser open --headers` or `set headers --json` (OpenClaw).
 
 **Required inputs:**
 - `TARGET_URL` — the URL being browsed
@@ -264,9 +265,8 @@ const { homedir } = require('os');
 const METHOD = (process.argv[1] || 'GET').toUpperCase();
 const TARGET_URL = process.argv[2];
 const JWKS_URL = process.argv[3] || '';
-const SESSION_ID = process.argv[4] || 'oba-session-' + randomUUID();
 
-if (!TARGET_URL) { console.error('Usage: node sign.js METHOD URL JWKS_URL [SESSION_ID]'); process.exit(1); }
+if (!TARGET_URL) { console.error('Usage: node sign.js METHOD URL JWKS_URL'); process.exit(1); }
 
 const key = JSON.parse(readFileSync(join(homedir(), '.config', 'openbotauth', 'key.json'), 'utf-8'));
 const url = new URL(TARGET_URL);
@@ -296,7 +296,7 @@ if (JWKS_URL) {
 }
 
 console.log(JSON.stringify(headers));
-" "METHOD" "TARGET_URL" "JWKS_URL" "OPTIONAL_SESSION_ID"
+" "METHOD" "TARGET_URL" "JWKS_URL"
 ```
 
 Replace the arguments:
@@ -346,7 +346,9 @@ console.log('Created:    ' + k.createdAt);
 
 ---
 
-### Enterprise SSO Registration (Okta / WorkOS / Descope)
+### Enterprise SSO Registration (Okta / WorkOS / Descope) — TBD
+
+> **Note:** This endpoint (`/enterprise/keys`) is on the roadmap but not yet implemented. The code below is forward-looking.
 
 For organizations that want to bind agent identities to their SSO:
 
@@ -605,6 +607,13 @@ The proxy:
 - Includes the `Signature-Agent` header (JWKS URL) on every request
 - Runs on `127.0.0.1:8421` by default (configurable with `--port`)
 - Requires openssl (pre-installed on macOS/Linux) for HTTPS certificate generation
+
+**Security warning:** `~/.config/openbotauth/ca/ca.key` is a local MITM root key. Treat it as sensitive as a private key — if stolen, an attacker can intercept traffic on that machine.
+
+**Limitations:**
+- HTTP/2, WebSockets, and multiplexed connections are not reliably supported
+- Best for demos and basic browsing; not a production-grade proxy
+- IP addresses in hostnames use `DNS:<ip>` in SAN (some clients may reject this)
 
 **When to use Steps 4-5 instead:** Simple single-page-load scenarios where you control every navigation and can re-sign before each one.
 
