@@ -61,11 +61,15 @@ export const updateKeyCommand = new Command('update-key')
 
       // Get session to show user JWKS URL
       const session = await api.getSession();
-      const username = session.profile?.username || session.user.github_username || 'unknown';
-      const jwksUrl = api.getUserJWKSUrl(username);
-      console.log(chalk.yellow.bold('\n🔑 JWKS Endpoint:'));
-      console.log(chalk.white(jwksUrl));
-      console.log(chalk.dim('(Your agent key is included in your user JWKS)'));
+      const username = session.profile?.username || session.user.github_username;
+      if (username) {
+        const jwksUrl = api.getUserJWKSUrl(username);
+        console.log(chalk.yellow.bold('\n🔑 JWKS Endpoint:'));
+        console.log(chalk.white(jwksUrl));
+        console.log(chalk.dim('(Your agent key is included in your user JWKS)'));
+      } else {
+        console.log(chalk.yellow('\n⚠️  Could not determine username for JWKS URL'));
+      }
 
       console.log(chalk.red.bold('\n⚠️  NEW PRIVATE KEY (Save this securely!):\n'));
       console.log(chalk.gray(privateKey));

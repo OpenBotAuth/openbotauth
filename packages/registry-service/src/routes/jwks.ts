@@ -84,11 +84,15 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
 
       // Validate: must be object with non-empty x string
       if (!pk || typeof pk !== 'object') {
-        console.warn(`Skipping agent ${agent.id}: public_key is not an object`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(`Skipping agent ${agent.id}: public_key is not an object`);
+        }
         continue;
       }
       if (typeof pk.x !== 'string' || pk.x.length === 0) {
-        console.warn(`Skipping agent ${agent.id}: missing or invalid x value`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(`Skipping agent ${agent.id}: missing or invalid x value`);
+        }
         continue;
       }
 
@@ -100,12 +104,16 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
         const hashBase64 = createHash('sha256').update(canonical).digest('base64');
         // Convert to base64url (full length, no truncation to avoid collisions)
         kid = hashBase64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-        console.warn(`Agent ${agent.id}: derived kid ${kid} from x (was missing)`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(`Agent ${agent.id}: derived kid ${kid} from x (was missing)`);
+        }
       }
 
       // Dedupe by kid
       if (seenKids.has(kid)) {
-        console.warn(`Skipping agent ${agent.id}: duplicate kid ${kid}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(`Skipping agent ${agent.id}: duplicate kid ${kid}`);
+        }
         continue;
       }
       seenKids.add(kid);
