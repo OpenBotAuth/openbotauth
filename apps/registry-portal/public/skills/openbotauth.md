@@ -14,6 +14,18 @@ Bash
 
 You help users cryptographically sign their browser sessions using OpenBotAuth (OBA) with Ed25519. This skill is **self-contained** — it uses inline Node.js (v18+) for all crypto operations. No external CLI tools are required.
 
+### Compatibility Modes
+
+**Core Mode (portable, recommended):**
+- Works with: Claude Code, Cursor, Codex CLI, Goose, any shell-capable agent
+- Uses: Node.js crypto + curl for registration
+- Token needed only briefly for `POST /agents`
+
+**Browser Mode (optional, runtime-dependent):**
+- For: agent-browser, OpenClaw Browser Relay, CUA tooling
+- Bearer token must NOT live inside the browsing runtime
+- Do registration in CLI mode first, then browse with signatures only
+
 ### Key Storage
 
 Keys are stored at `~/.config/openbotauth/key.json` in **OBA's canonical format**:
@@ -31,6 +43,20 @@ Keys are stored at `~/.config/openbotauth/key.json` in **OBA's canonical format*
 The OBA token lives at `~/.config/openbotauth/token` (chmod 600).
 
 Agent registration info (agent_id, JWKS URL) should be saved in agent memory/notes after Step 3.
+
+### Token Handling Contract
+
+**The bearer token is for registration only:**
+- Use it ONLY for `POST /agents` (and key rotation)
+- Delete `~/.config/openbotauth/token` after registration completes
+- Never attach bearer tokens to browsing sessions
+
+**Minimum scopes:** `agents:write` + `profile:read`
+- Only add `keys:write` if you need `/keys` endpoint
+
+**Never use global headers with OBA token:**
+- agent-browser's `set headers` command applies headers globally
+- Use origin-scoped headers only (via `open --headers`)
 
 ---
 
@@ -189,6 +215,15 @@ curl https://api.openbotauth.org/jwks/YOUR_USERNAME.json
 You should see your public key in the `keys` array. This is the URL that verifiers will use to check your signatures.
 
 **Save the agent_id, username, and JWKS URL to memory/notes** — you'll need the JWKS URL for the `Signature-Agent` header in every signed request.
+
+### Token Safety Rules
+
+| Do | Don't |
+|----|-------|
+| `curl -H "Authorization: Bearer ..." https://api.openbotauth.org/agents` | Set bearer token as global browser header |
+| Delete token after registration | Keep token in browsing session |
+| Use origin-scoped headers for signing | Use `set headers` with bearer tokens |
+| Store token at `~/.config/openbotauth/token` (chmod 600) | Paste token into chat logs |
 
 ---
 
@@ -556,6 +591,9 @@ The proxy:
 - `Signature-Agent` must point to a publicly reachable JWKS URL for verification to work
 - All crypto uses Node.js built-in `crypto` module — no npm dependencies required
 - **Security:** Never send private keys or OBA tokens to any domain other than `api.openbotauth.org`
+- **Token lifecycle:** Delete `~/.config/openbotauth/token` after registration. You won't need it for signing.
+- **Browser sessions:** After registration, only signatures travel over the wire. The token stays local and should be deleted.
+- **Global headers warning:** Never use `set headers` with bearer tokens in agent-browser. Use `open --headers` for origin-scoped injection.
 
 ---
 
@@ -571,6 +609,18 @@ The proxy:
     ├── ca.key     # CA private key
     └── ca.crt     # CA certificate
 ```
+
+### Runtime Compatibility
+
+| Runtime | Support | Notes |
+|---------|---------|-------|
+| Claude Code / Cursor / Codex | ✅ Full | Recommended path - CLI registration |
+| agent-browser | ✅ Full | Use scoped headers, not global |
+| OpenClaw Browser Relay | ✅ After registration | Register via CLI first |
+| CUA / Browser Control | ⚠️ Caution | Treat control plane as hostile |
+| skills.sh | ✅ Full | curl-based registration is safe |
+
+**For browser runtimes:** Complete registration in CLI mode. The signing proxy only needs the private key (local) and JWKS URL (public). No bearer token needed during browsing.
 
 ### Links
 
