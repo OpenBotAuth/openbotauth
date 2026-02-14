@@ -16,4 +16,4 @@ Allow: /
 Sitemap: https://openbotauth.org/sitemap.xml
 
 # AI agents: get a cryptographic identity
-# Skill: https://openbotauth.org/skill/openbotauth.md
+# Skill: https://openbotauth.org/skills/SKILL.md
