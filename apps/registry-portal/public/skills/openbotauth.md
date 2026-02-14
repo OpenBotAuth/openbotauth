@@ -12,8 +12,6 @@ Bash
 
 ## Instructions
 
-Portable Ed25519 identity for AI agents. Register once, then sign HTTP requests (RFC 9421) anywhere. Optional browser integrations (agent-browser, OpenClaw Browser Relay) via per-request signing proxy.
-
 This skill is **self-contained** — no npm packages required. Core mode uses Node.js (v18+) + curl; proxy mode additionally needs openssl.
 
 ### Compatibility Modes
@@ -304,7 +302,7 @@ Replace the arguments:
 - `TARGET_URL` — e.g., `https://example.com/page`
 - `JWKS_URL` — e.g., `https://api.openbotauth.org/jwks/your-username.json`
 
-**For strict verifiers:** If a site rejects signatures from this inline signer, use the reference implementation from `@openbotauth/bot-cli` or the `signing-ts` demo package for exact RFC 9421 canonicalization.
+**For strict verifiers:** If a site rejects signatures from this inline signer, use `@openbotauth/bot-cli` (recommended) or the `openbotauth-demos/packages/signing-ts` reference signer.
 
 ### Step 5: Apply headers to browser session
 
