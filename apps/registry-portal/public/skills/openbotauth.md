@@ -12,7 +12,9 @@ Bash
 
 ## Instructions
 
-You help users cryptographically sign their browser sessions using OpenBotAuth (OBA) with Ed25519. This skill is **self-contained** — it uses inline Node.js (v18+) for all crypto operations. No external CLI tools are required.
+Portable Ed25519 identity for AI agents. Register once, then sign HTTP requests (RFC 9421) anywhere. Optional browser integrations (agent-browser, OpenClaw Browser Relay) via per-request signing proxy.
+
+This skill is **self-contained** — no npm packages required. Core mode uses Node.js (v18+) + curl; proxy mode additionally needs openssl.
 
 ### Compatibility Modes
 
@@ -154,13 +156,15 @@ const os = require('node:os');
 
 const dir = path.join(os.homedir(), '.config', 'openbotauth');
 const key = JSON.parse(fs.readFileSync(path.join(dir, 'key.json'), 'utf-8'));
-const token = fs.readFileSync(path.join(dir, 'token'), 'utf-8').trim();
+const tokenPath = path.join(dir, 'token');
+const token = fs.readFileSync(tokenPath, 'utf-8').trim();
 
 const AGENT_NAME = process.argv[1] || 'my-agent';
 const API = 'https://api.openbotauth.org';
 
 fetch(API + '/agents', {
   method: 'POST',
+  redirect: 'error',  // Never follow redirects with bearer token
   headers: {
     'Authorization': 'Bearer ' + token,
     'Content-Type': 'application/json'
@@ -178,18 +182,32 @@ fetch(API + '/agents', {
     }
   })
 })
-.then(r => r.json())
+.then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
 .then(async d => {
   console.log('Agent registered!');
   console.log('Agent ID:', d.id);
 
   // Fetch session to get username for JWKS URL
   const session = await fetch(API + '/auth/session', {
+    redirect: 'error',  // Never follow redirects with bearer token
     headers: { 'Authorization': 'Bearer ' + token }
-  }).then(r => r.json());
+  }).then(r => { if (!r.ok) throw new Error('Session HTTP ' + r.status); return r.json(); });
   const username = session.profile?.username || session.user?.github_username;
   const jwksUrl = API + '/jwks/' + username + '.json';
 
+  // Write config.json for the signing proxy
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    agent_id: d.id,
+    username: username,
+    jwksUrl: jwksUrl
+  }, null, 2), { mode: 0o600 });
+  console.log('Config written to ~/.config/openbotauth/config.json');
+
+  // Delete token — no longer needed after registration
+  fs.unlinkSync(tokenPath);
+  console.log('Token deleted (no longer needed)');
+
+  console.log('');
   console.log('JWKS URL:', jwksUrl);
   console.log('');
   console.log('Save this to memory:');
@@ -288,24 +306,25 @@ Replace the arguments:
 
 ### Step 5: Apply headers to browser session
 
+**For single signed navigation (demo / Radar proof):**
+```bash
+agent-browser open <url> --headers '<OUTPUT_FROM_STEP_4>'
+```
+This uses origin-scoped headers (safer than global).
+
+**For real browsing (subresources/XHR):** Use the signing proxy (Step A-C below).
+
 **OpenClaw browser:**
 ```
 set headers --json '<OUTPUT_FROM_STEP_4>'
 ```
 
-**agent-browser CLI (if installed):**
-```bash
-agent-browser set headers '<OUTPUT_FROM_STEP_4>'
-agent-browser open <url>
-```
-
 **With named session:**
 ```bash
-agent-browser --session myagent set headers '<OUTPUT_FROM_STEP_4>'
-agent-browser --session myagent open <url>
+agent-browser --session myagent open <url> --headers '<OUTPUT_FROM_STEP_4>'
 ```
 
-**Important: re-sign before each navigation.** Because RFC 9421 signatures are bound to `@method`, `@authority`, and `@path`, you must regenerate headers (Step 4) before navigating to a different URL.
+**Important: re-sign before each navigation.** Because RFC 9421 signatures are bound to `@method`, `@authority`, and `@path`, you must regenerate headers (Step 4) before navigating to a different URL. For continuous browsing, use the proxy instead.
 
 ---
 
@@ -570,8 +589,15 @@ This starts the signing proxy on `127.0.0.1:8421`. Every HTTP and HTTPS request 
 In another terminal (or from agent-browser):
 
 ```bash
-agent-browser --proxy http://127.0.0.1:8421 open https://example.com
+# For demos (ignore cert warnings):
+agent-browser --proxy http://127.0.0.1:8421 --ignore-https-errors open https://example.com
+
+# For production: install ~/.config/openbotauth/ca/ca.crt as trusted CA
 ```
+
+**TLS Note:** The proxy MITMs HTTPS by generating per-domain certs signed by a local CA. Either:
+- Use `--ignore-https-errors` for demos/testing
+- Install `~/.config/openbotauth/ca/ca.crt` as a trusted CA for clean operation
 
 The proxy:
 - Signs **every** outgoing request with a fresh RFC 9421 signature
