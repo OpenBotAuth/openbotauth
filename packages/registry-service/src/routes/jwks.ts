@@ -73,25 +73,59 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       [profile.id]
     );
 
+    // Track seen kids to dedupe
+    const seenKids = new Set(jwks.map(k => k.kid));
+
     for (const agent of agentsResult.rows) {
-      if (agent.public_key && typeof agent.public_key === 'object') {
-        // Agent keys are already JWK format - use as-is, preserving their kid
-        const agentJwk = {
-          kty: agent.public_key.kty || 'OKP',
-          crv: agent.public_key.crv || 'Ed25519',
-          x: agent.public_key.x,
-          kid: agent.public_key.kid, // Preserve portal-generated kid
-          use: agent.public_key.use || 'sig',
-          alg: agent.public_key.alg || 'EdDSA',
-        };
-        // Only add nbf/exp if we have created_at
-        if (agent.created_at) {
-          const createdAt = new Date(agent.created_at);
-          (agentJwk as Record<string, unknown>).nbf = Math.floor(createdAt.getTime() / 1000);
-          (agentJwk as Record<string, unknown>).exp = Math.floor(createdAt.getTime() / 1000) + 365 * 24 * 60 * 60;
-        }
-        jwks.push(agentJwk);
+      const pk = agent.public_key;
+
+      // Validate: must be object with non-empty x string
+      if (!pk || typeof pk !== 'object') {
+        console.warn(`Skipping agent ${agent.id}: public_key is not an object`);
+        continue;
       }
+      if (typeof pk.x !== 'string' || pk.x.length === 0) {
+        console.warn(`Skipping agent ${agent.id}: missing or invalid x value`);
+        continue;
+      }
+
+      // Derive kid from x if missing (fallback using same thumbprint logic)
+      let kid = pk.kid;
+      if (typeof kid !== 'string' || kid.length === 0) {
+        // Generate kid from x using SHA-256 thumbprint of minimal JWK
+        const thumbprintInput = JSON.stringify({ crv: 'Ed25519', kty: 'OKP', x: pk.x });
+        const hash = require('crypto').createHash('sha256').update(thumbprintInput).digest();
+        kid = hash.toString('base64url').slice(0, 16);
+        console.warn(`Agent ${agent.id}: derived kid ${kid} from x (was missing)`);
+      }
+
+      // Dedupe by kid
+      if (seenKids.has(kid)) {
+        console.warn(`Skipping agent ${agent.id}: duplicate kid ${kid}`);
+        continue;
+      }
+      seenKids.add(kid);
+
+      // Build validated JWK with proper typing
+      const agentJwk = {
+        kty: 'OKP' as const,
+        crv: 'Ed25519' as const,
+        x: pk.x as string,
+        kid,
+        use: 'sig' as const,
+        alg: 'EdDSA' as const,
+        nbf: undefined as number | undefined,
+        exp: undefined as number | undefined,
+      };
+
+      // Add nbf/exp if we have created_at
+      if (agent.created_at) {
+        const createdAt = new Date(agent.created_at);
+        agentJwk.nbf = Math.floor(createdAt.getTime() / 1000);
+        agentJwk.exp = Math.floor(createdAt.getTime() / 1000) + 365 * 24 * 60 * 60;
+      }
+
+      jwks.push(agentJwk);
     }
 
     if (jwks.length === 0) {

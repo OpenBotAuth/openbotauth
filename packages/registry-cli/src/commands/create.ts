@@ -93,7 +93,7 @@ export const createCommand = new Command('create')
 
       // Get session to show user JWKS URL
       const session = await api.getSession();
-      const username = session.profile?.username || session.user.github_username;
+      const username = session.profile?.username || session.user.github_username || 'unknown';
       const jwksUrl = api.getUserJWKSUrl(username);
       console.log(chalk.yellow.bold('\n🔑 JWKS Endpoint:'));
       console.log(chalk.white(jwksUrl));

@@ -16,7 +16,7 @@ export interface Agent {
 export interface Session {
   user: {
     id: string;
-    github_username: string;
+    github_username: string | null;
     avatar_url: string | null;
   };
   profile: {
