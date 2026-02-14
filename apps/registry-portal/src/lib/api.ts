@@ -294,10 +294,14 @@ class RegistryAPI {
   }
 
   /**
-   * Get JWKS URL for agent
+   * Delete agent
    */
-  getAgentJWKSUrl(agentId: string): string {
-    return `${this.baseUrl}/agent-jwks/${agentId}`;
+  async deleteAgent(agentId: string): Promise<void> {
+    const response = await this.fetch(`/agents/${agentId}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || 'Failed to delete agent');
+    }
   }
 
   /**

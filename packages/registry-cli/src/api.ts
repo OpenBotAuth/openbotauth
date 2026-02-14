@@ -13,6 +13,18 @@ export interface Agent {
   updated_at: string;
 }
 
+export interface Session {
+  user: {
+    id: string;
+    github_username: string | null;
+    avatar_url: string | null;
+  };
+  profile: {
+    username: string;
+    client_name: string | null;
+  } | null;
+}
+
 export class RegistryAPI {
   constructor(
     private baseUrl: string,
@@ -69,8 +81,12 @@ export class RegistryAPI {
     });
   }
 
-  async getJWKSUrl(agentId: string): Promise<string> {
-    return `${this.baseUrl}/agent-jwks/${agentId}`;
+  async getSession(): Promise<Session> {
+    return this.fetch('/auth/session');
+  }
+
+  getUserJWKSUrl(username: string): string {
+    return `${this.baseUrl}/jwks/${username}.json`;
   }
 }
 

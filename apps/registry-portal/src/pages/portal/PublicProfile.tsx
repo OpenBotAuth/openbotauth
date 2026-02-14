@@ -175,8 +175,7 @@ const PublicProfile = () => {
   };
 
   const handleCopyUrl = () => {
-    const projectId = "lxqarpgicszdxydkdccz";
-    const url = `https://${projectId}.supabase.co/functions/v1/jwks/${username}.json`;
+    const url = api.getUserJWKSUrl(username!);
     navigator.clipboard.writeText(url);
     setCopied(true);
     toast.success("JWKS URL copied to clipboard!");
@@ -227,9 +226,6 @@ const PublicProfile = () => {
   }
 
   const jwksUrl = api.getUserJWKSUrl(username!);
-  const agentJwksUrl = selectedAgent
-    ? api.getAgentJWKSUrl(selectedAgent.id)
-    : "";
 
   return (
     <div className="min-h-screen bg-background">
@@ -486,9 +482,6 @@ const PublicProfile = () => {
                     <p className="text-xs text-muted-foreground">
                       Created: {format(new Date(agent.created_at), "MMM d, yyyy")}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-2 truncate">
-                      JWKS: /api/agents/{agent.id.substring(0, 8)}...
-                    </p>
                   </CardContent>
                 </Card>
               ))}
@@ -499,17 +492,6 @@ const PublicProfile = () => {
         {/* Agent Details & Activity */}
         {selectedAgent && (
           <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>JWKS Endpoint</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <code className="block p-3 bg-muted rounded text-xs break-all">
-                  {agentJwksUrl}
-                </code>
-              </CardContent>
-            </Card>
-
             <Card>
               <CardHeader>
                 <CardTitle>Recent Activity</CardTitle>

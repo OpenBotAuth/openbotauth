@@ -17,10 +17,6 @@ export default defineConfig(({ mode: _mode }) => ({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
-      '/agent-jwks': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
       '/agent-activity': {
         target: 'http://localhost:8080',
         changeOrigin: true,

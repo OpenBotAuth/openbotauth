@@ -57,7 +57,6 @@ The Vite dev server proxies API requests to avoid CORS issues:
 - `/auth/*` → `http://localhost:8080/auth/*`
 - `/agents/*` → `http://localhost:8080/agents/*`
 - `/jwks/*` → `http://localhost:8080/jwks/*`
-- `/agent-jwks/*` → `http://localhost:8080/agent-jwks/*`
 - `/agent-activity/*` → `http://localhost:8080/agent-activity/*`
 - `/profiles/*` → `http://localhost:8080/profiles/*`
 
@@ -114,7 +113,6 @@ The portal will be available at: **http://localhost:5173**
 ### 4. JWKS Endpoints
 
 - **User JWKS** - `http://localhost:8080/jwks/{username}.json`
-- **Agent JWKS** - `http://localhost:8080/agent-jwks/{agent_id}`
 - **Copy URLs** - Easy copy-to-clipboard functionality
 
 ### 5. Activity Monitoring

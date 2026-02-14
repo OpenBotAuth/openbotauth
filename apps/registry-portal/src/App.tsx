@@ -20,7 +20,6 @@ import Setup from "./pages/portal/Setup";
 import EditProfile from "./pages/portal/EditProfile";
 import Registry from "./pages/portal/Registry";
 import NotFound from "./pages/NotFound";
-import ConfirmUsername from "./pages/portal/ConfirmUsername";
 import Index from "./pages/Index";
 import MyAgents from "./pages/portal/MyAgents";
 import AgentDetail from "./pages/portal/AgentDetail";
@@ -50,7 +49,6 @@ const App = () => (
             {/* Portal routes - authenticated */}
             <Route path="/login" element={<Login />} />
             <Route path="/setup" element={<Setup />} />
-            <Route path="/confirm-username" element={<ConfirmUsername />} />
             <Route path="/profile/edit" element={<EditProfile />} />
             <Route path="/registry" element={<Registry />} />
             <Route path="/my-agents" element={<MyAgents />} />

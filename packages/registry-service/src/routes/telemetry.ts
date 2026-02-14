@@ -96,9 +96,16 @@ router.get('/overview', async (req: Request, res: Response) => {
             [days]
           ),
           dbPool.query(
-            `SELECT COUNT(DISTINCT COALESCE(username, signature_agent)) as count
-             FROM signed_attempt_logs
-             WHERE timestamp > NOW() - $1 * INTERVAL '1 day'`,
+            `SELECT COUNT(DISTINCT
+              CASE
+                WHEN s.username IS NOT NULL THEN 'github.com/' || COALESCE(u.github_username, p.github_username, s.username)
+                ELSE s.signature_agent
+              END
+            ) as count
+             FROM signed_attempt_logs s
+             LEFT JOIN profiles p ON p.username = s.username
+             LEFT JOIN users u ON u.id = p.id
+             WHERE s.timestamp > NOW() - $1 * INTERVAL '1 day'`,
             [days]
           ),
         ]);
@@ -194,13 +201,18 @@ router.get('/top/agents', async (req: Request, res: Response) => {
 
     const result = await dbPool.query(
       `SELECT
-        COALESCE(username, signature_agent) as agent_id,
-        MAX(client_name) as client_name,
-        COUNT(*) FILTER (WHERE verified) as verified_count,
-        COUNT(*) FILTER (WHERE NOT verified) as failed_count
-      FROM signed_attempt_logs
-      WHERE timestamp > NOW() - $1 * INTERVAL '1 day'
-      GROUP BY COALESCE(username, signature_agent)
+        CASE
+          WHEN s.username IS NOT NULL THEN 'github.com/' || COALESCE(u.github_username, p.github_username, s.username)
+          ELSE s.signature_agent
+        END AS agent_id,
+        MAX(s.client_name) AS client_name,
+        COUNT(*) FILTER (WHERE s.verified) AS verified_count,
+        COUNT(*) FILTER (WHERE NOT s.verified) AS failed_count
+      FROM signed_attempt_logs s
+      LEFT JOIN profiles p ON p.username = s.username
+      LEFT JOIN users u ON u.id = p.id
+      WHERE s.timestamp > NOW() - $1 * INTERVAL '1 day'
+      GROUP BY 1
       ORDER BY verified_count DESC
       LIMIT $2`,
       [days, limit]

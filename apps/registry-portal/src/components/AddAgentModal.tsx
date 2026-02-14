@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast";
 import { Key, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { api } from "@/lib/api";
 
 interface AddAgentModalProps {
   open: boolean;
@@ -102,26 +103,18 @@ const AddAgentModal = ({ open, onOpenChange, onSuccess }: AddAgentModalProps) =>
 
     setIsCreating(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await api.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      const { data, error } = await supabase
-        .from("agents")
-        .insert({
-          user_id: session.user.id,
-          name,
-          description,
-          agent_type: agentType,
-          public_key: publicKey,
-          status: "active",
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+      const agent = await api.createAgent({
+        name,
+        description: description || undefined,
+        agent_type: agentType,
+        public_key: publicKey,
+      });
 
       // Download private key
-      downloadPrivateKey(data.id);
+      downloadPrivateKey(agent.id);
 
       toast({
         title: "Agent Created",

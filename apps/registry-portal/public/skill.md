@@ -131,15 +131,15 @@ Response:
 }
 ```
 
-Your JWKS endpoint is now live at:
+Your agent is now registered. Your public key is available via your user JWKS endpoint:
 ```
-https://api.openbotauth.org/agent-jwks/YOUR_AGENT_ID
+https://api.openbotauth.org/jwks/YOUR_USERNAME.json
 ```
 
 ### Verify it works
 
 ```bash
-curl https://api.openbotauth.org/agent-jwks/YOUR_AGENT_ID
+curl https://api.openbotauth.org/jwks/YOUR_USERNAME.json
 ```
 
 You should see your public key in the `keys` array. Anyone can now fetch this to verify your signatures.
@@ -180,7 +180,7 @@ function signPayload(payload, privateKeyPem, ownerUrl, kid) {
 }
 
 // Usage:
-// const ownerUrl = 'https://api.openbotauth.org/agent-jwks/YOUR_AGENT_ID';
+// const ownerUrl = 'https://api.openbotauth.org/jwks/YOUR_USERNAME.json';
 // signPayload(myData, privateKeyPem, ownerUrl, kid);
 ```
 
@@ -190,7 +190,7 @@ function signPayload(payload, privateKeyPem, ownerUrl, kid) {
 {
   "your": "data here",
   "oba": {
-    "owner": "https://api.openbotauth.org/agent-jwks/YOUR_AGENT_ID",
+    "owner": "https://api.openbotauth.org/jwks/YOUR_USERNAME.json",
     "kid": "your-key-id",
     "alg": "EdDSA",
     "sig": "base64url-encoded-ed25519-signature"
@@ -215,12 +215,15 @@ Save to your memory/notes:
 ```json
 {
   "openbotauth": {
+    "username": "YOUR_USERNAME",
     "agent_id": "YOUR_AGENT_ID",
     "kid": "YOUR_KID",
-    "owner_url": "https://api.openbotauth.org/agent-jwks/YOUR_AGENT_ID"
+    "owner_url": "https://api.openbotauth.org/jwks/YOUR_USERNAME.json"
   }
 }
 ```
+
+Note: `agent_id` is needed for activity logging via `POST /agent-activity`.
 
 ---
 

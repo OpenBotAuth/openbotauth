@@ -156,7 +156,6 @@ WordPress → Verify receipt
 
 **Endpoints**:
 - `GET /jwks/{username}.json` - User JWKS
-- `GET /agent-jwks/{agent_id}` - Agent JWKS
 - `POST /agent-activity` - Log activity
 - `GET /auth/github` - OAuth initiate
 - `GET /auth/github/callback` - OAuth callback
@@ -432,7 +431,7 @@ All services use structured JSON logging:
   "service": "verifier",
   "message": "Signature verified",
   "kid": "abc123",
-  "agent": "https://registry.example.com/agent-jwks/xyz",
+  "agent": "https://registry.example.com/jwks/username.json",
   "duration_ms": 45
 }
 ```

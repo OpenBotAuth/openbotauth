@@ -7,15 +7,7 @@ import { Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import AddAgentModal from "@/components/AddAgentModal";
 import AuthenticatedNav from "@/components/AuthenticatedNav";
-
-interface Agent {
-  id: string;
-  name: string;
-  description: string | null;
-  agent_type: string;
-  status: string;
-  created_at: string;
-}
+import { api, Agent } from "@/lib/api";
 
 const MyAgents = () => {
   const navigate = useNavigate();
@@ -25,19 +17,13 @@ const MyAgents = () => {
 
   const fetchAgents = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await api.getSession();
       if (!session) {
         navigate("/login");
         return;
       }
 
-      const { data, error } = await supabase
-        .from("agents")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
+      const data = await api.listAgents();
       setAgents(data || []);
     } catch (error: any) {
       console.error("Error fetching agents:", error);
@@ -148,14 +134,9 @@ const MyAgents = () => {
                   <p className="text-sm text-muted-foreground mb-4">
                     {agent.description || "No description provided"}
                   </p>
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Created: {new Date(agent.created_at).toLocaleDateString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground font-mono truncate">
-                      JWKS: /api/agents/{agent.id}/jwks
-                    </p>
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Created: {new Date(agent.created_at).toLocaleDateString()}
+                  </p>
                   <Button
                     variant="outline"
                     size="sm"

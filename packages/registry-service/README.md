@@ -70,21 +70,6 @@ Serve JWKS for a user's public keys.
 }
 ```
 
-#### GET `/agent-jwks/{agent_id}`
-
-Serve JWKS for a specific agent.
-
-**Response:**
-```json
-{
-  "client_name": "My Web Scraper",
-  "agent_type": "web_scraper",
-  "status": "active",
-  "created_at": "2025-11-15T00:00:00Z",
-  "keys": [...]
-}
-```
-
 ### Activity Endpoints
 
 #### POST `/agent-activity`

@@ -76,24 +76,6 @@ Example:
 openbot update-key abc123-def456 --session your_token
 ```
 
-#### Get JWKS URL
-
-```bash
-openbot jwks <agent-id> [options]
-
-Arguments:
-  agent-id             Agent ID
-
-Options:
-  --api-url <url>      Registry API URL
-  --session <token>    Session token
-```
-
-Example:
-```bash
-openbot jwks abc123-def456 --session your_token
-```
-
 ## Environment Variables
 
 ```bash
@@ -133,9 +115,6 @@ Name: MyWebScraper
 Type: web_scraper
 Status: active
 
-🔑 JWKS Endpoint:
-http://localhost:8080/agent-jwks/abc123-def456-ghi789
-
 ⚠️  PRIVATE KEY (Save this securely - it will not be shown again!):
 
 -----BEGIN PRIVATE KEY-----
@@ -154,7 +133,6 @@ $ openbot list
    ID: abc123-def456-ghi789
    Type: web_scraper
    Status: active
-   JWKS: http://localhost:8080/agent-jwks/abc123-def456-ghi789
 ```
 
 5. **Update agent key:**
@@ -165,9 +143,6 @@ $ openbot update-key abc123-def456-ghi789
 ? Update key for agent "MyWebScraper"? Yes
 ✓ New key pair generated
 ✓ Agent key updated successfully!
-
-🔑 JWKS Endpoint:
-http://localhost:8080/agent-jwks/abc123-def456-ghi789
 
 ⚠️  NEW PRIVATE KEY (Save this securely!):
 

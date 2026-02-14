@@ -18,16 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
-interface Agent {
-  id: string;
-  name: string;
-  description: string | null;
-  agent_type: string;
-  status: string;
-  created_at: string;
-  public_key: any;
-}
+import { api, Agent } from "@/lib/api";
 
 interface Activity {
   id: string;
@@ -38,6 +29,8 @@ interface Activity {
   response_time_ms: number | null;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
 const AgentDetail = () => {
   const { agentId } = useParams();
   const navigate = useNavigate();
@@ -45,35 +38,20 @@ const AgentDetail = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const jwksUrl = `https://lxqarpgicszdxydkdccz.supabase.co/functions/v1/agent-jwks/${agentId}`;
-
   const fetchAgentData = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await api.getSession();
       if (!session) {
         navigate("/login");
         return;
       }
 
       // Fetch agent
-      const { data: agentData, error: agentError } = await supabase
-        .from("agents")
-        .select("*")
-        .eq("id", agentId)
-        .single();
-
-      if (agentError) throw agentError;
+      const agentData = await api.getAgent(agentId!);
       setAgent(agentData);
 
       // Fetch activities
-      const { data: activitiesData, error: activitiesError } = await supabase
-        .from("agent_activity")
-        .select("*")
-        .eq("agent_id", agentId)
-        .order("timestamp", { ascending: false })
-        .limit(50);
-
-      if (activitiesError) throw activitiesError;
+      const activitiesData = await api.getAgentActivity(agentId!, 50, 0);
       setActivities(activitiesData || []);
     } catch (error: any) {
       console.error("Error fetching agent data:", error);
@@ -103,12 +81,7 @@ const AgentDetail = () => {
     if (!agent) return;
 
     try {
-      const { error } = await supabase
-        .from("agents")
-        .delete()
-        .eq("id", agent.id);
-
-      if (error) throw error;
+      await api.deleteAgent(agent.id);
 
       toast({
         title: "Agent Deleted",
@@ -177,12 +150,12 @@ const AgentDetail = () => {
             </AlertDialogContent>
           </AlertDialog>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Agent Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Agent Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Type</p>
                 <Badge variant="outline" className="mt-1">
@@ -199,32 +172,9 @@ const AgentDetail = () => {
                 <p className="text-sm text-muted-foreground">Created</p>
                 <p className="mt-1">{new Date(agent.created_at).toLocaleString()}</p>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>JWKS Endpoint</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Endpoint URL</p>
-                <div className="flex gap-2">
-                  <code className="flex-1 p-2 bg-muted rounded text-xs truncate">
-                    {jwksUrl}
-                  </code>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={() => copyToClipboard(jwksUrl, "JWKS endpoint")}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -287,7 +237,7 @@ const AgentDetail = () => {
               <div>
                 <p className="text-sm text-muted-foreground mb-2">Endpoint</p>
                 <code className="block p-3 bg-muted rounded text-xs break-all">
-                  POST https://lxqarpgicszdxydkdccz.supabase.co/functions/v1/agent-activity
+                  POST {API_BASE_URL}/agent-activity
                 </code>
               </div>
               <div>

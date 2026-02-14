@@ -21,12 +21,14 @@ This document describes the behavior of the Supabase Edge Functions that need to
 5. Convert each public key to JWK format:
    - `kty`: "OKP"
    - `crv`: "Ed25519"
-   - `kid`: key ID from database
+   - `kid`: derived from key material (SHA-256 thumbprint)
    - `x`: public key in base64url format (convert from base64)
    - `use`: "sig"
    - `nbf`: key creation timestamp
    - `exp`: creation timestamp + 1 year
-6. Build response with Web Bot Auth metadata:
+6. **Query `agents` table for active agents belonging to the user**
+7. **Append agent public keys (already JWK format) to the keys array, preserving their original `kid`**
+8. Build response with Web Bot Auth metadata:
    - `client_name`: from profile or username
    - `keys`: array of JWKs
    - Optional fields: `client_uri`, `logo_uri`, `contacts`, `expected-user-agent`, `rfc9309-product-token`, `rfc9309-compliance`, `trigger`, `purpose`, `targeted-content`, `rate-control`, `rate-expectation`, `known-urls`
@@ -61,17 +63,33 @@ This document describes the behavior of the Supabase Edge Functions that need to
 }
 ```
 
-## 2. Agent JWKS Endpoint (`/agent-jwks/{agent_id}`)
+## 2. Agent JWKS Endpoint (`/agent-jwks/{agent_id}`) — DEPRECATED
+
+> **⚠️ DEPRECATED**: This endpoint has been removed and returns HTTP 410 Gone.
+> Use the user JWKS endpoint `/jwks/{username}.json` instead, which includes
+> all agent keys under the user's identity.
+
+**Status**: Returns 410 Gone with message:
+```json
+{
+  "error": "Gone",
+  "message": "The /agent-jwks endpoint is deprecated. Use /jwks/{username}.json."
+}
+```
+
+**Historical documentation preserved below for reference:**
+
+---
 
 **Original**: `supabase/functions/agent-jwks/index.ts`
 
-### Behavior
+### Behavior (Historical)
 
 - **Path**: `/agent-jwks/{agent_id}`
 - **Method**: GET
 - **Purpose**: Serve JWKS for a specific agent
 
-### Logic
+### Logic (Historical)
 
 1. Extract agent_id from path
 2. Query `agents` table by ID
@@ -87,7 +105,7 @@ This document describes the behavior of the Supabase Edge Functions that need to
    - `Verified`: true if github_username exists
 5. Return JSON
 
-### Response Example
+### Response Example (Historical)
 
 ```json
 {
