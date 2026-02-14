@@ -91,9 +91,13 @@ export const createCommand = new Command('create')
       console.log(chalk.cyan('Type:'), agent.agent_type);
       console.log(chalk.cyan('Status:'), agent.status);
 
-      const jwksUrl = await api.getJWKSUrl(agent.id);
+      // Get session to show user JWKS URL
+      const session = await api.getSession();
+      const username = session.profile?.username || session.user.github_username;
+      const jwksUrl = api.getUserJWKSUrl(username);
       console.log(chalk.yellow.bold('\n🔑 JWKS Endpoint:'));
       console.log(chalk.white(jwksUrl));
+      console.log(chalk.dim('(Your agent key is included in your user JWKS)'));
 
       console.log(chalk.red.bold('\n⚠️  PRIVATE KEY (Save this securely - it will not be shown again!):\n'));
       console.log(chalk.gray(privateKey));

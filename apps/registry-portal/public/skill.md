@@ -216,11 +216,14 @@ Save to your memory/notes:
 {
   "openbotauth": {
     "username": "YOUR_USERNAME",
+    "agent_id": "YOUR_AGENT_ID",
     "kid": "YOUR_KID",
     "owner_url": "https://api.openbotauth.org/jwks/YOUR_USERNAME.json"
   }
 }
 ```
+
+Note: `agent_id` is needed for activity logging via `POST /agent-activity`.
 
 ---
 

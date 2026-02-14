@@ -21,12 +21,14 @@ This document describes the behavior of the Supabase Edge Functions that need to
 5. Convert each public key to JWK format:
    - `kty`: "OKP"
    - `crv`: "Ed25519"
-   - `kid`: key ID from database
+   - `kid`: derived from key material (SHA-256 thumbprint)
    - `x`: public key in base64url format (convert from base64)
    - `use`: "sig"
    - `nbf`: key creation timestamp
    - `exp`: creation timestamp + 1 year
-6. Build response with Web Bot Auth metadata:
+6. **Query `agents` table for active agents belonging to the user**
+7. **Append agent public keys (already JWK format) to the keys array, preserving their original `kid`**
+8. Build response with Web Bot Auth metadata:
    - `client_name`: from profile or username
    - `keys`: array of JWKs
    - Optional fields: `client_uri`, `logo_uri`, `contacts`, `expected-user-agent`, `rfc9309-product-token`, `rfc9309-compliance`, `trigger`, `purpose`, `targeted-content`, `rate-control`, `rate-expectation`, `known-urls`

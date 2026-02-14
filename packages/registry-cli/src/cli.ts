@@ -11,7 +11,6 @@ import { Command } from 'commander';
 import { createCommand } from './commands/create.js';
 import { listCommand } from './commands/list.js';
 import { updateKeyCommand } from './commands/update-key.js';
-import { jwksCommand } from './commands/jwks.js';
 
 const program = new Command();
 
@@ -24,7 +23,6 @@ program
 program.addCommand(createCommand);
 program.addCommand(listCommand);
 program.addCommand(updateKeyCommand);
-program.addCommand(jwksCommand);
 
 // Parse arguments
 program.parse();

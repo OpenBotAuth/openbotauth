@@ -31,9 +31,9 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
 
     // Get all active keys from key_history
     const keyHistoryResult = await db.getPool().query(
-      `SELECT id, public_key, created_at 
-       FROM key_history 
-       WHERE user_id = $1 AND is_active = true 
+      `SELECT id, public_key, created_at
+       FROM key_history
+       WHERE user_id = $1 AND is_active = true
        ORDER BY created_at DESC`,
       [profile.id]
     );
@@ -43,23 +43,18 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
     // Fallback to public_keys table if no key history
     if (keys.length === 0) {
       const publicKeyResult = await db.getPool().query(
-        `SELECT id, public_key, created_at 
-         FROM public_keys 
+        `SELECT id, public_key, created_at
+         FROM public_keys
          WHERE user_id = $1`,
         [profile.id]
       );
-      
+
       if (publicKeyResult.rows.length > 0) {
         keys = publicKeyResult.rows;
       }
     }
 
-    if (keys.length === 0) {
-      res.status(404).json({ error: 'Public key not found for user' });
-      return;
-    }
-
-    // Convert keys to JWK format, deriving kid from key material (not DB UUID)
+    // Convert user keys to JWK format, deriving kid from key material (not DB UUID)
     const jwks = keys.map(keyData => {
       const jwk = base64PublicKeyToJWK(
         keyData.public_key,
@@ -69,6 +64,40 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       jwk.kid = generateKidFromJWK(jwk);
       return jwk;
     });
+
+    // Also include agent keys (already stored as JWK in JSONB)
+    const agentsResult = await db.getPool().query(
+      `SELECT id, public_key, created_at
+       FROM agents
+       WHERE user_id = $1 AND status = 'active'`,
+      [profile.id]
+    );
+
+    for (const agent of agentsResult.rows) {
+      if (agent.public_key && typeof agent.public_key === 'object') {
+        // Agent keys are already JWK format - use as-is, preserving their kid
+        const agentJwk = {
+          kty: agent.public_key.kty || 'OKP',
+          crv: agent.public_key.crv || 'Ed25519',
+          x: agent.public_key.x,
+          kid: agent.public_key.kid, // Preserve portal-generated kid
+          use: agent.public_key.use || 'sig',
+          alg: agent.public_key.alg || 'EdDSA',
+        };
+        // Only add nbf/exp if we have created_at
+        if (agent.created_at) {
+          const createdAt = new Date(agent.created_at);
+          (agentJwk as Record<string, unknown>).nbf = Math.floor(createdAt.getTime() / 1000);
+          (agentJwk as Record<string, unknown>).exp = Math.floor(createdAt.getTime() / 1000) + 365 * 24 * 60 * 60;
+        }
+        jwks.push(agentJwk);
+      }
+    }
+
+    if (jwks.length === 0) {
+      res.status(404).json({ error: 'No public keys found for user' });
+      return;
+    }
 
     // Build Web Bot Auth response
     const response = createWebBotAuthJWKS(jwks, {
