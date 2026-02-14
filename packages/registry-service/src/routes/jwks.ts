@@ -5,6 +5,7 @@
  * Implements the behavior from supabase/functions/jwks/index.ts
  */
 
+import { createHash } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import type { Database } from '@openbotauth/github-connector';
 import { base64PublicKeyToJWK, createWebBotAuthJWKS, generateKidFromJWK } from '@openbotauth/registry-signer';
@@ -73,8 +74,10 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       [profile.id]
     );
 
-    // Track seen kids to dedupe
-    const seenKids = new Set(jwks.map(k => k.kid));
+    // Track seen kids to dedupe (filter out any undefined/empty kids)
+    const seenKids = new Set(
+      jwks.map(k => k.kid).filter((k): k is string => typeof k === 'string' && k.length > 0)
+    );
 
     for (const agent of agentsResult.rows) {
       const pk = agent.public_key;
@@ -92,10 +95,11 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       // Derive kid from x if missing (fallback using same thumbprint logic)
       let kid = pk.kid;
       if (typeof kid !== 'string' || kid.length === 0) {
-        // Generate kid from x using SHA-256 thumbprint of minimal JWK
-        const thumbprintInput = JSON.stringify({ crv: 'Ed25519', kty: 'OKP', x: pk.x });
-        const hash = require('crypto').createHash('sha256').update(thumbprintInput).digest();
-        kid = hash.toString('base64url').slice(0, 16);
+        // Generate kid from x using SHA-256 thumbprint of canonical JWK (RFC 7638 style)
+        const canonical = JSON.stringify({ crv: 'Ed25519', kty: 'OKP', x: pk.x });
+        const hashBase64 = createHash('sha256').update(canonical).digest('base64');
+        // Convert to base64url (full length, no truncation to avoid collisions)
+        kid = hashBase64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
         console.warn(`Agent ${agent.id}: derived kid ${kid} from x (was missing)`);
       }
 
