@@ -165,7 +165,7 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
     });
 
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=300');
     res.json(response);
   } catch (error) {
     console.error('Error in JWKS endpoint:', error);
