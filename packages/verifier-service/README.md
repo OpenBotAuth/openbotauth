@@ -36,6 +36,10 @@ OB_MAX_SKEW_SEC=300
 
 # Nonce TTL (seconds)
 OB_NONCE_TTL_SEC=600
+
+# X.509 delegation validation (optional)
+OBA_X509_ENABLED=false
+OBA_X509_TRUST_ANCHORS=/path/to/ca.pem
 ```
 
 ## Usage
@@ -65,7 +69,7 @@ Main verification endpoint for NGINX `auth_request`.
 - `X-Original-Uri` - Request URI
 - `Signature-Input` - RFC 9421 signature input
 - `Signature` - RFC 9421 signature
-- `Signature-Agent` - JWKS URL
+- `Signature-Agent` - Structured Dictionary entry pointing to JWKS (legacy URL also accepted)
 
 **Response:**
 
@@ -238,4 +242,3 @@ curl -X POST http://localhost:8081/cache/nonces/clear
 ## License
 
 MIT
-

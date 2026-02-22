@@ -156,6 +156,28 @@ describe("validateSafeUrl", () => {
 });
 
 describe("parseSignatureAgent", () => {
+  it("should parse structured dictionary and select by label", () => {
+    const result = parseSignatureAgent(
+      'sig1="https://registry.example/agents/pete/.well-known/http-message-signatures-directory", sig2="https://example.com/jwks/alt.json"',
+      "sig1",
+    );
+    expect(result).toEqual({
+      url: "https://registry.example/agents/pete/.well-known/http-message-signatures-directory",
+      isJwks: true,
+    });
+  });
+
+  it("should fall back to first dictionary entry when label missing", () => {
+    const result = parseSignatureAgent(
+      'sig1="https://example.com/jwks/a.json", sig2="https://example.com/jwks/b.json"',
+      "sigX",
+    );
+    expect(result).toEqual({
+      url: "https://example.com/jwks/a.json",
+      isJwks: true,
+    });
+  });
+
   it("should parse direct JWKS URL with .json extension", () => {
     const result = parseSignatureAgent("https://example.com/jwks/user.json");
     expect(result).toEqual({
@@ -424,6 +446,7 @@ describe("resolveJwksUrl", () => {
 describe("buildSignatureBase", () => {
   it("should build signature base with derived components", () => {
     const components = {
+      label: "sig1",
       keyId: "test-key",
       signature: "",
       algorithm: "ed25519",
@@ -449,6 +472,7 @@ describe("buildSignatureBase", () => {
 
   it("should include regular headers when present", () => {
     const components = {
+      label: "sig1",
       keyId: "test-key",
       signature: "",
       algorithm: "ed25519",
@@ -475,6 +499,7 @@ describe("buildSignatureBase", () => {
 
   it("should throw error when covered header is missing", () => {
     const components = {
+      label: "sig1",
       keyId: "test-key",
       signature: "",
       algorithm: "ed25519",
@@ -500,6 +525,7 @@ describe("buildSignatureBase", () => {
 
   it("should handle empty string header values", () => {
     const components = {
+      label: "sig1",
       keyId: "test-key",
       signature: "",
       algorithm: "ed25519",

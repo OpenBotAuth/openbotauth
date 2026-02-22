@@ -24,6 +24,9 @@ const AddAgentModal = ({ open, onOpenChange, onSuccess }: AddAgentModalProps) =>
   const [privateKey, setPrivateKey] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [obaAgentId, setObaAgentId] = useState("");
+  const [obaParentAgentId, setObaParentAgentId] = useState("");
+  const [obaPrincipal, setObaPrincipal] = useState("");
 
   const generateKeyPair = async () => {
     setIsGenerating(true);
@@ -111,6 +114,9 @@ const AddAgentModal = ({ open, onOpenChange, onSuccess }: AddAgentModalProps) =>
         description: description || undefined,
         agent_type: agentType,
         public_key: publicKey,
+        oba_agent_id: obaAgentId || undefined,
+        oba_parent_agent_id: obaParentAgentId || undefined,
+        oba_principal: obaPrincipal || undefined,
       });
 
       // Download private key
@@ -127,6 +133,9 @@ const AddAgentModal = ({ open, onOpenChange, onSuccess }: AddAgentModalProps) =>
       setAgentType("");
       setPublicKey(null);
       setPrivateKey(null);
+      setObaAgentId("");
+      setObaParentAgentId("");
+      setObaPrincipal("");
 
       onSuccess();
       onOpenChange(false);
@@ -219,6 +228,45 @@ const AddAgentModal = ({ open, onOpenChange, onSuccess }: AddAgentModalProps) =>
               </AlertDescription>
             </Alert>
           )}
+
+          <div className="space-y-2 pt-2">
+            <Label>Agent Identity (Optional)</Label>
+            <div className="grid grid-cols-1 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="oba-agent-id" className="text-xs text-muted-foreground">
+                  OBA Agent ID
+                </Label>
+                <Input
+                  id="oba-agent-id"
+                  placeholder="agent:alice@example.com"
+                  value={obaAgentId}
+                  onChange={(e) => setObaAgentId(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="oba-parent-agent-id" className="text-xs text-muted-foreground">
+                  OBA Parent Agent ID
+                </Label>
+                <Input
+                  id="oba-parent-agent-id"
+                  placeholder="agent:parent@example.com"
+                  value={obaParentAgentId}
+                  onChange={(e) => setObaParentAgentId(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="oba-principal" className="text-xs text-muted-foreground">
+                  OBA Principal
+                </Label>
+                <Input
+                  id="oba-principal"
+                  placeholder="principal:owner@example.com"
+                  value={obaPrincipal}
+                  onChange={(e) => setObaPrincipal(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
 
           <div className="flex gap-2 pt-4">
             <Button

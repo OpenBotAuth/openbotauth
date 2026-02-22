@@ -145,7 +145,7 @@ Body:
 │                                                                   │
 │ 1. Load private key from ~/.openbotauth/bot-config.json         │
 │ 2. Sign request with private key                                │
-│ 3. Add header: Signature-Agent: .../jwks/hammadtq.json         │
+│ 3. Add header: Signature-Agent: sig1=".../jwks/hammadtq.json" │
 │ 4. Send request                                                  │
 └─────────────────────────────────────────────────────────────────┘
 
@@ -153,7 +153,7 @@ Body:
 │ Verifier Service                                                 │
 │                                                                   │
 │ 1. Receive signed request                                        │
-│ 2. Extract JWKS URL from Signature-Agent header                 │
+│ 2. Extract JWKS URL from Signature-Agent header (dict or legacy)│
 │ 3. Fetch public key from: .../jwks/hammadtq.json               │
 │ 4. Verify signature using public key                            │
 │ 5. ✅ Valid! (because bot signed with matching private key)     │
@@ -220,7 +220,7 @@ If you didn't save your private key:
 **What the bot CLI does:**
 1. Loads config from ~/.openbotauth/bot-config.json
 2. Signs requests with private key
-3. Adds Signature-Agent header with JWKS URL
+3. Adds Signature-Agent header with JWKS URL (dictionary format preferred)
 4. Sends request
 
 **What the verifier does:**
@@ -230,4 +230,3 @@ If you didn't save your private key:
 4. Returns ✅ or ❌
 
 🎉 **Now you're using real keys!**
-

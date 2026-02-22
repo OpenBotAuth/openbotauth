@@ -6,6 +6,7 @@
 
 import 'dotenv/config';
 import express from 'express';
+import { readFileSync } from 'node:fs';
 import { createClient } from 'redis';
 import { Pool } from 'pg';
 import { JWKSCacheManager } from './jwks-cache.js';
@@ -81,12 +82,39 @@ const discoveryPaths = process.env.OB_JWKS_DISCOVERY_PATHS
   ? process.env.OB_JWKS_DISCOVERY_PATHS.split(',').map(p => p.trim())
   : undefined;
 
+const x509Enabled = process.env.OBA_X509_ENABLED === 'true';
+
+const parsePemBundle = (pem: string): string[] => {
+  const matches = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+  return matches ? matches.map((m) => m.trim()) : [];
+};
+
+const trustAnchorRefs = process.env.OBA_X509_TRUST_ANCHORS
+  ? process.env.OBA_X509_TRUST_ANCHORS.split(',').map((p) => p.trim()).filter(Boolean)
+  : [];
+
+const trustAnchors: string[] = [];
+for (const ref of trustAnchorRefs) {
+  if (ref.includes('BEGIN CERTIFICATE')) {
+    trustAnchors.push(...parsePemBundle(ref));
+    continue;
+  }
+  try {
+    const pem = readFileSync(ref, 'utf-8');
+    trustAnchors.push(...parsePemBundle(pem));
+  } catch (error) {
+    console.warn(`Failed to read trust anchor file: ${ref}`);
+  }
+}
+
 const verifier = new SignatureVerifier(
   jwksCache,
   nonceManager,
   trustedDirectories,
   maxSkewSec,
-  discoveryPaths
+  discoveryPaths,
+  x509Enabled,
+  trustAnchors
 );
 
 // Initialize telemetry logger (only if DB is configured)
@@ -416,4 +444,3 @@ process.on('SIGTERM', async () => {
   }
   process.exit(0);
 });
-

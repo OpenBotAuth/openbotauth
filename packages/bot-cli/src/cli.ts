@@ -43,11 +43,13 @@ program
   .option('-m, --method <method>', 'HTTP method (default: GET)', 'GET')
   .option('-d, --body <data>', 'Request body (JSON)')
   .option('-v, --verbose', 'Verbose output')
+  .option('--signature-agent-format <format>', 'Signature-Agent format: legacy|dict', 'legacy')
   .action(async (url, options) => {
     await fetchCommand(url, {
       method: options.method,
       body: options.body,
       verbose: options.verbose,
+      signatureAgentFormat: options.signatureAgentFormat,
     });
   });
 
@@ -87,4 +89,3 @@ Examples:
 
 // Parse arguments
 program.parse();
-

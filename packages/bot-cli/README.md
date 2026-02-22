@@ -83,7 +83,7 @@ oba-bot config
 5. **Add Headers** - Add signature headers to request:
    - `Signature-Input` - Signature parameters
    - `Signature` - Base64-encoded signature
-   - `Signature-Agent` - JWKS URL
+  - `Signature-Agent` - Structured Dictionary entry pointing to JWKS (legacy URL also accepted)
 6. **Send Request** - Execute HTTP request with signature headers
 
 ### Signature Headers
@@ -93,7 +93,7 @@ Example headers added to each request:
 ```
 Signature-Input: sig1=("@method" "@path" "@authority");created=1763282275;expires=1763282575;nonce="abc123";keyid="my-key-123";alg="ed25519"
 Signature: sig1=:K2qGT5srn2OGbOIDzQ6kYT+ruaycnDAAUpKv+ePFfD0=:
-Signature-Agent: http://localhost:8080/jwks/mybot.json
+Signature-Agent: sig1="http://localhost:8080/jwks/mybot.json"
 User-Agent: OpenBotAuth-CLI/0.1.0
 ```
 
@@ -195,6 +195,7 @@ oba-bot fetch <url> [options]
 - `-m, --method <method>` - HTTP method (default: GET)
 - `-d, --body <data>` - Request body (JSON)
 - `-v, --verbose` - Verbose output
+- `--signature-agent-format <format>` - Signature-Agent format (`legacy` or `dict`)
 
 ### `config`
 
@@ -258,7 +259,7 @@ Configuration:
 Signature Headers:
   Signature-Input: sig1=("@method" "@path" "@authority");created=1763282275;...
   Signature: sig1=:K2qGT5srn2OGbOIDzQ6kYT+ruaycnDAAUpKv+ePFfD0=:
-  Signature-Agent: http://localhost:8080/jwks/mybot.json
+  Signature-Agent: sig1="http://localhost:8080/jwks/mybot.json"
 
 📡 Sending request...
 
@@ -296,4 +297,3 @@ Signatures expire after 5 minutes. Generate a new request.
 ## License
 
 MIT
-

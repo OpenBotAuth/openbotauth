@@ -17,6 +17,8 @@ import { activityRouter } from './routes/activity.js';
 import { profilesRouter } from './routes/profiles.js';
 import { keysRouter } from './routes/keys.js';
 import { telemetryRouter } from './routes/telemetry.js';
+import { signatureAgentCardRouter } from './routes/signature-agent-card.js';
+import { certsRouter } from './routes/certs.js';
 import { tokenAuthMiddleware } from './middleware/token-auth.js';
 import { sessionMiddleware } from './middleware/session.js';
 
@@ -93,6 +95,7 @@ app.get('/health', (_req: express.Request, res: express.Response) => {
 
 // Routes
 app.use('/jwks', jwksRouter);
+app.use(signatureAgentCardRouter);
 
 // Deprecated: agent-jwks endpoint removed in favor of user JWKS
 app.use('/agent-jwks', (_req, res) => {
@@ -108,6 +111,7 @@ app.use('/agent-activity', activityRouter);
 app.use('/profiles', profilesRouter);
 app.use('/keys', keysRouter);
 app.use('/telemetry', telemetryRouter);
+app.use(certsRouter);
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -126,4 +130,3 @@ process.on('SIGTERM', async () => {
   await pool.end();
   process.exit(0);
 });
-

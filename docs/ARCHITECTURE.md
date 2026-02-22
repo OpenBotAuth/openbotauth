@@ -95,7 +95,7 @@ Bot → Sign Request (RFC 9421)
     Add Headers:
     - Signature-Input
     - Signature
-    - Signature-Agent (JWKS URL)
+    - Signature-Agent (Structured Dictionary entry pointing to JWKS; legacy URL supported)
     ↓
     HTTP Request → NGINX
                     ↓
@@ -190,7 +190,7 @@ WordPress → Verify receipt
 1. Extract signature headers from proxied request
 2. Parse `Signature-Input` and `Signature` headers
 3. Extract nonce and check for replay (Redis SET NX)
-4. Fetch JWKS from `Signature-Agent` URL (with caching)
+4. Fetch JWKS from `Signature-Agent` entry (dictionary member or legacy URL) with caching
 5. Verify signature using public key
 6. Check clock skew (±300s default)
 7. Validate directory trust
@@ -275,7 +275,7 @@ Link: <https://pay.example.com/i/{hash}>; rel="payment"
 1. Load/generate Ed25519 keypair
 2. Build signature base (RFC 9421)
 3. Sign with private key
-4. Add headers: Signature-Input, Signature, Signature-Agent
+4. Add headers: Signature-Input, Signature, Signature-Agent (dictionary format preferred)
 5. Send HTTP request
 6. Handle 402:
    - Parse Link header
@@ -357,7 +357,7 @@ Policy (Access Control)
 
 ### Directory Trust
 
-1. Verifier extracts host from `Signature-Agent` URL
+1. Verifier resolves JWKS URL from `Signature-Agent` (dictionary member or legacy URL)
 2. Checks against `OB_TRUSTED_DIRECTORIES` env var
 3. Only trusted directories allowed
 4. Prevents rogue JWKS servers
@@ -462,7 +462,7 @@ All services use structured JSON logging:
 - **JWKS**: 1 hour cache with ETag support
 - **Nonce**: 10 minute TTL in Redis
 - **Sessions**: 30 day expiration
-- **Content**: Vary on Signature-Agent + Pay-State
+- **Content**: Vary on Signature-Agent (dictionary/legacy) + Pay-State
 
 ### Database
 
@@ -488,4 +488,3 @@ All services use structured JSON logging:
 - [Web Bot Auth Draft](https://github.com/web-bot-auth/spec)
 - [MCP Specification](https://modelcontextprotocol.io/)
 - [A2A Protocol](https://github.com/a2a-protocol/spec)
-

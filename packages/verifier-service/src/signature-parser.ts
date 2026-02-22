@@ -99,17 +99,19 @@ export function parseSignatureInput(
 ): SignatureComponents | null {
   try {
     // Extract the signature label and the raw params (everything after "label=")
-    const labelMatch = signatureInput.match(/^(\w+)=(.+)$/);
+    const labelMatch = signatureInput.match(/^([a-zA-Z0-9_-]+)=(.+)$/);
     if (!labelMatch) {
       return null;
     }
+
+    const label = labelMatch[1];
 
     // Store the raw signature params (everything after "sig1=")
     // This is used verbatim in the signature base per RFC 9421
     const rawSignatureParams = labelMatch[2];
 
     // Now parse for validation and component extraction
-    const match = signatureInput.match(/^(\w+)=\(([^)]+)\);(.+)$/);
+    const match = signatureInput.match(/^([a-zA-Z0-9_-]+)=\(([^)]+)\);(.+)$/);
     if (!match) {
       return null;
     }
@@ -138,6 +140,7 @@ export function parseSignatureInput(
     }
 
     return {
+      label,
       keyId: params.keyid as string,
       algorithm: (params.alg as string) || "ed25519",
       created: params.created as number,
@@ -234,21 +237,129 @@ export function buildSignatureBase(
 }
 
 /**
+ * Parse RFC 8941 Structured Field Dictionary (string items only)
+ *
+ * Returns a map of dictionary keys to string item values.
+ * Ignores non-string values and parameters.
+ */
+function parseStructuredDictionaryStringItems(
+  headerValue: string,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  const parts: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  let escape = false;
+
+  for (let i = 0; i < headerValue.length; i++) {
+    const ch = headerValue[i];
+    if (escape) {
+      current += ch;
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      if (inQuotes) {
+        escape = true;
+      }
+      current += ch;
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      current += ch;
+      continue;
+    }
+    if (ch === "," && !inQuotes) {
+      parts.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim().length > 0) {
+    parts.push(current);
+  }
+
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+
+    const keyMatch = trimmed.match(/^([A-Za-z][A-Za-z0-9._-]*)/);
+    if (!keyMatch) continue;
+    const key = keyMatch[1];
+    let rest = trimmed.slice(key.length).trimStart();
+    if (!rest.startsWith("=")) {
+      // Bare key (boolean true) - ignore
+      continue;
+    }
+    rest = rest.slice(1).trimStart();
+    if (!rest.startsWith('"')) {
+      // Not a string item
+      continue;
+    }
+
+    // Parse quoted string item
+    let value = "";
+    let i = 1;
+    let escaped = false;
+    for (; i < rest.length; i++) {
+      const ch = rest[i];
+      if (escaped) {
+        value += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        break;
+      }
+      value += ch;
+    }
+
+    if (i >= rest.length || rest[i] !== '"') {
+      // Unterminated string
+      continue;
+    }
+
+    result[key] = value;
+  }
+
+  return result;
+}
+
+/**
  * Extract JWKS URL from Signature-Agent header
  *
  * Handles both direct JWKS URLs and agent identity URLs that need discovery.
+ * Also supports RFC 8941 Structured Field Dictionary format.
  *
  * Examples:
  *   - Direct JWKS: https://openbotregistry.example.com/jwks/hammadtq.json
  *   - Identity URL: https://chatgpt.com (needs discovery)
  *   - Quoted: "https://example.com/jwks.json"
  *   - Angle brackets: <https://example.com/jwks.json>
+ *   - Structured Dictionary: sig1="https://.../.well-known/http-message-signatures-directory"
  */
 export function parseSignatureAgent(
   signatureAgent: string,
+  signatureLabel?: string,
 ): { url: string; isJwks: boolean } | null {
   try {
-    // Trim whitespace
+    // First, try Structured Field Dictionary format
+    const dict = parseStructuredDictionaryStringItems(signatureAgent);
+    const dictKeys = Object.keys(dict);
+    if (dictKeys.length > 0) {
+      const selected =
+        (signatureLabel && dict[signatureLabel]) ||
+        dict[dictKeys[0]];
+      return parseSignatureAgent(selected);
+    }
+
+    // Trim whitespace (legacy URL format)
     let cleaned = signatureAgent.trim();
 
     // Strip wrapping quotes if present
@@ -269,7 +380,9 @@ export function parseSignatureAgent(
 
     // Check if it's already a JWKS URL
     const isJwks =
-      url.pathname.endsWith(".json") || url.pathname.includes("/jwks/");
+      url.pathname.endsWith(".json") ||
+      url.pathname.includes("/jwks/") ||
+      url.pathname.includes("http-message-signatures-directory");
 
     return {
       url: cleaned,

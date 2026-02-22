@@ -26,6 +26,13 @@ GITHUB_CLIENT_SECRET=your_github_client_secret
 GITHUB_CALLBACK_URL=http://localhost:8080/auth/github/callback
 FRONTEND_URL=http://localhost:5173
 NODE_ENV=development
+OBA_CA_MODE=local
+OBA_CA_DIR=./.local/ca
+OBA_CA_KEY_PATH=./.local/ca/ca.key.json
+OBA_CA_CERT_PATH=./.local/ca/ca.pem
+OBA_CA_SUBJECT="CN=OpenBotAuth Dev CA"
+OBA_CA_VALID_DAYS=3650
+OBA_LEAF_CERT_VALID_DAYS=90
 ```
 
 ## Development
@@ -69,6 +76,45 @@ Serve JWKS for a user's public keys.
   "purpose": "tdm"
 }
 ```
+
+### Signature Agent Card
+
+#### GET `/.well-known/signature-agent-card`
+
+Serves a Signature Agent Card with optional `oba_*` fields and embedded JWKS.
+
+Query parameters:
+- `agent_id` (optional)
+- `username` (optional)
+
+### Certificate Endpoints (MVP)
+
+#### POST `/v1/certs/issue`
+
+Issue an X.509 certificate for an agent key.
+
+**Request:**
+```json
+{
+  "agent_id": "uuid"
+}
+```
+
+#### POST `/v1/certs/revoke`
+
+Revoke an issued certificate.
+
+**Request:**
+```json
+{
+  "serial": "hex-serial",
+  "reason": "key-rotation"
+}
+```
+
+#### GET `/.well-known/ca.pem`
+
+Fetch the registry CA certificate (PEM).
 
 ### Activity Endpoints
 
@@ -223,4 +269,3 @@ Key tables:
 ## License
 
 MIT
-

@@ -8,6 +8,7 @@ import { webcrypto } from 'node:crypto';
 import type { JWKSCacheManager } from './jwks-cache.js';
 import type { NonceManager } from './nonce-manager.js';
 import type { VerificationRequest, VerificationResult } from './types.js';
+import { validateJwkX509 } from './x509.js';
 import {
   parseSignatureInput,
   parseSignature,
@@ -18,15 +19,21 @@ import {
 
 export class SignatureVerifier {
   private discoveryPaths: string[] | undefined;
+  private x509Enabled: boolean;
+  private x509TrustAnchors: string[];
 
   constructor(
     private jwksCache: JWKSCacheManager,
     private nonceManager: NonceManager,
     private trustedDirectories: string[] = [],
     private maxSkewSec: number = 300,
-    discoveryPaths?: string[]
+    discoveryPaths?: string[],
+    x509Enabled: boolean = false,
+    x509TrustAnchors: string[] = []
   ) {
     this.discoveryPaths = discoveryPaths;
+    this.x509Enabled = x509Enabled;
+    this.x509TrustAnchors = x509TrustAnchors;
   }
 
   /**
@@ -46,8 +53,17 @@ export class SignatureVerifier {
         };
       }
 
-      // 2. Parse Signature-Agent (JWKS URL or identity URL)
-      const parsedAgent = parseSignatureAgent(signatureAgent);
+      // 2. Parse signature components (needed for label selection)
+      const components = parseSignatureInput(signatureInput);
+      if (!components) {
+        return {
+          verified: false,
+          error: 'Failed to parse Signature-Input header',
+        };
+      }
+
+      // 3. Parse Signature-Agent (Structured Dictionary or legacy URL)
+      const parsedAgent = parseSignatureAgent(signatureAgent, components.label);
       if (!parsedAgent) {
         return {
           verified: false,
@@ -55,7 +71,7 @@ export class SignatureVerifier {
         };
       }
 
-      // 3. Resolve JWKS URL (with discovery if needed)
+      // 4. Resolve JWKS URL (with discovery if needed)
       let jwksUrl: string;
       if (parsedAgent.isJwks) {
         // Already a JWKS URL
@@ -72,7 +88,7 @@ export class SignatureVerifier {
         jwksUrl = discoveredUrl;
       }
 
-      // 4. Check if JWKS URL is from a trusted directory
+      // 5. Check if JWKS URL is from a trusted directory
       if (this.trustedDirectories.length > 0) {
         const trusted = this.trustedDirectories.some(dir => jwksUrl.includes(dir));
         if (!trusted) {
@@ -81,15 +97,6 @@ export class SignatureVerifier {
             error: `JWKS URL not from trusted directory: ${jwksUrl}`,
           };
         }
-      }
-
-      // 5. Parse signature components
-      const components = parseSignatureInput(signatureInput);
-      if (!components) {
-        return {
-          verified: false,
-          error: 'Failed to parse Signature-Input header',
-        };
       }
 
       const signatureValue = parseSignature(signature);
@@ -137,14 +144,27 @@ export class SignatureVerifier {
       // 8. Fetch JWKS and get the specific key
       const jwk = await this.jwksCache.getKey(jwksUrl, components.keyId);
 
-      // 9. Build signature base
+      // 9. Optional X.509 delegation validation (x5c/x5u)
+      if (this.x509Enabled && (jwk?.x5c || jwk?.x5u)) {
+        const x509Result = await validateJwkX509(jwk, {
+          trustAnchors: this.x509TrustAnchors,
+        });
+        if (!x509Result.valid) {
+          return {
+            verified: false,
+            error: x509Result.error || 'X.509 validation failed',
+          };
+        }
+      }
+
+      // 10. Build signature base
       const signatureBase = buildSignatureBase(components, {
         method: request.method,
         url: request.url,
         headers: request.headers,
       });
 
-      // 10. Verify signature
+      // 11. Verify signature
       const isValid = await this.verifyEd25519Signature(
         signatureBase,
         components.signature,
@@ -158,7 +178,7 @@ export class SignatureVerifier {
         };
       }
 
-      // 11. Success! Return verification result
+      // 12. Success! Return verification result
       const jwks = await this.jwksCache.getJWKS(jwksUrl);
 
       return {
@@ -221,4 +241,3 @@ export class SignatureVerifier {
     }
   }
 }
-

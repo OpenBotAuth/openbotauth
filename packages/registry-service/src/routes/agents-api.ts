@@ -37,7 +37,9 @@ agentsAPIRouter.get(
       const db: Database = req.app.locals.db;
 
       const result = await db.getPool().query(
-        `SELECT id, user_id, name, description, agent_type, status, public_key, created_at, updated_at
+        `SELECT id, user_id, name, description, agent_type, status, public_key,
+                oba_agent_id, oba_parent_agent_id, oba_principal,
+                created_at, updated_at
          FROM agents
          WHERE user_id = $1
          ORDER BY created_at DESC`,
@@ -68,7 +70,9 @@ agentsAPIRouter.get(
       const db: Database = req.app.locals.db;
 
       const result = await db.getPool().query(
-        `SELECT id, user_id, name, description, agent_type, status, public_key, created_at, updated_at
+        `SELECT id, user_id, name, description, agent_type, status, public_key,
+                oba_agent_id, oba_parent_agent_id, oba_principal,
+                created_at, updated_at
          FROM agents
          WHERE id = $1 AND user_id = $2`,
         [agentId, session.user.id]
@@ -99,7 +103,15 @@ agentsAPIRouter.post(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const session = req.session!;
-      const { name, description, agent_type, public_key } = req.body;
+      const {
+        name,
+        description,
+        agent_type,
+        public_key,
+        oba_agent_id,
+        oba_parent_agent_id,
+        oba_principal,
+      } = req.body;
       const db: Database = req.app.locals.db;
 
       // Validate required fields
@@ -115,10 +127,21 @@ agentsAPIRouter.post(
       }
 
       const result = await db.getPool().query(
-        `INSERT INTO agents (user_id, name, description, agent_type, public_key)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, user_id, name, description, agent_type, status, public_key, created_at, updated_at`,
-        [session.user.id, name, description || null, agent_type, JSON.stringify(public_key)]
+        `INSERT INTO agents (user_id, name, description, agent_type, public_key, oba_agent_id, oba_parent_agent_id, oba_principal)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id, user_id, name, description, agent_type, status, public_key,
+                   oba_agent_id, oba_parent_agent_id, oba_principal,
+                   created_at, updated_at`,
+        [
+          session.user.id,
+          name,
+          description || null,
+          agent_type,
+          JSON.stringify(public_key),
+          oba_agent_id || null,
+          oba_parent_agent_id || null,
+          oba_principal || null,
+        ]
       );
 
       res.status(201).json(result.rows[0]);
@@ -142,7 +165,16 @@ agentsAPIRouter.put(
     try {
       const session = req.session!;
       const agentId = req.params.id;
-      const { name, description, agent_type, public_key, status } = req.body;
+      const {
+        name,
+        description,
+        agent_type,
+        public_key,
+        status,
+        oba_agent_id,
+        oba_parent_agent_id,
+        oba_principal,
+      } = req.body;
       const db: Database = req.app.locals.db;
 
       // Build update query dynamically
@@ -183,6 +215,21 @@ agentsAPIRouter.put(
         values.push(status);
         paramIndex++;
       }
+      if (oba_agent_id !== undefined) {
+        updates.push(`oba_agent_id = $${paramIndex}`);
+        values.push(oba_agent_id || null);
+        paramIndex++;
+      }
+      if (oba_parent_agent_id !== undefined) {
+        updates.push(`oba_parent_agent_id = $${paramIndex}`);
+        values.push(oba_parent_agent_id || null);
+        paramIndex++;
+      }
+      if (oba_principal !== undefined) {
+        updates.push(`oba_principal = $${paramIndex}`);
+        values.push(oba_principal || null);
+        paramIndex++;
+      }
 
       if (updates.length === 0) {
         res.status(400).json({ error: 'No fields to update' });
@@ -195,7 +242,9 @@ agentsAPIRouter.put(
         `UPDATE agents
          SET ${updates.join(', ')}
          WHERE id = $1 AND user_id = $2
-         RETURNING id, user_id, name, description, agent_type, status, public_key, created_at, updated_at`,
+         RETURNING id, user_id, name, description, agent_type, status, public_key,
+                   oba_agent_id, oba_parent_agent_id, oba_principal,
+                   created_at, updated_at`,
         values
       );
 

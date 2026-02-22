@@ -32,6 +32,7 @@
     "@openbotauth/a2a-card": "workspace:*",
     "@openbotauth/github-connector": "workspace:*",
     "@openbotauth/registry-signer": "workspace:*",
+    "@peculiar/x509": "^1.12.4",
     "dotenv": "^17.2.3",
     "express": "^4.19.2",
     "pg": "^8.12.0",

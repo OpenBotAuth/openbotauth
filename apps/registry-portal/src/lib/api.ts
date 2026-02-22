@@ -39,6 +39,9 @@ export interface Agent {
   agent_type: string;
   status: string;
   public_key: Record<string, unknown>;
+  oba_agent_id: string | null;
+  oba_parent_agent_id: string | null;
+  oba_principal: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -226,6 +229,9 @@ class RegistryAPI {
     description?: string;
     agent_type: string;
     public_key: Record<string, unknown>;
+    oba_agent_id?: string | null;
+    oba_parent_agent_id?: string | null;
+    oba_principal?: string | null;
   }): Promise<Agent> {
     const response = await this.fetch('/agents', {
       method: 'POST',
@@ -499,4 +505,3 @@ class RegistryAPI {
 }
 
 export const api = new RegistryAPI();
-

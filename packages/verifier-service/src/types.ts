@@ -22,6 +22,8 @@ export interface VerificationResult {
 }
 
 export interface SignatureComponents {
+  /** Signature label from Signature-Input (e.g., "sig1") */
+  label: string;
   keyId: string;
   signature: string;
   algorithm: string;
@@ -46,4 +48,3 @@ export interface PolicyVerdict {
   pay_url?: string;
   retry_after?: number;
 }
-

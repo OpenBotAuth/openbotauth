@@ -145,6 +145,32 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       return;
     }
 
+    // Attach x5c for keys that have issued certificates
+    const kidsForCerts = jwks
+      .map((k: any) => k.kid)
+      .filter((k: any): k is string => typeof k === 'string' && k.length > 0);
+
+    if (kidsForCerts.length > 0) {
+      const certResult = await db.getPool().query(
+        `SELECT DISTINCT ON (kid) kid, x5c
+         FROM agent_certificates
+         WHERE kid = ANY($1) AND revoked_at IS NULL
+         ORDER BY kid, created_at DESC`,
+        [kidsForCerts]
+      );
+
+      const certByKid = new Map<string, any>();
+      for (const row of certResult.rows) {
+        certByKid.set(row.kid, row.x5c);
+      }
+
+      for (const jwk of jwks as any[]) {
+        if (jwk.kid && certByKid.has(jwk.kid)) {
+          jwk.x5c = certByKid.get(jwk.kid);
+        }
+      }
+    }
+
     // Build Web Bot Auth response
     const response = createWebBotAuthJWKS(jwks, {
       client_name: profile.client_name || profile.username,
@@ -172,4 +198,3 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
     res.status(500).json({ error: 'Failed to fetch JWKS' });
   }
 });
-

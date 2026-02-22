@@ -173,6 +173,26 @@ const AgentDetail = () => {
                 <p className="mt-1">{new Date(agent.created_at).toLocaleString()}</p>
               </div>
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">OBA Agent ID</p>
+                <p className="mt-1 text-xs break-all">
+                  {agent.oba_agent_id || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">OBA Parent Agent ID</p>
+                <p className="mt-1 text-xs break-all">
+                  {agent.oba_parent_agent_id || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">OBA Principal</p>
+                <p className="mt-1 text-xs break-all">
+                  {agent.oba_principal || "—"}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

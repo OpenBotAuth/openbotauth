@@ -13,8 +13,18 @@ export class RequestSigner {
   /**
    * Sign an HTTP request
    */
-  async sign(method: string, url: string, body?: string): Promise<SignedRequest> {
+  async sign(
+    method: string,
+    url: string,
+    body?: string,
+    options?: { signatureAgentFormat?: "legacy" | "dict"; signatureLabel?: string },
+  ): Promise<SignedRequest> {
     const urlObj = new URL(url);
+    const signatureLabel = options?.signatureLabel || "sig1";
+    const signatureAgentFormat =
+      options?.signatureAgentFormat ||
+      this.config.signature_agent_format ||
+      "legacy";
     
     // Generate signature parameters
     const params: SignatureParams = {
@@ -44,10 +54,15 @@ export class RequestSigner {
     const signature = await this.signString(signatureBase);
 
     // Build headers
+    const signatureAgentValue =
+      signatureAgentFormat === "dict"
+        ? `${signatureLabel}="${this.config.jwks_url}"`
+        : this.config.jwks_url;
+
     const headers: Record<string, string> = {
-      'Signature-Input': this.buildSignatureInput(params),
-      'Signature': `sig1=:${signature}:`,
-      'Signature-Agent': this.config.jwks_url,
+      'Signature-Input': this.buildSignatureInput(params, signatureLabel),
+      'Signature': `${signatureLabel}=:${signature}:`,
+      'Signature-Agent': signatureAgentValue,
       'User-Agent': 'OpenBotAuth-CLI/0.1.0',
     };
 
@@ -117,9 +132,12 @@ export class RequestSigner {
   /**
    * Build Signature-Input header value
    */
-  private buildSignatureInput(params: SignatureParams): string {
+  private buildSignatureInput(
+    params: SignatureParams,
+    label: string,
+  ): string {
     const components = params.headers.map(h => `"${h}"`).join(' ');
-    return `sig1=(${components});created=${params.created};expires=${params.expires};nonce="${params.nonce}";keyid="${params.keyId}";alg="${params.algorithm}"`;
+    return `${label}=(${components});created=${params.created};expires=${params.expires};nonce="${params.nonce}";keyid="${params.keyId}";alg="${params.algorithm}"`;
   }
 
   /**
@@ -175,4 +193,3 @@ export class RequestSigner {
     return Buffer.from(bytes).toString('base64url');
   }
 }
-
