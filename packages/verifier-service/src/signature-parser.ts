@@ -378,11 +378,15 @@ export function parseSignatureAgent(
     // Validate URL structure
     const url = new URL(cleaned);
 
+    const normalizedPath = url.pathname.replace(/\/+$/, "");
+    const isDirectoryPath =
+      normalizedPath === "/.well-known/http-message-signatures-directory";
+
     // Check if it's already a JWKS URL
     const isJwks =
-      url.pathname.endsWith(".json") ||
-      url.pathname.includes("/jwks/") ||
-      url.pathname.includes("http-message-signatures-directory");
+      normalizedPath.endsWith(".json") ||
+      normalizedPath.includes("/jwks/") ||
+      isDirectoryPath;
 
     return {
       url: cleaned,

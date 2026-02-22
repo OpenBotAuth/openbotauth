@@ -4,17 +4,11 @@
  * Serves /.well-known/signature-agent-card
  */
 
-import { createHash } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import type { Database } from "@openbotauth/github-connector";
+import { jwkThumbprint } from "../utils/jwk.js";
 
 export const signatureAgentCardRouter: Router = Router();
-
-function deriveKidFromX(x: string): string {
-  const canonical = JSON.stringify({ crv: "Ed25519", kty: "OKP", x });
-  const hashBase64 = createHash("sha256").update(canonical).digest("base64");
-  return hashBase64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
 
 signatureAgentCardRouter.get(
   "/.well-known/signature-agent-card",
@@ -80,7 +74,7 @@ signatureAgentCardRouter.get(
       const kid =
         typeof pk.kid === "string" && pk.kid.length > 0
           ? pk.kid
-          : deriveKidFromX(pk.x);
+          : jwkThumbprint({ kty: "OKP", crv: "Ed25519", x: pk.x });
 
       const agentJwk: Record<string, unknown> = {
         kty: "OKP",

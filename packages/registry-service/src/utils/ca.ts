@@ -7,7 +7,16 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as x509 from "@peculiar/x509";
 
-const { X509CertificateGenerator, PemConverter } = x509 as any;
+const {
+  X509CertificateGenerator,
+  PemConverter,
+  BasicConstraintsExtension,
+  KeyUsagesExtension,
+  SubjectAlternativeNameExtension,
+  GeneralName,
+  KeyUsageFlags,
+  URL: GENERAL_NAME_URL,
+} = x509 as any;
 
 export interface CertificateAuthority {
   subject: string;
@@ -94,6 +103,18 @@ async function createSelfSignedCa(
   const notAfter = new Date(Date.now() + validDays * 24 * 60 * 60 * 1000);
   const serialNumber = randomSerial();
 
+  const extensions: any[] = [];
+  if (BasicConstraintsExtension) {
+    extensions.push(new BasicConstraintsExtension(true, undefined, true));
+  }
+  if (KeyUsagesExtension && KeyUsageFlags) {
+    const usage =
+      (KeyUsageFlags.keyCertSign || 0) | (KeyUsageFlags.cRLSign || 0);
+    if (usage > 0) {
+      extensions.push(new KeyUsagesExtension(usage, true));
+    }
+  }
+
   const cert = await X509CertificateGenerator.create({
     serialNumber,
     subject,
@@ -103,6 +124,7 @@ async function createSelfSignedCa(
     publicKey: keys.publicKey,
     signingKey: keys.privateKey,
     signingAlgorithm: { name: "Ed25519" },
+    extensions,
   });
 
   const pem = encodeCertPem(cert);
@@ -202,6 +224,7 @@ export async function issueCertificateForJwk(
   jwk: Record<string, unknown>,
   subject: string,
   validityDays: number,
+  subjectAltUri?: string | null,
 ): Promise<IssuedCertificate> {
   ensureCryptoProvider();
   const ca = await getCertificateAuthority();
@@ -218,6 +241,24 @@ export async function issueCertificateForJwk(
   const notAfter = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
   const serialNumber = randomSerial();
 
+  const extensions: any[] = [];
+  if (BasicConstraintsExtension) {
+    extensions.push(new BasicConstraintsExtension(false, undefined, true));
+  }
+  if (KeyUsagesExtension && KeyUsageFlags) {
+    const usage = KeyUsageFlags.digitalSignature || 0;
+    if (usage > 0) {
+      extensions.push(new KeyUsagesExtension(usage, true));
+    }
+  }
+  if (subjectAltUri && SubjectAlternativeNameExtension) {
+    const generalNameType = GENERAL_NAME_URL || "url";
+    const generalName = GeneralName
+      ? new GeneralName(generalNameType, subjectAltUri)
+      : { type: generalNameType, value: subjectAltUri };
+    extensions.push(new SubjectAlternativeNameExtension([generalName], false));
+  }
+
   const cert = await X509CertificateGenerator.create({
     serialNumber,
     subject,
@@ -227,6 +268,7 @@ export async function issueCertificateForJwk(
     publicKey,
     signingKey: ca.privateKey,
     signingAlgorithm: { name: "Ed25519" },
+    extensions,
   });
 
   const certPem = encodeCertPem(cert);

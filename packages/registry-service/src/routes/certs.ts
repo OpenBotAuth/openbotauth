@@ -2,11 +2,11 @@
  * Certificate issuance endpoints (MVP)
  */
 
-import { createHash } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import type { Database } from "@openbotauth/github-connector";
 import { issueCertificateForJwk, getCertificateAuthority } from "../utils/ca.js";
 import { requireScope } from "../middleware/scopes.js";
+import { jwkThumbprint } from "../utils/jwk.js";
 
 export const certsRouter: Router = Router();
 
@@ -17,12 +17,6 @@ const requireAuth = (req: Request, res: Response, next: Function) => {
   }
   next();
 };
-
-function deriveKidFromX(x: string): string {
-  const canonical = JSON.stringify({ crv: "Ed25519", kty: "OKP", x });
-  const hashBase64 = createHash("sha256").update(canonical).digest("base64");
-  return hashBase64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
 
 certsRouter.post(
   "/v1/certs/issue",
@@ -72,7 +66,7 @@ certsRouter.post(
       const resolvedKid =
         typeof pk.kid === "string" && pk.kid.length > 0
           ? pk.kid
-          : deriveKidFromX(pk.x);
+          : jwkThumbprint({ kty: "OKP", crv: "Ed25519", x: pk.x });
 
       const subject = `CN=${agent.name || "OpenBotAuth Agent"}`;
       const validityDays = parseInt(
@@ -87,7 +81,12 @@ certsRouter.post(
         kid: resolvedKid,
       };
 
-      const issued = await issueCertificateForJwk(jwkForCert, subject, validityDays);
+      const issued = await issueCertificateForJwk(
+        jwkForCert,
+        subject,
+        validityDays,
+        agent.oba_agent_id || null,
+      );
 
       await db.getPool().query(
         `INSERT INTO agent_certificates
