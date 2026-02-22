@@ -104,9 +104,11 @@ Auth:
 
 To prevent certificate issuance for keys you don't control, you must provide a signed proof:
 
-1. Generate a message: `cert-issue:{unix_timestamp}` (timestamp must be within 5 minutes)
+1. Generate a message: `cert-issue:{agent_id}:{unix_timestamp}`
 2. Sign the message with your Ed25519 private key
 3. Include the proof in the request body
+
+The timestamp must be within 5 minutes in the past (no future timestamps allowed).
 
 Note: if the agent has `oba_agent_id`, it is included as a SAN URI in the leaf
 certificate as an informational hint. This value is user-supplied unless you
@@ -117,23 +119,21 @@ enforce registry-side issuance rules.
 {
   "agent_id": "uuid",
   "proof": {
-    "message": "cert-issue:1709251200",
+    "message": "cert-issue:550e8400-e29b-41d4-a716-446655440000:1709251200",
     "signature": "<base64-encoded-ed25519-signature>"
   }
 }
 ```
 
-Example proof generation (Node.js):
-```javascript
-const crypto = require('crypto');
-const timestamp = Math.floor(Date.now() / 1000);
-const message = `cert-issue:${timestamp}`;
-const signature = crypto.sign(null, Buffer.from(message), privateKey);
-const proof = {
-  message,
-  signature: signature.toString('base64')
-};
+**CLI Usage (recommended):**
+
+Certificate issuance is best done via CLI to keep private keys secure:
+
+```bash
+oba-bot cert issue --agent-id <uuid>
 ```
+
+The CLI will generate the proof automatically using your local private key.
 
 #### POST `/v1/certs/revoke`
 
@@ -217,16 +217,12 @@ Query parameters:
 For mTLS integration, compute the SHA-256 fingerprint over the **DER-encoded** client certificate (not PEM text). Example in Node.js:
 
 ```javascript
-const crypto = require('crypto');
-const forge = require('node-forge');
+const { createHash, X509Certificate } = require("node:crypto");
 
 // From PEM string
-const pem = '-----BEGIN CERTIFICATE-----...';
-const cert = forge.pki.certificateFromPem(pem);
-const der = forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes();
-const fingerprint = crypto.createHash('sha256')
-  .update(Buffer.from(der, 'binary'))
-  .digest('hex');
+const pem = "-----BEGIN CERTIFICATE-----...";
+const cert = new X509Certificate(pem);
+const fingerprint = createHash("sha256").update(cert.raw).digest("hex");
 // fingerprint is 64 lowercase hex chars
 ```
 

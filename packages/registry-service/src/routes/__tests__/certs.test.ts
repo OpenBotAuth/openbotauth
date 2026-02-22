@@ -217,6 +217,132 @@ describe("GET /v1/certs", () => {
   });
 });
 
+describe("POST /v1/certs/issue - PoP validation", () => {
+  const mockAgentQuery = vi.fn().mockResolvedValue({
+    rows: [
+      {
+        id: "agent-123",
+        user_id: "u-1",
+        name: "Test Agent",
+        public_key: {
+          kty: "OKP",
+          crv: "Ed25519",
+          x: "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+        },
+      },
+    ],
+  });
+
+  it("rejects missing proof", async () => {
+    const req = mockReq({
+      body: { agent_id: "agent-123" },
+      app: { locals: { db: mockDb(mockAgentQuery) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain("proof-of-possession");
+  });
+
+  it("rejects invalid proof message format", async () => {
+    const req = mockReq({
+      body: {
+        agent_id: "agent-123",
+        proof: { message: "invalid-format", signature: "abc" },
+      },
+      app: { locals: { db: mockDb(mockAgentQuery) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain("Invalid proof message format");
+  });
+
+  it("rejects expired timestamp", async () => {
+    const expiredTs = Math.floor(Date.now() / 1000) - 400; // 6+ minutes ago
+    const req = mockReq({
+      body: {
+        agent_id: "agent-123",
+        proof: {
+          message: `cert-issue:agent-123:${expiredTs}`,
+          signature: Buffer.alloc(64).toString("base64"),
+        },
+      },
+      app: { locals: { db: mockDb(mockAgentQuery) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain("expired");
+  });
+
+  it("rejects future timestamp beyond drift tolerance", async () => {
+    const futureTs = Math.floor(Date.now() / 1000) + 120; // 2 minutes in future
+    const req = mockReq({
+      body: {
+        agent_id: "agent-123",
+        proof: {
+          message: `cert-issue:agent-123:${futureTs}`,
+          signature: Buffer.alloc(64).toString("base64"),
+        },
+      },
+      app: { locals: { db: mockDb(mockAgentQuery) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain("future");
+  });
+
+  it("rejects agent_id mismatch in proof", async () => {
+    const ts = Math.floor(Date.now() / 1000);
+    const req = mockReq({
+      body: {
+        agent_id: "agent-123",
+        proof: {
+          message: `cert-issue:different-agent:${ts}`,
+          signature: Buffer.alloc(64).toString("base64"),
+        },
+      },
+      app: { locals: { db: mockDb(mockAgentQuery) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain("does not match");
+  });
+
+  it("rejects invalid signature length", async () => {
+    const ts = Math.floor(Date.now() / 1000);
+    const req = mockReq({
+      body: {
+        agent_id: "agent-123",
+        proof: {
+          message: `cert-issue:agent-123:${ts}`,
+          signature: Buffer.alloc(32).toString("base64"), // wrong length
+        },
+      },
+      app: { locals: { db: mockDb(mockAgentQuery) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain("64 bytes");
+  });
+});
+
 describe("POST /v1/certs/revoke", () => {
   it("only updates certs that are not already revoked", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [{ id: "c-1" }] });
@@ -315,7 +441,7 @@ describe("GET /v1/certs/public-status", () => {
     await callRoute(certsRouter, "GET", "/v1/certs/public-status", req, res);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toContain("64 lowercase hex");
+    expect(res.body.error).toContain("64 hex characters");
   });
 
   it("rejects fingerprint with wrong length", async () => {
@@ -325,7 +451,24 @@ describe("GET /v1/certs/public-status", () => {
     await callRoute(certsRouter, "GET", "/v1/certs/public-status", req, res);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toContain("64 lowercase hex");
+    expect(res.body.error).toContain("64 hex characters");
+  });
+
+  it("normalizes uppercase fingerprint to lowercase", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const req = {
+      headers: {},
+      query: { fingerprint_sha256: "A".repeat(64) },
+      app: { locals: { db: mockDb(query) } },
+    } as any;
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs/public-status", req, res);
+
+    // Should reach DB query (not rejected as invalid format)
+    expect(query).toHaveBeenCalled();
+    const [, params] = query.mock.calls[0];
+    expect(params[0]).toBe("a".repeat(64)); // lowercased
   });
 
   it("returns validity status without authentication", async () => {

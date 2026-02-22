@@ -39,7 +39,6 @@ const AgentDetail = () => {
   const [certificates, setCertificates] = useState<AgentCertificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [certLoading, setCertLoading] = useState(false);
-  const [issuingCert, setIssuingCert] = useState(false);
   const [revokingSerial, setRevokingSerial] = useState<string | null>(null);
   const [revokeDialogCert, setRevokeDialogCert] = useState<AgentCertificate | null>(null);
   const [advancedSerial, setAdvancedSerial] = useState<string | null>(null);
@@ -139,28 +138,6 @@ const AgentDetail = () => {
         description: "Failed to delete agent",
         variant: "destructive",
       });
-    }
-  };
-
-  const issueCertificate = async () => {
-    if (!agent) return;
-    setIssuingCert(true);
-    try {
-      const issued = await api.issueCert({ agent_id: agent.id });
-      toast({
-        title: "Certificate Issued",
-        description: `Serial ${shortText(issued.serial)} issued successfully`,
-      });
-      await fetchCertificates(agent.id);
-    } catch (error: any) {
-      console.error("Error issuing certificate:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to issue certificate",
-        variant: "destructive",
-      });
-    } finally {
-      setIssuingCert(false);
     }
   };
 
@@ -403,27 +380,30 @@ const AgentDetail = () => {
                 Issued X.509 certificates for this agent key
               </CardDescription>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => agent && fetchCertificates(agent.id)}
-                disabled={certLoading || issuingCert}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${certLoading ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-              <Button size="sm" onClick={issueCertificate} disabled={issuingCert || certLoading}>
-                {issuingCert ? "Issuing..." : "Issue certificate"}
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => agent && fetchCertificates(agent.id)}
+              disabled={certLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${certLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground mb-2">
+                Certificate issuance requires proof-of-possession and must be done via CLI:
+              </p>
+              <code className="block p-2 bg-background rounded text-xs font-mono">
+                oba-bot cert issue --agent-id {agent.id}
+              </code>
+            </div>
             {certLoading ? (
               <p className="text-sm text-muted-foreground text-center py-8">Loading certificates...</p>
             ) : certificates.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                No certificates issued yet
+                No certificates issued yet. Use the CLI command above to issue one.
               </p>
             ) : (
               <div className="overflow-x-auto">

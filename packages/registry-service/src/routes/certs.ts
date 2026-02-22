@@ -11,26 +11,54 @@ import { jwkThumbprint } from "../utils/jwk.js";
 
 /**
  * Verify proof-of-possession signature.
- * The proof message format is: "cert-issue:{timestamp}"
- * Timestamp must be within 5 minutes of current time.
+ * The proof message format is: "cert-issue:{agent_id}:{timestamp}"
+ * Timestamp must be within 5 minutes in the past (no future timestamps).
  */
 async function verifyProofOfPossession(
-  proof: { message: string; signature: string },
+  proof: unknown,
+  agentId: string,
   publicKey: { kty?: string; crv?: string; x: string },
 ): Promise<{ valid: boolean; error?: string }> {
   try {
-    // Parse and validate message format
-    const match = proof.message.match(/^cert-issue:(\d+)$/);
-    if (!match) {
-      return { valid: false, error: "Invalid proof message format. Expected: cert-issue:{timestamp}" };
+    // Type validation
+    if (!proof || typeof proof !== "object") {
+      return { valid: false, error: "Proof must be an object" };
+    }
+    const { message, signature } = proof as Record<string, unknown>;
+    if (typeof message !== "string" || typeof signature !== "string") {
+      return { valid: false, error: "Proof message and signature must be strings" };
     }
 
-    const timestamp = parseInt(match[1], 10);
-    const now = Math.floor(Date.now() / 1000);
-    const maxSkew = 300; // 5 minutes
+    // Parse and validate message format: cert-issue:{agent_id}:{timestamp}
+    const match = message.match(/^cert-issue:([^:]+):(\d+)$/);
+    if (!match) {
+      return { valid: false, error: "Invalid proof message format. Expected: cert-issue:{agent_id}:{timestamp}" };
+    }
 
-    if (Math.abs(now - timestamp) > maxSkew) {
-      return { valid: false, error: "Proof timestamp expired or too far in the future" };
+    const [, proofAgentId, timestampStr] = match;
+
+    // Verify agent_id matches
+    if (proofAgentId !== agentId) {
+      return { valid: false, error: "Proof agent_id does not match requested agent" };
+    }
+
+    // Validate timestamp: must be in the past, within 5 minutes
+    const timestamp = parseInt(timestampStr, 10);
+    const now = Math.floor(Date.now() / 1000);
+    const maxAge = 300; // 5 minutes
+    const maxDrift = 30; // 30 seconds future tolerance for clock skew
+
+    if (timestamp > now + maxDrift) {
+      return { valid: false, error: "Proof timestamp is in the future" };
+    }
+    if (now - timestamp > maxAge) {
+      return { valid: false, error: "Proof timestamp expired (older than 5 minutes)" };
+    }
+
+    // Validate signature length (Ed25519 signatures are always 64 bytes)
+    const signatureBuffer = Buffer.from(signature, "base64");
+    if (signatureBuffer.length !== 64) {
+      return { valid: false, error: "Invalid signature length (Ed25519 signatures must be 64 bytes)" };
     }
 
     // Import public key
@@ -49,11 +77,10 @@ async function verifyProofOfPossession(
     );
 
     // Verify signature
-    const messageBuffer = new TextEncoder().encode(proof.message);
-    const signatureBuffer = Buffer.from(proof.signature, "base64");
+    const messageBuffer = new TextEncoder().encode(message);
 
     const valid = await webcrypto.subtle.verify(
-      "Ed25519",
+      { name: "Ed25519" },
       key,
       signatureBuffer,
       messageBuffer,
@@ -158,14 +185,14 @@ certsRouter.post(
 
       // Verify proof-of-possession: caller must prove they have the private key
       const { proof } = req.body || {};
-      if (!proof || typeof proof !== "object" || !proof.message || !proof.signature) {
+      if (!proof) {
         res.status(400).json({
-          error: "Missing proof-of-possession. Provide proof: { message: 'cert-issue:{timestamp}', signature: '<base64>' }",
+          error: "Missing proof-of-possession. Provide proof: { message: 'cert-issue:{agent_id}:{timestamp}', signature: '<base64>' }",
         });
         return;
       }
 
-      const popResult = await verifyProofOfPossession(proof, pk);
+      const popResult = await verifyProofOfPossession(proof, agent.id, pk);
       if (!popResult.valid) {
         res.status(403).json({
           error: `Proof-of-possession failed: ${popResult.error}`,
@@ -514,7 +541,7 @@ certsRouter.get(
       // Validate fingerprint format: must be 64 hex characters (SHA-256)
       if (!/^[a-f0-9]{64}$/.test(fingerprint)) {
         res.status(400).json({
-          error: "Invalid fingerprint_sha256: must be 64 lowercase hex characters",
+          error: "Invalid fingerprint_sha256: must be 64 hex characters",
         });
         return;
       }

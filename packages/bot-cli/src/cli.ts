@@ -10,6 +10,7 @@ import { Command } from 'commander';
 import { keygenCommand } from './commands/keygen.js';
 import { fetchCommand } from './commands/fetch.js';
 import { configCommand } from './commands/config.js';
+import { certIssueCommand } from './commands/cert.js';
 
 const program = new Command();
 
@@ -64,6 +65,25 @@ program
   });
 
 /**
+ * cert command - Certificate management
+ */
+const certCmd = program.command('cert').description('Certificate management');
+
+certCmd
+  .command('issue')
+  .description('Issue an X.509 certificate for an agent (requires proof-of-possession)')
+  .requiredOption('--agent-id <id>', 'Agent ID to issue certificate for')
+  .option('--registry-url <url>', 'Registry URL (default: https://registry.openbotauth.com)')
+  .option('--token <token>', 'Auth token (or set OPENBOTAUTH_TOKEN env var)')
+  .action(async (options) => {
+    await certIssueCommand({
+      agentId: options.agentId,
+      registryUrl: options.registryUrl,
+      token: options.token,
+    });
+  });
+
+/**
  * Examples
  */
 program.addHelpText(
@@ -81,6 +101,9 @@ Examples:
 
   # Show configuration
   $ oba-bot config
+
+  # Issue an X.509 certificate for an agent
+  $ oba-bot cert issue --agent-id <uuid> --token <pat>
 
   # Verbose mode
   $ oba-bot fetch https://example.com/api/data -v
