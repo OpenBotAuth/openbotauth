@@ -1,4 +1,19 @@
+import { webcrypto } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Mock the CA module to avoid actual certificate issuance in tests
+vi.mock("../../utils/ca.js", () => ({
+  issueCertificateForJwk: vi.fn().mockResolvedValue({
+    serial: "test-serial-123",
+    certPem: "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----",
+    chainPem: "-----BEGIN CERTIFICATE-----\nchain\n-----END CERTIFICATE-----",
+    x5c: ["dGVzdA=="],
+    notBefore: new Date().toISOString(),
+    notAfter: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+    fingerprintSha256: "a".repeat(64),
+  }),
+  getCertificateAuthority: vi.fn(),
+}));
 
 function mockDb(queryFn?: (...args: any[]) => any) {
   return {
@@ -340,6 +355,64 @@ describe("POST /v1/certs/issue - PoP validation", () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.body.error).toContain("64 bytes");
+  });
+
+  it("accepts valid proof and issues certificate", async () => {
+    // Generate a real Ed25519 keypair
+    const keyPair = await webcrypto.subtle.generateKey(
+      { name: "Ed25519" },
+      true,
+      ["sign", "verify"],
+    );
+
+    // Export public key as JWK
+    const publicJwk = await webcrypto.subtle.exportKey("jwk", keyPair.publicKey);
+
+    // Create proof message and sign it
+    const agentId = "agent-real-123";
+    const ts = Math.floor(Date.now() / 1000);
+    const message = `cert-issue:${agentId}:${ts}`;
+    const messageBuffer = new TextEncoder().encode(message);
+    const signatureBuffer = await webcrypto.subtle.sign(
+      { name: "Ed25519" },
+      keyPair.privateKey,
+      messageBuffer,
+    );
+    const signature = Buffer.from(signatureBuffer).toString("base64");
+
+    // Mock agent query to return our generated public key
+    const agentQuery = vi.fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: agentId,
+            user_id: "u-1",
+            name: "Test Agent",
+            public_key: {
+              kty: "OKP",
+              crv: "Ed25519",
+              x: publicJwk.x,
+            },
+          },
+        ],
+      })
+      // Mock the INSERT query for certificate
+      .mockResolvedValueOnce({ rows: [] });
+
+    const req = mockReq({
+      body: {
+        agent_id: agentId,
+        proof: { message, signature },
+      },
+      app: { locals: { db: mockDb(agentQuery) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.serial).toBe("test-serial-123");
+    expect(res.body.fingerprint_sha256).toBeDefined();
   });
 });
 

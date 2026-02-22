@@ -391,13 +391,17 @@ const AgentDetail = () => {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 p-4 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground mb-2">
-                Certificate issuance requires proof-of-possession and must be done via CLI:
+            <div className="mb-4 p-4 bg-muted rounded-lg space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Certificate issuance requires proof-of-possession and must be done via CLI.
+                Use the private key you downloaded when creating this agent:
               </p>
-              <code className="block p-2 bg-background rounded text-xs font-mono">
-                oba-bot cert issue --agent-id {agent.id}
+              <code className="block p-2 bg-background rounded text-xs font-mono break-all">
+                oba-bot cert issue --agent-id {agent?.id ?? "<agent-id>"} --private-key-path /path/to/private-key.pem --token {"<pat>"}
               </code>
+              <p className="text-xs text-muted-foreground">
+                Or set <code className="bg-background px-1 rounded">OPENBOTAUTH_TOKEN</code> env var instead of --token
+              </p>
             </div>
             {certLoading ? (
               <p className="text-sm text-muted-foreground text-center py-8">Loading certificates...</p>

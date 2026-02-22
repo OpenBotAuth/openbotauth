@@ -73,11 +73,13 @@ certCmd
   .command('issue')
   .description('Issue an X.509 certificate for an agent (requires proof-of-possession)')
   .requiredOption('--agent-id <id>', 'Agent ID to issue certificate for')
+  .option('--private-key-path <path>', 'Path to private key PEM file (if not using KeyStorage)')
   .option('--registry-url <url>', 'Registry URL (default: https://registry.openbotauth.com)')
   .option('--token <token>', 'Auth token (or set OPENBOTAUTH_TOKEN env var)')
   .action(async (options) => {
     await certIssueCommand({
       agentId: options.agentId,
+      privateKeyPath: options.privateKeyPath,
       registryUrl: options.registryUrl,
       token: options.token,
     });

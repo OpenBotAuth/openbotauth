@@ -145,32 +145,20 @@ certsRouter.post(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const db: Database = req.app.locals.db;
-      const { agent_id, kid } = req.body || {};
+      const { agent_id } = req.body || {};
 
-      if (!agent_id && !kid) {
+      if (!agent_id) {
         res.status(400).json({
-          error: "Missing required input: agent_id or kid",
+          error: "Missing required input: agent_id",
         });
         return;
       }
 
-      let agent: any = null;
-      if (agent_id) {
-        const result = await db.getPool().query(
-          `SELECT * FROM agents WHERE id = $1 AND user_id = $2`,
-          [agent_id, req.session!.user.id],
-        );
-        agent = result.rows[0] || null;
-      } else if (kid) {
-        const result = await db.getPool().query(
-          `SELECT * FROM agents
-           WHERE user_id = $1 AND public_key->>'kid' = $2
-           ORDER BY created_at DESC
-           LIMIT 1`,
-          [req.session!.user.id, kid],
-        );
-        agent = result.rows[0] || null;
-      }
+      const result = await db.getPool().query(
+        `SELECT * FROM agents WHERE id = $1 AND user_id = $2`,
+        [agent_id, req.session!.user.id],
+      );
+      const agent = result.rows[0] || null;
 
       if (!agent) {
         res.status(404).json({ error: "Agent not found" });

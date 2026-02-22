@@ -108,7 +108,7 @@ To prevent certificate issuance for keys you don't control, you must provide a s
 2. Sign the message with your Ed25519 private key
 3. Include the proof in the request body
 
-The timestamp must be within 5 minutes in the past (no future timestamps allowed).
+The timestamp must be within 5 minutes in the past (up to 30 seconds future drift is tolerated for clock skew).
 
 Note: if the agent has `oba_agent_id`, it is included as a SAN URI in the leaf
 certificate as an informational hint. This value is user-supplied unless you
@@ -130,10 +130,14 @@ enforce registry-side issuance rules.
 Certificate issuance is best done via CLI to keep private keys secure:
 
 ```bash
-oba-bot cert issue --agent-id <uuid>
+# Using the private key downloaded when creating the agent
+oba-bot cert issue --agent-id <uuid> --private-key-path /path/to/private-key.pem --token <pat>
+
+# Or with OPENBOTAUTH_TOKEN env var
+OPENBOTAUTH_TOKEN=<pat> oba-bot cert issue --agent-id <uuid> --private-key-path /path/to/private-key.pem
 ```
 
-The CLI will generate the proof automatically using your local private key.
+The CLI generates the proof-of-possession signature automatically using the specified private key.
 
 #### POST `/v1/certs/revoke`
 

@@ -4,6 +4,7 @@
  * Issue and manage X.509 certificates for agents
  */
 
+import { readFile } from "node:fs/promises";
 import { webcrypto } from "node:crypto";
 import { KeyStorage } from "../key-storage.js";
 
@@ -14,17 +15,33 @@ export async function certIssueCommand(options: {
   agentId: string;
   registryUrl?: string;
   token?: string;
+  privateKeyPath?: string;
 }): Promise<void> {
   console.log("🔏 Issuing certificate with proof-of-possession...\n");
 
   try {
-    // Load config to get private key
-    const config = await KeyStorage.load();
-    if (!config) {
-      console.error(
-        "❌ No configuration found. Run 'oba-bot keygen' first to generate keys."
-      );
-      process.exit(1);
+    // Load private key - either from explicit path or from KeyStorage
+    let privateKeyPem: string;
+
+    if (options.privateKeyPath) {
+      console.log(`Loading private key from: ${options.privateKeyPath}`);
+      try {
+        privateKeyPem = await readFile(options.privateKeyPath, "utf-8");
+      } catch (err: any) {
+        console.error(`❌ Failed to read private key file: ${err.message}`);
+        process.exit(1);
+      }
+    } else {
+      const config = await KeyStorage.load();
+      if (!config) {
+        console.error(
+          "❌ No configuration found. Either:\n" +
+          "   - Use --private-key-path to specify the agent's private key, or\n" +
+          "   - Run 'oba-bot keygen' first to generate keys"
+        );
+        process.exit(1);
+      }
+      privateKeyPem = config.private_key;
     }
 
     const registryUrl = options.registryUrl || DEFAULT_REGISTRY_URL;
@@ -47,7 +64,7 @@ export async function certIssueCommand(options: {
     // Sign the message
     const privateKey = await webcrypto.subtle.importKey(
       "pkcs8",
-      pemToBuffer(config.private_key),
+      pemToBuffer(privateKeyPem),
       { name: "Ed25519" },
       false,
       ["sign"]
@@ -55,7 +72,7 @@ export async function certIssueCommand(options: {
 
     const messageBuffer = new TextEncoder().encode(message);
     const signatureBuffer = await webcrypto.subtle.sign(
-      "Ed25519",
+      { name: "Ed25519" },
       privateKey,
       messageBuffer
     );
