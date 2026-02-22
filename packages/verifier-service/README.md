@@ -74,6 +74,7 @@ Main verification endpoint for NGINX `auth_request`.
 **X.509 delegation notes:**
 - `x5c` chains are validated to configured trust anchors when `OBA_X509_ENABLED=true`
 - `x5u` currently fetches only the leaf certificate; without AIA chain building, validation succeeds only if the leaf chains directly to a trust anchor (or the anchor is an intermediate)
+- Verifier does not currently enforce EKU/basicConstraints or bind certificate identity to the Signature-Agent URL
 
 **Response:**
 

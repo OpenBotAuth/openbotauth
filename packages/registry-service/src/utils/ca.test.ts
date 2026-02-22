@@ -61,6 +61,6 @@ describe("issueCertificateForJwk", () => {
     );
 
     const cert = new X509Certificate(issued.certPem);
-    expect(cert.subjectAltName).not.toContain("URI:");
+    expect(cert.subjectAltName ?? "").not.toContain("URI:");
   });
 });

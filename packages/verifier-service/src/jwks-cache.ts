@@ -64,7 +64,8 @@ export class JWKSCacheManager {
       const response = await fetch(jwksUrl, {
         method: "GET",
         headers: {
-          Accept: "application/json",
+          Accept:
+            "application/jwk-set+json, application/http-message-signatures-directory, application/json",
           "User-Agent": "OpenBotAuth-Verifier/0.1.0",
         },
         signal: AbortSignal.timeout(3000), // 3s timeout

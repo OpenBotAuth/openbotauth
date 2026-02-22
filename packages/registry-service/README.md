@@ -93,6 +93,10 @@ Query parameters:
 
 Issue an X.509 certificate for an agent key.
 
+Note: if the agent has `oba_agent_id`, it is included as a SAN URI in the leaf
+certificate as an informational hint. This value is user-supplied unless you
+enforce registry-side issuance rules.
+
 **Request:**
 ```json
 {
