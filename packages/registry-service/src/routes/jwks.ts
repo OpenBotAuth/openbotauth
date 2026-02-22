@@ -78,6 +78,7 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
     const seenKids = new Set(
       jwks.map(k => k.kid).filter((k): k is string => typeof k === 'string' && k.length > 0)
     );
+    const agentKids = new Set<string>();
 
     for (const agent of agentsResult.rows) {
       const pk = agent.public_key;
@@ -117,6 +118,7 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
         continue;
       }
       seenKids.add(kid);
+      agentKids.add(kid);
 
       // Build validated JWK with proper typing
       const agentJwk = {
@@ -146,17 +148,18 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
     }
 
     // Attach x5c for keys that have issued certificates
-    const kidsForCerts = jwks
-      .map((k: any) => k.kid)
-      .filter((k: any): k is string => typeof k === 'string' && k.length > 0);
+    const kidsForCerts = Array.from(agentKids);
 
     if (kidsForCerts.length > 0) {
       const certResult = await db.getPool().query(
-        `SELECT DISTINCT ON (kid) kid, x5c
-         FROM agent_certificates
-         WHERE kid = ANY($1) AND revoked_at IS NULL
-         ORDER BY kid, created_at DESC`,
-        [kidsForCerts]
+        `SELECT DISTINCT ON (c.kid) c.kid, c.x5c
+         FROM agent_certificates c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE c.kid = ANY($1)
+           AND c.revoked_at IS NULL
+           AND a.user_id = $2
+         ORDER BY c.kid, c.created_at DESC`,
+        [kidsForCerts, profile.id]
       );
 
       const certByKid = new Map<string, any>();
@@ -165,7 +168,7 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       }
 
       for (const jwk of jwks as any[]) {
-        if (jwk.kid && certByKid.has(jwk.kid)) {
+        if (jwk.kid && agentKids.has(jwk.kid) && certByKid.has(jwk.kid)) {
           jwk.x5c = certByKid.get(jwk.kid);
         }
       }

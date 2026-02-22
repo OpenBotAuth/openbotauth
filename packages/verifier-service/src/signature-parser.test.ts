@@ -8,6 +8,7 @@ import {
   resolveJwksUrl,
   buildSignatureBase,
   parseSignatureInput,
+  parseSignature,
   validateSafeUrl,
 } from "./signature-parser.js";
 
@@ -242,6 +243,22 @@ describe("parseSignatureAgent", () => {
   });
 });
 
+describe("parseSignatureInput", () => {
+  it("should parse labels with dash and dot", () => {
+    const parsed = parseSignatureInput(
+      'sig-1.test=("@method" "@path");created=123;keyid="k1"',
+    );
+    expect(parsed?.label).toBe("sig-1.test");
+  });
+});
+
+describe("parseSignature", () => {
+  it("should parse signature with dash/dot label", () => {
+    const parsed = parseSignature("sig-1.test=:Zm9vYmFyOg==:");
+    expect(parsed).toBe("Zm9vYmFyOg==");
+  });
+});
+
 describe("resolveJwksUrl", () => {
   let fetchMock: any;
 
@@ -271,7 +288,7 @@ describe("resolveJwksUrl", () => {
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
-          Accept: "application/json",
+          Accept: expect.stringContaining("http-message-signatures-directory"),
         }),
       }),
     );

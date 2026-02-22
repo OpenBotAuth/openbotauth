@@ -18,6 +18,24 @@ const requireAuth = (req: Request, res: Response, next: Function) => {
   next();
 };
 
+function sanitizeDnValue(value: string, fallback: string): string {
+  const cleaned = value
+    .replace(/[\r\n\t\0]/g, " ")
+    .replace(/[=,+<>#;"\\]/g, " ");
+  const compact = cleaned.replace(/\s+/g, " ").trim();
+  if (!compact) return fallback;
+  return compact.slice(0, 64);
+}
+
+function isValidAgentId(value: string): boolean {
+  if (value.length > 255) return false;
+  if (!value.startsWith("agent:")) return false;
+  if (/\s/.test(value)) return false;
+  return /^agent:[A-Za-z0-9._-]+@[A-Za-z0-9.-]+(\/[A-Za-z0-9._-]+)?$/.test(
+    value,
+  );
+}
+
 certsRouter.post(
   "/v1/certs/issue",
   requireAuth,
@@ -68,7 +86,11 @@ certsRouter.post(
           ? pk.kid
           : jwkThumbprint({ kty: "OKP", crv: "Ed25519", x: pk.x });
 
-      const subject = `CN=${agent.name || "OpenBotAuth Agent"}`;
+      const subjectCn = sanitizeDnValue(
+        agent.name || "OpenBotAuth Agent",
+        "OpenBotAuth Agent",
+      );
+      const subject = `CN=${subjectCn}`;
       const validityDays = parseInt(
         process.env.OBA_LEAF_CERT_VALID_DAYS || "90",
         10,
@@ -85,7 +107,9 @@ certsRouter.post(
         jwkForCert,
         subject,
         validityDays,
-        agent.oba_agent_id || null,
+        typeof agent.oba_agent_id === "string" && isValidAgentId(agent.oba_agent_id)
+          ? agent.oba_agent_id
+          : null,
       );
 
       await db.getPool().query(
@@ -105,6 +129,7 @@ certsRouter.post(
         ],
       );
 
+      res.setHeader("Cache-Control", "no-store");
       res.json({
         serial: issued.serial,
         not_before: issued.notBefore,
@@ -160,6 +185,7 @@ certsRouter.post(
         return;
       }
 
+      res.setHeader("Cache-Control", "no-store");
       res.json({ success: true, revoked: result.rows.length });
     } catch (error: any) {
       console.error("Certificate revocation error:", error);

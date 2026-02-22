@@ -6,6 +6,12 @@
 
 import type { SignatureComponents } from "./types.js";
 
+const LABEL_PATTERN = "[A-Za-z][A-Za-z0-9._-]*";
+const LABEL_REGEX = new RegExp(`^${LABEL_PATTERN}`);
+const SIGNATURE_INPUT_LABEL_RE = new RegExp(`^(${LABEL_PATTERN})=(.+)$`);
+const SIGNATURE_INPUT_RE = new RegExp(`^(${LABEL_PATTERN})=\\(([^)]+)\\);(.+)$`);
+const SIGNATURE_RE = new RegExp(`^(${LABEL_PATTERN})=:([^:]+):$`);
+
 /**
  * SSRF protection: validate that a URL is safe to fetch
  *
@@ -99,7 +105,7 @@ export function parseSignatureInput(
 ): SignatureComponents | null {
   try {
     // Extract the signature label and the raw params (everything after "label=")
-    const labelMatch = signatureInput.match(/^([a-zA-Z0-9_-]+)=(.+)$/);
+    const labelMatch = signatureInput.match(SIGNATURE_INPUT_LABEL_RE);
     if (!labelMatch) {
       return null;
     }
@@ -111,7 +117,7 @@ export function parseSignatureInput(
     const rawSignatureParams = labelMatch[2];
 
     // Now parse for validation and component extraction
-    const match = signatureInput.match(/^([a-zA-Z0-9_-]+)=\(([^)]+)\);(.+)$/);
+    const match = signatureInput.match(SIGNATURE_INPUT_RE);
     if (!match) {
       return null;
     }
@@ -165,11 +171,11 @@ export function parseSignatureInput(
 export function parseSignature(signature: string): string | null {
   try {
     // Extract base64 signature from sig1=:...:
-    const match = signature.match(/^\w+=:([^:]+):$/);
+    const match = signature.match(SIGNATURE_RE);
     if (!match) {
       return null;
     }
-    return match[1];
+    return match[2];
   } catch (error) {
     console.error("Error parsing Signature:", error);
     return null;
@@ -285,7 +291,7 @@ function parseStructuredDictionaryStringItems(
     const trimmed = part.trim();
     if (!trimmed) continue;
 
-    const keyMatch = trimmed.match(/^([A-Za-z][A-Za-z0-9._-]*)/);
+    const keyMatch = trimmed.match(LABEL_REGEX);
     if (!keyMatch) continue;
     const key = keyMatch[1];
     let rest = trimmed.slice(key.length).trimStart();
@@ -439,7 +445,8 @@ export async function resolveJwksUrl(
       const response = await fetch(candidateUrl, {
         method: "GET",
         headers: {
-          Accept: "application/json",
+          Accept:
+            "application/jwk-set+json, application/http-message-signatures-directory, application/json",
           "User-Agent": "OpenBotAuth-Verifier/0.1.0",
         },
         signal: AbortSignal.timeout(3000), // 3s timeout
