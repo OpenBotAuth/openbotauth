@@ -116,9 +116,65 @@ Revoke an issued certificate.
 }
 ```
 
+#### GET `/v1/certs`
+
+List issued certificates owned by the authenticated user.
+
+Query parameters:
+- `agent_id` (optional)
+- `kid` (optional)
+- `status` (optional: `active` | `revoked` | `all`, default `all`)
+- `limit` (optional, default `50`, max `200`)
+- `offset` (optional, default `0`)
+
+#### GET `/v1/certs/{serial}`
+
+Fetch one certificate by serial, including PEM and chain data.
+
+Response includes metadata fields plus:
+- `cert_pem`
+- `chain_pem`
+- `x5c`
+
+#### GET `/v1/certs/status`
+
+Check certificate validity metadata by one identifier:
+- `serial` **or**
+- `fingerprint_sha256`
+
+Response shape:
+```json
+{
+  "valid": true,
+  "revoked": false,
+  "not_after": "2026-05-01T00:00:00.000Z",
+  "revoked_at": null,
+  "revoked_reason": null
+}
+```
+
 #### GET `/.well-known/ca.pem`
 
 Fetch the registry CA certificate (PEM).
+
+### mTLS Integration Notes (ClawAuth / relying parties)
+
+For OpenBotAuth-issued client certificates in mTLS:
+
+1. Fetch and trust OBA CA:
+   - `GET /.well-known/ca.pem`
+   - Configure your TLS server trust store with this CA (or intermediate, depending on deployment).
+2. Provision agent certificate:
+   - Call `POST /v1/certs/issue` for the target `agent_id`.
+   - Store `cert_pem` / `chain_pem` alongside the agent private key.
+3. Revoke when needed:
+   - Call `POST /v1/certs/revoke`.
+4. Optional status checks:
+   - Call `GET /v1/certs/status` to evaluate revoked/not-after metadata.
+
+Current limitation:
+- TLS stacks do not automatically consult OpenBotAuth revocation status in this MVP.
+- Use short-lived certs and/or explicit status checks if you need revocation awareness.
 
 ### Activity Endpoints
 

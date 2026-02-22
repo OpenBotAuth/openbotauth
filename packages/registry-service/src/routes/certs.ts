@@ -36,6 +36,20 @@ function isValidAgentId(value: string): boolean {
   );
 }
 
+function parsePositiveInt(
+  input: unknown,
+  defaultValue: number,
+  min: number,
+  max: number,
+): number | null {
+  if (input === undefined) return defaultValue;
+  if (typeof input !== "string") return null;
+  const parsed = Number.parseInt(input, 10);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) return null;
+  if (parsed < min || parsed > max) return null;
+  return parsed;
+}
+
 certsRouter.post(
   "/v1/certs/issue",
   requireAuth,
@@ -190,6 +204,197 @@ certsRouter.post(
     } catch (error: any) {
       console.error("Certificate revocation error:", error);
       res.status(500).json({ error: error.message || "Failed to revoke certificate" });
+    }
+  },
+);
+
+certsRouter.get(
+  "/v1/certs",
+  requireAuth,
+  requireScope("agents:read"),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const db: Database = req.app.locals.db;
+      const agentId =
+        typeof req.query.agent_id === "string" && req.query.agent_id.length > 0
+          ? req.query.agent_id
+          : null;
+      const kid =
+        typeof req.query.kid === "string" && req.query.kid.length > 0
+          ? req.query.kid
+          : null;
+      const statusRaw =
+        typeof req.query.status === "string"
+          ? req.query.status.toLowerCase()
+          : "all";
+      if (!["active", "revoked", "all"].includes(statusRaw)) {
+        res
+          .status(400)
+          .json({ error: "Invalid status. Use active, revoked, or all." });
+        return;
+      }
+
+      const limit = parsePositiveInt(req.query.limit, 50, 1, 200);
+      const offset = parsePositiveInt(req.query.offset, 0, 0, 1000000);
+      if (limit === null || offset === null) {
+        res
+          .status(400)
+          .json({ error: "Invalid pagination. limit=1..200, offset>=0." });
+        return;
+      }
+
+      const whereClauses: string[] = ["a.user_id = $1"];
+      const params: unknown[] = [req.session!.user.id];
+      let paramIndex = 2;
+
+      if (agentId) {
+        whereClauses.push(`c.agent_id = $${paramIndex}`);
+        params.push(agentId);
+        paramIndex++;
+      }
+      if (kid) {
+        whereClauses.push(`c.kid = $${paramIndex}`);
+        params.push(kid);
+        paramIndex++;
+      }
+      if (statusRaw === "active") {
+        whereClauses.push("c.revoked_at IS NULL AND c.not_after > now()");
+      } else if (statusRaw === "revoked") {
+        whereClauses.push("c.revoked_at IS NOT NULL");
+      }
+
+      params.push(limit, offset);
+      const limitParam = paramIndex;
+      const offsetParam = paramIndex + 1;
+
+      const result = await db.getPool().query(
+        `SELECT c.id, c.agent_id, c.kid, c.serial, c.fingerprint_sha256,
+                c.not_before, c.not_after, c.revoked_at, c.revoked_reason, c.created_at,
+                (c.revoked_at IS NULL AND c.not_after > now()) AS is_active,
+                COUNT(*) OVER() AS total_count
+         FROM agent_certificates c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE ${whereClauses.join(" AND ")}
+         ORDER BY c.created_at DESC
+         LIMIT $${limitParam}
+         OFFSET $${offsetParam}`,
+        params,
+      );
+
+      const total =
+        result.rows.length > 0 ? Number(result.rows[0].total_count || 0) : 0;
+      const items = result.rows.map((row) => {
+        const { total_count, ...rest } = row;
+        return rest;
+      });
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ items, total, limit, offset });
+    } catch (error: any) {
+      console.error("Certificate list error:", error);
+      res.status(500).json({ error: error.message || "Failed to list certificates" });
+    }
+  },
+);
+
+certsRouter.get(
+  "/v1/certs/status",
+  requireAuth,
+  requireScope("agents:read"),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const db: Database = req.app.locals.db;
+      const serial =
+        typeof req.query.serial === "string" && req.query.serial.length > 0
+          ? req.query.serial
+          : null;
+      const fingerprint =
+        typeof req.query.fingerprint_sha256 === "string" &&
+        req.query.fingerprint_sha256.length > 0
+          ? req.query.fingerprint_sha256
+          : null;
+
+      if ((!serial && !fingerprint) || (serial && fingerprint)) {
+        res.status(400).json({
+          error: "Provide exactly one lookup parameter: serial or fingerprint_sha256",
+        });
+        return;
+      }
+
+      const condition = serial ? "c.serial = $2" : "c.fingerprint_sha256 = $2";
+      const lookupValue = serial ?? fingerprint!;
+      const result = await db.getPool().query(
+        `SELECT c.serial, c.fingerprint_sha256, c.not_after, c.revoked_at, c.revoked_reason
+         FROM agent_certificates c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE a.user_id = $1 AND ${condition}
+         ORDER BY c.created_at DESC
+         LIMIT 1`,
+        [req.session!.user.id, lookupValue],
+      );
+
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: "Certificate not found" });
+        return;
+      }
+
+      const cert = result.rows[0];
+      const revoked = Boolean(cert.revoked_at);
+      const valid = !revoked && new Date(cert.not_after).getTime() > Date.now();
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        valid,
+        revoked,
+        not_after: cert.not_after,
+        revoked_at: cert.revoked_at,
+        revoked_reason: cert.revoked_reason,
+        serial: cert.serial,
+        fingerprint_sha256: cert.fingerprint_sha256,
+      });
+    } catch (error: any) {
+      console.error("Certificate status error:", error);
+      res.status(500).json({ error: error.message || "Failed to check certificate status" });
+    }
+  },
+);
+
+certsRouter.get(
+  "/v1/certs/:serial",
+  requireAuth,
+  requireScope("agents:read"),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const db: Database = req.app.locals.db;
+      const serial = req.params.serial;
+      if (!serial) {
+        res.status(400).json({ error: "Missing serial" });
+        return;
+      }
+
+      const result = await db.getPool().query(
+        `SELECT c.id, c.agent_id, c.kid, c.serial, c.fingerprint_sha256,
+                c.not_before, c.not_after, c.revoked_at, c.revoked_reason, c.created_at,
+                c.cert_pem, c.chain_pem, c.x5c,
+                (c.revoked_at IS NULL AND c.not_after > now()) AS is_active
+         FROM agent_certificates c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE a.user_id = $1 AND c.serial = $2
+         ORDER BY c.created_at DESC
+         LIMIT 1`,
+        [req.session!.user.id, serial],
+      );
+
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: "Certificate not found" });
+        return;
+      }
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json(result.rows[0]);
+    } catch (error: any) {
+      console.error("Certificate get error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch certificate" });
     }
   },
 );
