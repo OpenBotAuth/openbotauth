@@ -15,9 +15,6 @@ const {
   SubjectAlternativeNameExtension,
   GeneralName,
   KeyUsageFlags,
-  URL: GENERAL_NAME_URL,
-  URI: GENERAL_NAME_URI,
-  UniformResourceIdentifier: GENERAL_NAME_UNIFORM_RESOURCE_IDENTIFIER,
 } = x509 as any;
 
 export interface CertificateAuthority {
@@ -254,11 +251,7 @@ export async function issueCertificateForJwk(
     }
   }
   if (subjectAltUri && SubjectAlternativeNameExtension) {
-    const generalNameType =
-      GENERAL_NAME_URI ||
-      GENERAL_NAME_UNIFORM_RESOURCE_IDENTIFIER ||
-      GENERAL_NAME_URL ||
-      "uniformResourceIdentifier";
+    const generalNameType = "uniformResourceIdentifier";
     const generalName = GeneralName
       ? new GeneralName(generalNameType, subjectAltUri)
       : { type: generalNameType, value: subjectAltUri };
