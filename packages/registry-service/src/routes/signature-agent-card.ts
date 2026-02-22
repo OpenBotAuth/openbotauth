@@ -17,11 +17,13 @@ signatureAgentCardRouter.get(
       const db: Database = req.app.locals.db;
       const agentId = typeof req.query.agent_id === "string" ? req.query.agent_id : null;
       const username = typeof req.query.username === "string" ? req.query.username : null;
+      let resolutionSource: "agent_id" | "username" | "session" = "session";
 
       let agent: any = null;
       let profile: any = null;
 
       if (agentId) {
+        resolutionSource = "agent_id";
         const agentResult = await db.getPool().query(
           `SELECT * FROM agents WHERE id = $1`,
           [agentId],
@@ -31,6 +33,7 @@ signatureAgentCardRouter.get(
           profile = await db.findProfileByUserId(agent.user_id);
         }
       } else if (username) {
+        resolutionSource = "username";
         profile = await db.findProfileByUsername(username);
         if (profile) {
           const agentResult = await db.getPool().query(
@@ -111,7 +114,13 @@ signatureAgentCardRouter.get(
       };
 
       res.setHeader("Content-Type", "application/json");
-      res.setHeader("Cache-Control", "public, max-age=3600");
+      if (resolutionSource === "session") {
+        // Session-derived cards must not be cached by shared intermediaries.
+        res.setHeader("Cache-Control", "private, no-store");
+        res.setHeader("Vary", "Cookie");
+      } else {
+        res.setHeader("Cache-Control", "public, max-age=3600");
+      }
       res.json(card);
     } catch (error) {
       console.error("Error serving signature agent card:", error);
