@@ -89,6 +89,9 @@ Query parameters:
 
 ### Certificate Endpoints (MVP)
 
+Scope note:
+- In current middleware, `agents:write` satisfies `agents:read`.
+
 #### POST `/v1/certs/issue`
 
 Issue an X.509 certificate for an agent key.

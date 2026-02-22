@@ -23,7 +23,7 @@ function mockReq(overrides: Record<string, any> = {}): any {
       profile: { id: "u-1", username: "testuser", client_name: null },
     },
     authMethod: "token",
-    authScopes: ["agents:write"],
+    authScopes: ["agents:read", "agents:write"],
     params: {},
     query: {},
     body: {},

@@ -631,7 +631,8 @@ const AgentDetail = () => {
               </AlertDialogCancel>
               <AlertDialogAction
                 disabled={!revokeDialogCert || Boolean(revokingSerial)}
-                onClick={() => {
+                onClick={(event) => {
+                  event.preventDefault();
                   if (revokeDialogCert) {
                     void revokeCertificate(revokeDialogCert.serial);
                   }
