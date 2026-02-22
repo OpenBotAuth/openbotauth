@@ -1,8 +1,10 @@
-import { webcrypto, X509Certificate } from "node:crypto";
+import * as crypto from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import { issueCertificateForJwk } from "./ca.js";
+
+const { webcrypto, X509Certificate } = crypto;
 
 describe("issueCertificateForJwk", () => {
   it("encodes SAN URI when subjectAltUri is provided", async () => {
@@ -32,5 +34,33 @@ describe("issueCertificateForJwk", () => {
 
     const cert = new X509Certificate(issued.certPem);
     expect(cert.subjectAltName).toContain(`URI:${subjectAltUri}`);
+  });
+
+  it("does not include SAN URI when subjectAltUri is omitted", async () => {
+    const baseDir = join(tmpdir(), `oba-ca-test-${Date.now()}-nosan`);
+    process.env.OBA_CA_MODE = "local";
+    process.env.OBA_CA_DIR = baseDir;
+    process.env.OBA_CA_KEY_PATH = join(baseDir, "ca.key.json");
+    process.env.OBA_CA_CERT_PATH = join(baseDir, "ca.pem");
+
+    const keyPair = (await webcrypto.subtle.generateKey(
+      { name: "Ed25519" } as any,
+      true,
+      ["sign", "verify"],
+    )) as any;
+    const publicJwk = await webcrypto.subtle.exportKey(
+      "jwk",
+      keyPair.publicKey,
+    );
+
+    const issued = await issueCertificateForJwk(
+      publicJwk as any,
+      "CN=OBA Test Leaf",
+      1,
+      null,
+    );
+
+    const cert = new X509Certificate(issued.certPem);
+    expect(cert.subjectAltName).not.toContain("URI:");
   });
 });
