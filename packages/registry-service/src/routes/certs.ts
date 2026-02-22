@@ -2,11 +2,72 @@
  * Certificate issuance endpoints (MVP)
  */
 
+import { webcrypto } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import type { Database } from "@openbotauth/github-connector";
 import { issueCertificateForJwk, getCertificateAuthority } from "../utils/ca.js";
 import { requireScope } from "../middleware/scopes.js";
 import { jwkThumbprint } from "../utils/jwk.js";
+
+/**
+ * Verify proof-of-possession signature.
+ * The proof message format is: "cert-issue:{timestamp}"
+ * Timestamp must be within 5 minutes of current time.
+ */
+async function verifyProofOfPossession(
+  proof: { message: string; signature: string },
+  publicKey: { kty?: string; crv?: string; x: string },
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    // Parse and validate message format
+    const match = proof.message.match(/^cert-issue:(\d+)$/);
+    if (!match) {
+      return { valid: false, error: "Invalid proof message format. Expected: cert-issue:{timestamp}" };
+    }
+
+    const timestamp = parseInt(match[1], 10);
+    const now = Math.floor(Date.now() / 1000);
+    const maxSkew = 300; // 5 minutes
+
+    if (Math.abs(now - timestamp) > maxSkew) {
+      return { valid: false, error: "Proof timestamp expired or too far in the future" };
+    }
+
+    // Import public key
+    const jwk = {
+      kty: publicKey.kty || "OKP",
+      crv: publicKey.crv || "Ed25519",
+      x: publicKey.x,
+    };
+
+    const key = await webcrypto.subtle.importKey(
+      "jwk",
+      jwk,
+      { name: "Ed25519" },
+      false,
+      ["verify"],
+    );
+
+    // Verify signature
+    const messageBuffer = new TextEncoder().encode(proof.message);
+    const signatureBuffer = Buffer.from(proof.signature, "base64");
+
+    const valid = await webcrypto.subtle.verify(
+      "Ed25519",
+      key,
+      signatureBuffer,
+      messageBuffer,
+    );
+
+    if (!valid) {
+      return { valid: false, error: "Signature verification failed" };
+    }
+
+    return { valid: true };
+  } catch (err: any) {
+    return { valid: false, error: err.message || "Proof verification error" };
+  }
+}
 
 export const certsRouter: Router = Router();
 
@@ -92,6 +153,23 @@ certsRouter.post(
       const pk = agent.public_key;
       if (!pk || typeof pk !== "object" || typeof pk.x !== "string") {
         res.status(400).json({ error: "Agent public key is invalid" });
+        return;
+      }
+
+      // Verify proof-of-possession: caller must prove they have the private key
+      const { proof } = req.body || {};
+      if (!proof || typeof proof !== "object" || !proof.message || !proof.signature) {
+        res.status(400).json({
+          error: "Missing proof-of-possession. Provide proof: { message: 'cert-issue:{timestamp}', signature: '<base64>' }",
+        });
+        return;
+      }
+
+      const popResult = await verifyProofOfPossession(proof, pk);
+      if (!popResult.valid) {
+        res.status(403).json({
+          error: `Proof-of-possession failed: ${popResult.error}`,
+        });
         return;
       }
 
@@ -423,12 +501,20 @@ certsRouter.get(
       const fingerprint =
         typeof req.query.fingerprint_sha256 === "string" &&
         req.query.fingerprint_sha256.length > 0
-          ? req.query.fingerprint_sha256
+          ? req.query.fingerprint_sha256.toLowerCase()
           : null;
 
       if (!fingerprint) {
         res.status(400).json({
           error: "Missing required parameter: fingerprint_sha256",
+        });
+        return;
+      }
+
+      // Validate fingerprint format: must be 64 hex characters (SHA-256)
+      if (!/^[a-f0-9]{64}$/.test(fingerprint)) {
+        res.status(400).json({
+          error: "Invalid fingerprint_sha256: must be 64 lowercase hex characters",
         });
         return;
       }

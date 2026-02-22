@@ -308,6 +308,26 @@ describe("GET /v1/certs/public-status", () => {
     expect(res.body.error).toContain("fingerprint_sha256");
   });
 
+  it("rejects invalid fingerprint format", async () => {
+    const req = mockReq({ query: { fingerprint_sha256: "not-valid-hex" } });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs/public-status", req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain("64 lowercase hex");
+  });
+
+  it("rejects fingerprint with wrong length", async () => {
+    const req = mockReq({ query: { fingerprint_sha256: "abcd1234" } });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs/public-status", req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain("64 lowercase hex");
+  });
+
   it("returns validity status without authentication", async () => {
     const now = Date.now();
     const query = vi.fn().mockResolvedValue({
@@ -321,9 +341,10 @@ describe("GET /v1/certs/public-status", () => {
       ],
     });
     // Create request without session (public endpoint)
+    // Use valid 64-char hex fingerprint
     const req = {
       headers: {},
-      query: { fingerprint_sha256: "abc123" },
+      query: { fingerprint_sha256: "a".repeat(64) },
       app: { locals: { db: mockDb(query) } },
     } as any;
     const res = mockRes();
@@ -355,9 +376,10 @@ describe("GET /v1/certs/public-status", () => {
         },
       ],
     });
+    // Use valid 64-char hex fingerprint
     const req = {
       headers: {},
-      query: { fingerprint_sha256: "future-cert" },
+      query: { fingerprint_sha256: "b".repeat(64) },
       app: { locals: { db: mockDb(query) } },
     } as any;
     const res = mockRes();

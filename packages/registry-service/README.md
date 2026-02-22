@@ -100,6 +100,14 @@ Auth:
 - Requires authenticated session or Bearer PAT.
 - Required scope: `agents:write`.
 
+**Proof-of-Possession Required:**
+
+To prevent certificate issuance for keys you don't control, you must provide a signed proof:
+
+1. Generate a message: `cert-issue:{unix_timestamp}` (timestamp must be within 5 minutes)
+2. Sign the message with your Ed25519 private key
+3. Include the proof in the request body
+
 Note: if the agent has `oba_agent_id`, it is included as a SAN URI in the leaf
 certificate as an informational hint. This value is user-supplied unless you
 enforce registry-side issuance rules.
@@ -107,8 +115,24 @@ enforce registry-side issuance rules.
 **Request:**
 ```json
 {
-  "agent_id": "uuid"
+  "agent_id": "uuid",
+  "proof": {
+    "message": "cert-issue:1709251200",
+    "signature": "<base64-encoded-ed25519-signature>"
+  }
 }
+```
+
+Example proof generation (Node.js):
+```javascript
+const crypto = require('crypto');
+const timestamp = Math.floor(Date.now() / 1000);
+const message = `cert-issue:${timestamp}`;
+const signature = crypto.sign(null, Buffer.from(message), privateKey);
+const proof = {
+  message,
+  signature: signature.toString('base64')
+};
 ```
 
 #### POST `/v1/certs/revoke`
@@ -186,7 +210,25 @@ Public endpoint for relying parties (e.g., ClawAuth) to check certificate revoca
 **No authentication required.**
 
 Query parameters:
-- `fingerprint_sha256` (required) - SHA-256 fingerprint of the certificate
+- `fingerprint_sha256` (required) - SHA-256 fingerprint of the certificate (64 lowercase hex characters)
+
+**Computing the fingerprint:**
+
+For mTLS integration, compute the SHA-256 fingerprint over the **DER-encoded** client certificate (not PEM text). Example in Node.js:
+
+```javascript
+const crypto = require('crypto');
+const forge = require('node-forge');
+
+// From PEM string
+const pem = '-----BEGIN CERTIFICATE-----...';
+const cert = forge.pki.certificateFromPem(pem);
+const der = forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes();
+const fingerprint = crypto.createHash('sha256')
+  .update(Buffer.from(der, 'binary'))
+  .digest('hex');
+// fingerprint is 64 lowercase hex chars
+```
 
 Response shape:
 ```json
