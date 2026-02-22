@@ -5,10 +5,10 @@
  * Implements the behavior from supabase/functions/jwks/index.ts
  */
 
-import { createHash } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import type { Database } from '@openbotauth/github-connector';
 import { base64PublicKeyToJWK, createWebBotAuthJWKS, generateKidFromJWK } from '@openbotauth/registry-signer';
+import { jwkThumbprint } from '../utils/jwk.js';
 
 export const jwksRouter: Router = Router();
 
@@ -78,7 +78,7 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
     const seenKids = new Set(
       jwks.map(k => k.kid).filter((k): k is string => typeof k === 'string' && k.length > 0)
     );
-    const agentKids = new Set<string>();
+    const agentJwkRefs: Array<{ agentId: string; kid: string; jwk: Record<string, unknown> }> = [];
 
     for (const agent of agentsResult.rows) {
       const pk = agent.public_key;
@@ -97,21 +97,14 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
         continue;
       }
 
-      // Derive kid from x if missing (fallback using same thumbprint logic)
+      // Derive kid from x if missing (RFC 7638 OKP thumbprint)
       let kid = pk.kid;
       if (typeof kid !== 'string' || kid.length === 0) {
-        // Generate kid from x using SHA-256 thumbprint of canonical JWK (RFC 7638 style)
-        const canonical = JSON.stringify({ crv: 'Ed25519', kty: 'OKP', x: pk.x });
-        const hashBase64 = createHash('sha256').update(canonical).digest('base64');
-        // Convert to base64url (full length, no truncation to avoid collisions)
-        kid = hashBase64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+        kid = jwkThumbprint({ kty: 'OKP', crv: 'Ed25519', x: pk.x });
         if (process.env.NODE_ENV !== 'production') {
           console.warn(`Agent ${agent.id}: derived kid ${kid} from x (was missing)`);
         }
       }
-
-      // Track agent kids regardless of dedupe so x5c lookup can still bind.
-      agentKids.add(kid);
 
       // Dedupe by kid
       if (seenKids.has(kid)) {
@@ -142,6 +135,7 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       }
 
       jwks.push(agentJwk);
+      agentJwkRefs.push({ agentId: agent.id, kid, jwk: agentJwk as unknown as Record<string, unknown> });
     }
 
     if (jwks.length === 0) {
@@ -150,28 +144,31 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
     }
 
     // Attach x5c for keys that have issued certificates
-    const kidsForCerts = Array.from(agentKids);
+    const kidsForCerts = Array.from(new Set(agentJwkRefs.map(ref => ref.kid)));
+    const agentIdsForCerts = Array.from(new Set(agentJwkRefs.map(ref => ref.agentId)));
 
-    if (kidsForCerts.length > 0) {
+    if (kidsForCerts.length > 0 && agentIdsForCerts.length > 0) {
       const certResult = await db.getPool().query(
-        `SELECT DISTINCT ON (c.kid) c.kid, c.x5c
+        `SELECT DISTINCT ON (c.agent_id, c.kid) c.agent_id, c.kid, c.x5c
          FROM agent_certificates c
          JOIN agents a ON a.id = c.agent_id
-         WHERE c.kid = ANY($1)
+         WHERE c.agent_id = ANY($1)
+           AND c.kid = ANY($2)
            AND c.revoked_at IS NULL
-           AND a.user_id = $2
-         ORDER BY c.kid, c.created_at DESC`,
-        [kidsForCerts, profile.id]
+           AND a.user_id = $3
+         ORDER BY c.agent_id, c.kid, c.created_at DESC`,
+        [agentIdsForCerts, kidsForCerts, profile.id]
       );
 
-      const certByKid = new Map<string, any>();
+      const certByAgentKid = new Map<string, unknown>();
       for (const row of certResult.rows) {
-        certByKid.set(row.kid, row.x5c);
+        certByAgentKid.set(`${row.agent_id}:${row.kid}`, row.x5c);
       }
 
-      for (const jwk of jwks as any[]) {
-        if (jwk.kid && agentKids.has(jwk.kid) && certByKid.has(jwk.kid)) {
-          jwk.x5c = certByKid.get(jwk.kid);
+      for (const ref of agentJwkRefs) {
+        const certKey = `${ref.agentId}:${ref.kid}`;
+        if (certByAgentKid.has(certKey)) {
+          ref.jwk.x5c = certByAgentKid.get(certKey);
         }
       }
     }

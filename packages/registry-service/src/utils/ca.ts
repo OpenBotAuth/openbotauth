@@ -13,7 +13,6 @@ const {
   BasicConstraintsExtension,
   KeyUsagesExtension,
   SubjectAlternativeNameExtension,
-  GeneralName,
   KeyUsageFlags,
 } = x509 as any;
 
@@ -145,8 +144,8 @@ async function loadOrCreateCa(): Promise<CertificateAuthority> {
   const { baseDir, keyPath, certPath } = getCaPaths();
   mkdirSync(baseDir, { recursive: true, mode: 0o700 });
 
-  let privateKey: CryptoKey;
-  let publicKey: CryptoKey;
+  let privateKey: any;
+  let publicKey: any;
   const subject = process.env.OBA_CA_SUBJECT || "CN=OpenBotAuth Dev CA";
   const validDays = parseInt(process.env.OBA_CA_VALID_DAYS || "3650", 10);
 
@@ -251,11 +250,14 @@ export async function issueCertificateForJwk(
     }
   }
   if (subjectAltUri && SubjectAlternativeNameExtension) {
-    const generalNameType = "uniformResourceIdentifier";
-    const generalName = GeneralName
-      ? new GeneralName(generalNameType, subjectAltUri)
-      : { type: generalNameType, value: subjectAltUri };
-    extensions.push(new SubjectAlternativeNameExtension([generalName], false));
+    const sanType =
+      typeof (x509 as any).URL === "string" ? (x509 as any).URL : "url";
+    extensions.push(
+      new SubjectAlternativeNameExtension(
+        [{ type: sanType, value: subjectAltUri }],
+        false,
+      ),
+    );
   }
 
   const cert = await X509CertificateGenerator.create({
