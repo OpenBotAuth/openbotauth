@@ -24,7 +24,7 @@ export class RequestSigner {
     const signatureAgentFormat =
       options?.signatureAgentFormat ||
       this.config.signature_agent_format ||
-      "legacy";
+      "dict";
     
     // Generate signature parameters
     const params: SignatureParams = {

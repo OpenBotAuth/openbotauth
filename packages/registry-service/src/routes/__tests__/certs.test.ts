@@ -173,9 +173,9 @@ describe("GET /v1/certs", () => {
 
     expect(res.statusCode).toBe(200);
     const [countSql] = query.mock.calls[0];
-    expect(countSql).toContain("c.revoked_at IS NULL AND c.not_after > now()");
+    expect(countSql).toContain("c.revoked_at IS NULL AND c.not_before <= now() AND c.not_after > now()");
     const [pageSql] = query.mock.calls[1];
-    expect(pageSql).toContain("c.revoked_at IS NULL AND c.not_after > now()");
+    expect(pageSql).toContain("c.revoked_at IS NULL AND c.not_before <= now() AND c.not_after > now()");
   });
 
   it("applies status=revoked filter", async () => {
@@ -294,6 +294,79 @@ describe("GET /v1/certs/status", () => {
     expect(res.body.valid).toBe(false);
     expect(res.body.revoked).toBe(false);
     expect(res.body.not_before).toBeDefined();
+  });
+});
+
+describe("GET /v1/certs/public-status", () => {
+  it("requires fingerprint_sha256 parameter", async () => {
+    const req = mockReq({ query: {} });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs/public-status", req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain("fingerprint_sha256");
+  });
+
+  it("returns validity status without authentication", async () => {
+    const now = Date.now();
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          not_before: new Date(now - 60_000).toISOString(),
+          not_after: new Date(now + 60_000).toISOString(),
+          revoked_at: null,
+          revoked_reason: null,
+        },
+      ],
+    });
+    // Create request without session (public endpoint)
+    const req = {
+      headers: {},
+      query: { fingerprint_sha256: "abc123" },
+      app: { locals: { db: mockDb(query) } },
+    } as any;
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs/public-status", req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["Cache-Control"]).toBe("no-store");
+    expect(res.body.valid).toBe(true);
+    expect(res.body.revoked).toBe(false);
+    expect(res.body.not_before).toBeDefined();
+    expect(res.body.not_after).toBeDefined();
+
+    // Verify query does NOT include user_id filter
+    const [sql] = query.mock.calls[0];
+    expect(sql).not.toContain("user_id");
+    expect(sql).toContain("fingerprint_sha256 = $1");
+  });
+
+  it("returns valid=false for future not_before", async () => {
+    const now = Date.now();
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          not_before: new Date(now + 3_600_000).toISOString(),
+          not_after: new Date(now + 7_200_000).toISOString(),
+          revoked_at: null,
+          revoked_reason: null,
+        },
+      ],
+    });
+    const req = {
+      headers: {},
+      query: { fingerprint_sha256: "future-cert" },
+      app: { locals: { db: mockDb(query) } },
+    } as any;
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs/public-status", req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.valid).toBe(false);
+    expect(res.body.revoked).toBe(false);
   });
 });
 

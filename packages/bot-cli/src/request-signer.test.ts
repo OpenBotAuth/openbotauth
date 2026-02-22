@@ -14,21 +14,21 @@ function makeConfig() {
 }
 
 describe("RequestSigner", () => {
-  it("emits legacy Signature-Agent by default", async () => {
+  it("emits dictionary Signature-Agent by default", async () => {
     const signer = new RequestSigner(makeConfig());
     const signed = await signer.sign("GET", "https://example.com");
     expect(signed.headers["Signature-Agent"]).toBe(
-      "https://example.com/jwks/test.json",
+      'sig1="https://example.com/jwks/test.json"',
     );
   });
 
-  it("emits dictionary Signature-Agent when requested", async () => {
+  it("emits legacy Signature-Agent when explicitly requested", async () => {
     const signer = new RequestSigner(makeConfig());
     const signed = await signer.sign("GET", "https://example.com", undefined, {
-      signatureAgentFormat: "dict",
+      signatureAgentFormat: "legacy",
     });
     expect(signed.headers["Signature-Agent"]).toBe(
-      'sig1="https://example.com/jwks/test.json"',
+      "https://example.com/jwks/test.json",
     );
   });
 });

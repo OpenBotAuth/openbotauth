@@ -261,7 +261,7 @@ certsRouter.get(
         paramIndex++;
       }
       if (statusRaw === "active") {
-        whereClauses.push("c.revoked_at IS NULL AND c.not_after > now()");
+        whereClauses.push("c.revoked_at IS NULL AND c.not_before <= now() AND c.not_after > now()");
       } else if (statusRaw === "revoked") {
         whereClauses.push("c.revoked_at IS NOT NULL");
       }
@@ -282,7 +282,7 @@ certsRouter.get(
       const result = await db.getPool().query(
         `SELECT c.id, c.agent_id, c.kid, c.serial, c.fingerprint_sha256,
                 c.not_before, c.not_after, c.revoked_at, c.revoked_reason, c.created_at,
-                (c.revoked_at IS NULL AND c.not_after > now()) AS is_active
+                (c.revoked_at IS NULL AND c.not_before <= now() AND c.not_after > now()) AS is_active
          FROM agent_certificates c
          JOIN agents a ON a.id = c.agent_id
          WHERE ${whereClauses.join(" AND ")}
@@ -387,7 +387,7 @@ certsRouter.get(
         `SELECT c.id, c.agent_id, c.kid, c.serial, c.fingerprint_sha256,
                 c.not_before, c.not_after, c.revoked_at, c.revoked_reason, c.created_at,
                 c.cert_pem, c.chain_pem, c.x5c,
-                (c.revoked_at IS NULL AND c.not_after > now()) AS is_active
+                (c.revoked_at IS NULL AND c.not_before <= now() AND c.not_after > now()) AS is_active
          FROM agent_certificates c
          JOIN agents a ON a.id = c.agent_id
          WHERE a.user_id = $1 AND c.serial = $2
@@ -406,6 +406,67 @@ certsRouter.get(
     } catch (error: any) {
       console.error("Certificate get error:", error);
       res.status(500).json({ error: error.message || "Failed to fetch certificate" });
+    }
+  },
+);
+
+/**
+ * Public certificate status endpoint for relying parties (e.g., ClawAuth).
+ * No authentication required - allows external services to check revocation.
+ * Only supports fingerprint_sha256 lookup (not serial) for security.
+ */
+certsRouter.get(
+  "/v1/certs/public-status",
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const db: Database = req.app.locals.db;
+      const fingerprint =
+        typeof req.query.fingerprint_sha256 === "string" &&
+        req.query.fingerprint_sha256.length > 0
+          ? req.query.fingerprint_sha256
+          : null;
+
+      if (!fingerprint) {
+        res.status(400).json({
+          error: "Missing required parameter: fingerprint_sha256",
+        });
+        return;
+      }
+
+      const result = await db.getPool().query(
+        `SELECT c.not_before, c.not_after, c.revoked_at, c.revoked_reason
+         FROM agent_certificates c
+         WHERE c.fingerprint_sha256 = $1
+         ORDER BY c.created_at DESC
+         LIMIT 1`,
+        [fingerprint],
+      );
+
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: "Certificate not found" });
+        return;
+      }
+
+      const cert = result.rows[0];
+      const revoked = Boolean(cert.revoked_at);
+      const nowMs = Date.now();
+      const valid =
+        !revoked &&
+        new Date(cert.not_before).getTime() <= nowMs &&
+        new Date(cert.not_after).getTime() > nowMs;
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        valid,
+        revoked,
+        not_before: cert.not_before,
+        not_after: cert.not_after,
+        revoked_at: cert.revoked_at,
+        revoked_reason: cert.revoked_reason,
+      });
+    } catch (error: any) {
+      console.error("Public certificate status error:", error);
+      res.status(500).json({ error: error.message || "Failed to check certificate status" });
     }
   },
 );

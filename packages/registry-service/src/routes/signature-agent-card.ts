@@ -25,7 +25,7 @@ signatureAgentCardRouter.get(
       if (agentId) {
         resolutionSource = "agent_id";
         const agentResult = await db.getPool().query(
-          `SELECT * FROM agents WHERE id = $1`,
+          `SELECT * FROM agents WHERE id = $1 AND status = 'active'`,
           [agentId],
         );
         agent = agentResult.rows[0] || null;
@@ -92,7 +92,10 @@ signatureAgentCardRouter.get(
       const certResult = await db.getPool().query(
         `SELECT x5c
          FROM agent_certificates
-         WHERE agent_id = $1 AND kid = $2 AND revoked_at IS NULL
+         WHERE agent_id = $1 AND kid = $2
+           AND revoked_at IS NULL
+           AND not_before <= now()
+           AND not_after > now()
          ORDER BY created_at DESC
          LIMIT 1`,
         [agent.id, kid],

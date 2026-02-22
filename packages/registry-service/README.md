@@ -170,6 +170,30 @@ Response shape:
 {
   "valid": true,
   "revoked": false,
+  "not_before": "2026-02-01T00:00:00.000Z",
+  "not_after": "2026-05-01T00:00:00.000Z",
+  "revoked_at": null,
+  "revoked_reason": null
+}
+```
+
+Note: `valid` is true only when the certificate is not revoked AND the current time is within the `not_before`/`not_after` validity window.
+
+#### GET `/v1/certs/public-status`
+
+Public endpoint for relying parties (e.g., ClawAuth) to check certificate revocation status.
+
+**No authentication required.**
+
+Query parameters:
+- `fingerprint_sha256` (required) - SHA-256 fingerprint of the certificate
+
+Response shape:
+```json
+{
+  "valid": true,
+  "revoked": false,
+  "not_before": "2026-02-01T00:00:00.000Z",
   "not_after": "2026-05-01T00:00:00.000Z",
   "revoked_at": null,
   "revoked_reason": null

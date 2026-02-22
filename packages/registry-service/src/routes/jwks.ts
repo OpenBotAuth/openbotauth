@@ -155,6 +155,8 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
          WHERE c.agent_id = ANY($1)
            AND c.kid = ANY($2)
            AND c.revoked_at IS NULL
+           AND c.not_before <= now()
+           AND c.not_after > now()
            AND a.user_id = $3
          ORDER BY c.agent_id, c.kid, c.created_at DESC`,
         [agentIdsForCerts, kidsForCerts, profile.id]
