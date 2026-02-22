@@ -11,6 +11,64 @@ import { KeyStorage } from "../key-storage.js";
 const DEFAULT_REGISTRY_URL =
   process.env.OPENBOTAUTH_REGISTRY_URL || "https://registry.openbotauth.com";
 
+/**
+ * Import a private key from either JWK JSON or PEM format.
+ * Detects format automatically based on content.
+ */
+async function importPrivateKey(content: string): Promise<CryptoKey> {
+  const trimmed = content.trim();
+
+  // Check if it's JSON (JWK format from AddAgentModal)
+  if (trimmed.startsWith("{")) {
+    try {
+      const jwk = JSON.parse(trimmed);
+
+      // Validate it's an Ed25519 private key JWK
+      if (jwk.kty !== "OKP" || jwk.crv !== "Ed25519" || !jwk.d) {
+        throw new Error(
+          "Invalid JWK: must be an Ed25519 private key (kty=OKP, crv=Ed25519, d=...)"
+        );
+      }
+
+      return await webcrypto.subtle.importKey(
+        "jwk",
+        jwk,
+        { name: "Ed25519" },
+        false,
+        ["sign"]
+      );
+    } catch (err: any) {
+      if (err.message.includes("Invalid JWK")) throw err;
+      throw new Error(`Failed to parse JWK JSON: ${err.message}`);
+    }
+  }
+
+  // Check if it's PEM format (from Setup.tsx or KeyStorage)
+  if (trimmed.includes("-----BEGIN PRIVATE KEY-----")) {
+    // Extract PEM from potentially larger file (like the .txt bundle from Setup.tsx)
+    const pemMatch = trimmed.match(
+      /-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/
+    );
+    if (!pemMatch) {
+      throw new Error("Could not find valid PEM private key block");
+    }
+
+    return await webcrypto.subtle.importKey(
+      "pkcs8",
+      pemToBuffer(pemMatch[0]),
+      { name: "Ed25519" },
+      false,
+      ["sign"]
+    );
+  }
+
+  throw new Error(
+    "Unrecognized private key format. Expected either:\n" +
+    "  - JWK JSON file (from portal agent creation), or\n" +
+    "  - PEM file with -----BEGIN PRIVATE KEY----- block"
+  );
+}
+
 export async function certIssueCommand(options: {
   agentId: string;
   registryUrl?: string;
@@ -21,14 +79,22 @@ export async function certIssueCommand(options: {
 
   try {
     // Load private key - either from explicit path or from KeyStorage
-    let privateKeyPem: string;
+    let privateKey: CryptoKey;
 
     if (options.privateKeyPath) {
       console.log(`Loading private key from: ${options.privateKeyPath}`);
+      let fileContent: string;
       try {
-        privateKeyPem = await readFile(options.privateKeyPath, "utf-8");
+        fileContent = await readFile(options.privateKeyPath, "utf-8");
       } catch (err: any) {
         console.error(`❌ Failed to read private key file: ${err.message}`);
+        process.exit(1);
+      }
+
+      try {
+        privateKey = await importPrivateKey(fileContent);
+      } catch (err: any) {
+        console.error(`❌ Failed to import private key: ${err.message}`);
         process.exit(1);
       }
     } else {
@@ -41,7 +107,7 @@ export async function certIssueCommand(options: {
         );
         process.exit(1);
       }
-      privateKeyPem = config.private_key;
+      privateKey = await importPrivateKey(config.private_key);
     }
 
     const registryUrl = options.registryUrl || DEFAULT_REGISTRY_URL;
@@ -62,14 +128,6 @@ export async function certIssueCommand(options: {
     console.log(`Proof message: ${message}\n`);
 
     // Sign the message
-    const privateKey = await webcrypto.subtle.importKey(
-      "pkcs8",
-      pemToBuffer(privateKeyPem),
-      { name: "Ed25519" },
-      false,
-      ["sign"]
-    );
-
     const messageBuffer = new TextEncoder().encode(message);
     const signatureBuffer = await webcrypto.subtle.sign(
       { name: "Ed25519" },

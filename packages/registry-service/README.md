@@ -130,14 +130,17 @@ enforce registry-side issuance rules.
 Certificate issuance is best done via CLI to keep private keys secure:
 
 ```bash
-# Using the private key downloaded when creating the agent
+# Using the JWK JSON file downloaded when creating the agent in the portal
+oba-bot cert issue --agent-id <uuid> --private-key-path ./agent-<uuid>-private-key.json --token <pat>
+
+# Or using a PEM file (from Setup page or other tooling)
 oba-bot cert issue --agent-id <uuid> --private-key-path /path/to/private-key.pem --token <pat>
 
-# Or with OPENBOTAUTH_TOKEN env var
-OPENBOTAUTH_TOKEN=<pat> oba-bot cert issue --agent-id <uuid> --private-key-path /path/to/private-key.pem
+# With OPENBOTAUTH_TOKEN env var
+OPENBOTAUTH_TOKEN=<pat> oba-bot cert issue --agent-id <uuid> --private-key-path ./agent-<uuid>-private-key.json
 ```
 
-The CLI generates the proof-of-possession signature automatically using the specified private key.
+The CLI auto-detects the key format (JWK JSON or PEM) and generates the proof-of-possession signature.
 
 #### POST `/v1/certs/revoke`
 
