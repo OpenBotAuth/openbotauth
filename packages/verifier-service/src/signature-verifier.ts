@@ -90,7 +90,7 @@ export class SignatureVerifier {
 
       // 5. Check if JWKS URL is from a trusted directory
       if (this.trustedDirectories.length > 0) {
-        const trusted = this.trustedDirectories.some(dir => jwksUrl.includes(dir));
+        const trusted = this.isTrustedDirectory(jwksUrl);
         if (!trusted) {
           return {
             verified: false,
@@ -197,6 +197,40 @@ export class SignatureVerifier {
         verified: false,
         error: error.message || 'Internal verification error',
       };
+    }
+  }
+
+  /**
+   * Check if a JWKS URL is from a trusted directory using proper hostname validation.
+   *
+   * This validates the URL's hostname against configured trusted directories,
+   * preventing substring-based bypasses (e.g., evil-trusted.com.attacker.com).
+   */
+  private isTrustedDirectory(jwksUrl: string): boolean {
+    try {
+      const jwksUrlParsed = new URL(jwksUrl);
+      const jwksHostname = jwksUrlParsed.hostname.toLowerCase();
+
+      return this.trustedDirectories.some(dir => {
+        try {
+          // Normalize the trusted directory - add scheme if missing
+          const normalizedDir = dir.includes('://') ? dir : `https://${dir}`;
+          const trustedUrl = new URL(normalizedDir);
+          const trustedHostname = trustedUrl.hostname.toLowerCase();
+
+          // Exact match or subdomain match (e.g., api.example.com matches example.com)
+          return jwksHostname === trustedHostname ||
+                 jwksHostname.endsWith('.' + trustedHostname);
+        } catch {
+          // Treat as hostname pattern if URL parsing fails
+          const trustedHostname = dir.toLowerCase();
+          return jwksHostname === trustedHostname ||
+                 jwksHostname.endsWith('.' + trustedHostname);
+        }
+      });
+    } catch {
+      // Invalid JWKS URL
+      return false;
     }
   }
 
