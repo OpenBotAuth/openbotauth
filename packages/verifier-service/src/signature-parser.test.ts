@@ -246,7 +246,7 @@ describe("parseSignatureAgent", () => {
 describe("parseSignatureInput", () => {
   it("should parse labels with dash and dot", () => {
     const parsed = parseSignatureInput(
-      'sig-1.test=("@method" "@path");created=123;keyid="k1"',
+      'sig-1.test=("@method" "@path");created=123;expires=124;nonce="n";keyid="k1";alg="ed25519"',
     );
     expect(parsed?.label).toBe("sig-1.test");
   });

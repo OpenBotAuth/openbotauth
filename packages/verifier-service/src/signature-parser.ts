@@ -8,6 +8,7 @@ import type { SignatureComponents } from "./types.js";
 
 const LABEL_PATTERN = "[A-Za-z][A-Za-z0-9._-]*";
 const LABEL_REGEX = new RegExp(`^${LABEL_PATTERN}`);
+const LABEL_CAPTURE_RE = new RegExp(`^(${LABEL_PATTERN})`);
 const SIGNATURE_INPUT_LABEL_RE = new RegExp(`^(${LABEL_PATTERN})=(.+)$`);
 const SIGNATURE_INPUT_RE = new RegExp(`^(${LABEL_PATTERN})=\\(([^)]+)\\);(.+)$`);
 const SIGNATURE_RE = new RegExp(`^(${LABEL_PATTERN})=:([^:]+):$`);
@@ -291,7 +292,7 @@ function parseStructuredDictionaryStringItems(
     const trimmed = part.trim();
     if (!trimmed) continue;
 
-    const keyMatch = trimmed.match(LABEL_REGEX);
+    const keyMatch = trimmed.match(LABEL_CAPTURE_RE);
     if (!keyMatch) continue;
     const key = keyMatch[1];
     let rest = trimmed.slice(key.length).trimStart();
