@@ -108,24 +108,26 @@ beforeEach(async () => {
 
 describe("GET /v1/certs", () => {
   it("enforces owner scoping and returns no-store metadata", async () => {
-    const query = vi.fn().mockResolvedValue({
-      rows: [
-        {
-          id: "c-1",
-          agent_id: "a-1",
-          kid: "kid-1",
-          serial: "serial-1",
-          fingerprint_sha256: "fp-1",
-          not_before: "2026-01-01T00:00:00.000Z",
-          not_after: "2026-03-01T00:00:00.000Z",
-          revoked_at: null,
-          revoked_reason: null,
-          created_at: "2026-01-01T00:00:00.000Z",
-          is_active: true,
-          total_count: "1",
-        },
-      ],
-    });
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "c-1",
+            agent_id: "a-1",
+            kid: "kid-1",
+            serial: "serial-1",
+            fingerprint_sha256: "fp-1",
+            not_before: "2026-01-01T00:00:00.000Z",
+            not_after: "2026-03-01T00:00:00.000Z",
+            revoked_at: null,
+            revoked_reason: null,
+            created_at: "2026-01-01T00:00:00.000Z",
+            is_active: true,
+          },
+        ],
+      });
 
     const req = mockReq({
       query: { agent_id: "a-1", limit: "50", offset: "0" },
@@ -137,20 +139,29 @@ describe("GET /v1/certs", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers["Cache-Control"]).toBe("no-store");
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledTimes(2);
 
-    const [sql, params] = query.mock.calls[0];
-    expect(sql).toContain("JOIN agents a ON a.id = c.agent_id");
-    expect(sql).toContain("a.user_id = $1");
-    expect(params[0]).toBe("u-1");
+    const [countSql, countParams] = query.mock.calls[0];
+    expect(countSql).toContain("SELECT COUNT(*)::int AS total");
+    expect(countSql).toContain("JOIN agents a ON a.id = c.agent_id");
+    expect(countSql).toContain("a.user_id = $1");
+    expect(countParams[0]).toBe("u-1");
+
+    const [pageSql, pageParams] = query.mock.calls[1];
+    expect(pageSql).toContain("ORDER BY c.created_at DESC");
+    expect(pageSql).toContain("LIMIT $3");
+    expect(pageSql).toContain("OFFSET $4");
+    expect(pageParams).toEqual(["u-1", "a-1", 50, 0]);
 
     expect(res.body.total).toBe(1);
     expect(res.body.items).toHaveLength(1);
-    expect(res.body.items[0]).not.toHaveProperty("total_count");
   });
 
   it("applies status=active filter", async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ total: 0 }] })
+      .mockResolvedValueOnce({ rows: [] });
     const req = mockReq({
       query: { status: "active" },
       app: { locals: { db: mockDb(query) } },
@@ -160,12 +171,17 @@ describe("GET /v1/certs", () => {
     await callRoute(certsRouter, "GET", "/v1/certs", req, res);
 
     expect(res.statusCode).toBe(200);
-    const [sql] = query.mock.calls[0];
-    expect(sql).toContain("c.revoked_at IS NULL AND c.not_after > now()");
+    const [countSql] = query.mock.calls[0];
+    expect(countSql).toContain("c.revoked_at IS NULL AND c.not_after > now()");
+    const [pageSql] = query.mock.calls[1];
+    expect(pageSql).toContain("c.revoked_at IS NULL AND c.not_after > now()");
   });
 
   it("applies status=revoked filter", async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ total: 0 }] })
+      .mockResolvedValueOnce({ rows: [] });
     const req = mockReq({
       query: { status: "revoked" },
       app: { locals: { db: mockDb(query) } },
@@ -175,8 +191,45 @@ describe("GET /v1/certs", () => {
     await callRoute(certsRouter, "GET", "/v1/certs", req, res);
 
     expect(res.statusCode).toBe(200);
+    const [countSql] = query.mock.calls[0];
+    expect(countSql).toContain("c.revoked_at IS NOT NULL");
+    const [pageSql] = query.mock.calls[1];
+    expect(pageSql).toContain("c.revoked_at IS NOT NULL");
+  });
+
+  it("returns non-zero total when requested page is empty", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ total: 3 }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const req = mockReq({
+      query: { limit: "2", offset: "10" },
+      app: { locals: { db: mockDb(query) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs", req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.total).toBe(3);
+    expect(res.body.items).toEqual([]);
+  });
+});
+
+describe("POST /v1/certs/revoke", () => {
+  it("only updates certs that are not already revoked", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ id: "c-1" }] });
+    const req = mockReq({
+      body: { serial: "serial-1", reason: "key-compromise" },
+      app: { locals: { db: mockDb(query) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/revoke", req, res);
+
+    expect(res.statusCode).toBe(200);
     const [sql] = query.mock.calls[0];
-    expect(sql).toContain("c.revoked_at IS NOT NULL");
+    expect(sql).toContain("AND c.revoked_at IS NULL");
   });
 });
 

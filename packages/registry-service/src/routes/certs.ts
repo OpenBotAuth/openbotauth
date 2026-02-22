@@ -189,7 +189,10 @@ certsRouter.post(
         `UPDATE agent_certificates c
          SET revoked_at = now(), revoked_reason = $3
          FROM agents a
-         WHERE c.agent_id = a.id AND a.user_id = $1 AND ${condition}
+         WHERE c.agent_id = a.id
+           AND a.user_id = $1
+           AND ${condition}
+           AND c.revoked_at IS NULL
          RETURNING c.id`,
         [...params, reason || null],
       );
@@ -263,30 +266,33 @@ certsRouter.get(
         whereClauses.push("c.revoked_at IS NOT NULL");
       }
 
-      params.push(limit, offset);
+      const countResult = await db.getPool().query(
+        `SELECT COUNT(*)::int AS total
+         FROM agent_certificates c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE ${whereClauses.join(" AND ")}`,
+        params,
+      );
+
+      const total = Number(countResult.rows[0]?.total ?? 0);
+      const pageParams = [...params, limit, offset];
       const limitParam = paramIndex;
       const offsetParam = paramIndex + 1;
 
       const result = await db.getPool().query(
         `SELECT c.id, c.agent_id, c.kid, c.serial, c.fingerprint_sha256,
                 c.not_before, c.not_after, c.revoked_at, c.revoked_reason, c.created_at,
-                (c.revoked_at IS NULL AND c.not_after > now()) AS is_active,
-                COUNT(*) OVER() AS total_count
+                (c.revoked_at IS NULL AND c.not_after > now()) AS is_active
          FROM agent_certificates c
          JOIN agents a ON a.id = c.agent_id
          WHERE ${whereClauses.join(" AND ")}
          ORDER BY c.created_at DESC
          LIMIT $${limitParam}
          OFFSET $${offsetParam}`,
-        params,
+        pageParams,
       );
 
-      const total =
-        result.rows.length > 0 ? Number(result.rows[0].total_count || 0) : 0;
-      const items = result.rows.map((row) => {
-        const { total_count, ...rest } = row;
-        return rest;
-      });
+      const items = result.rows;
 
       res.setHeader("Cache-Control", "no-store");
       res.json({ items, total, limit, offset });
