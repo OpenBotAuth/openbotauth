@@ -93,6 +93,10 @@ Query parameters:
 
 Issue an X.509 certificate for an agent key.
 
+Auth:
+- Requires authenticated session or Bearer PAT.
+- Required scope: `agents:write`.
+
 Note: if the agent has `oba_agent_id`, it is included as a SAN URI in the leaf
 certificate as an informational hint. This value is user-supplied unless you
 enforce registry-side issuance rules.
@@ -108,6 +112,10 @@ enforce registry-side issuance rules.
 
 Revoke an issued certificate.
 
+Auth:
+- Requires authenticated session or Bearer PAT.
+- Required scope: `agents:write`.
+
 **Request:**
 ```json
 {
@@ -120,6 +128,10 @@ Revoke an issued certificate.
 
 List issued certificates owned by the authenticated user.
 
+Auth:
+- Requires authenticated session or Bearer PAT.
+- Required scope: `agents:read` (or `agents:write`).
+
 Query parameters:
 - `agent_id` (optional)
 - `kid` (optional)
@@ -131,6 +143,10 @@ Query parameters:
 
 Fetch one certificate by serial, including PEM and chain data.
 
+Auth:
+- Requires authenticated session or Bearer PAT.
+- Required scope: `agents:read` (or `agents:write`).
+
 Response includes metadata fields plus:
 - `cert_pem`
 - `chain_pem`
@@ -141,6 +157,10 @@ Response includes metadata fields plus:
 Check certificate validity metadata by one identifier:
 - `serial` **or**
 - `fingerprint_sha256`
+
+Auth:
+- Requires authenticated session or Bearer PAT.
+- Required scope: `agents:read` (or `agents:write`).
 
 Response shape:
 ```json
@@ -170,7 +190,7 @@ For OpenBotAuth-issued client certificates in mTLS:
 3. Revoke when needed:
    - Call `POST /v1/certs/revoke`.
 4. Optional status checks:
-   - Call `GET /v1/certs/status` to evaluate revoked/not-after metadata.
+   - Call `GET /v1/certs/status` to evaluate revoked + validity window metadata (`not_before`/`not_after`).
 
 Current limitation:
 - TLS stacks do not automatically consult OpenBotAuth revocation status in this MVP.

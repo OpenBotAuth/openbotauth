@@ -41,6 +41,7 @@ const AgentDetail = () => {
   const [certLoading, setCertLoading] = useState(false);
   const [issuingCert, setIssuingCert] = useState(false);
   const [revokingSerial, setRevokingSerial] = useState<string | null>(null);
+  const [revokeDialogCert, setRevokeDialogCert] = useState<AgentCertificate | null>(null);
   const [advancedSerial, setAdvancedSerial] = useState<string | null>(null);
   const [detailLoadingSerial, setDetailLoadingSerial] = useState<string | null>(null);
   const [certDetails, setCertDetails] = useState<Record<string, AgentCertificateDetail>>({});
@@ -165,9 +166,6 @@ const AgentDetail = () => {
 
   const revokeCertificate = async (serial: string) => {
     if (!agent) return;
-    if (!window.confirm("Revoke this certificate? This action cannot be undone.")) {
-      return;
-    }
 
     setRevokingSerial(serial);
     try {
@@ -186,6 +184,7 @@ const AgentDetail = () => {
       });
     } finally {
       setRevokingSerial(null);
+      setRevokeDialogCert(null);
     }
   };
 
@@ -485,12 +484,28 @@ const AgentDetail = () => {
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  onClick={() => copyToClipboard(cert.serial, "Serial")}
+                                >
+                                  <Copy className="h-3.5 w-3.5 mr-1" />
+                                  Copy serial
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(cert.kid, "Kid")}
+                                >
+                                  <Copy className="h-3.5 w-3.5 mr-1" />
+                                  Copy kid
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
                                   onClick={() =>
                                     copyToClipboard(cert.fingerprint_sha256, "Fingerprint")
                                   }
                                 >
                                   <Copy className="h-3.5 w-3.5 mr-1" />
-                                  Copy
+                                  Copy fingerprint
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -511,7 +526,7 @@ const AgentDetail = () => {
                                   <Button
                                     variant="destructive"
                                     size="sm"
-                                    onClick={() => revokeCertificate(cert.serial)}
+                                    onClick={() => setRevokeDialogCert(cert)}
                                     disabled={revokingSerial === cert.serial}
                                   >
                                     {revokingSerial === cert.serial ? "Revoking..." : "Revoke"}
@@ -592,6 +607,41 @@ const AgentDetail = () => {
             </div>
           </CardContent>
         </Card>
+
+        <AlertDialog
+          open={Boolean(revokeDialogCert)}
+          onOpenChange={(open) => {
+            if (!open && !revokingSerial) {
+              setRevokeDialogCert(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revoke certificate?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will revoke certificate{" "}
+                <span className="font-mono">{revokeDialogCert ? shortText(revokeDialogCert.serial) : ""}</span>.
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={Boolean(revokingSerial)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={!revokeDialogCert || Boolean(revokingSerial)}
+                onClick={() => {
+                  if (revokeDialogCert) {
+                    void revokeCertificate(revokeDialogCert.serial);
+                  }
+                }}
+              >
+                {revokingSerial ? "Revoking..." : "Revoke"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );

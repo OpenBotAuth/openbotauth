@@ -330,7 +330,7 @@ certsRouter.get(
       const condition = serial ? "c.serial = $2" : "c.fingerprint_sha256 = $2";
       const lookupValue = serial ?? fingerprint!;
       const result = await db.getPool().query(
-        `SELECT c.serial, c.fingerprint_sha256, c.not_after, c.revoked_at, c.revoked_reason
+        `SELECT c.serial, c.fingerprint_sha256, c.not_before, c.not_after, c.revoked_at, c.revoked_reason
          FROM agent_certificates c
          JOIN agents a ON a.id = c.agent_id
          WHERE a.user_id = $1 AND ${condition}
@@ -346,12 +346,17 @@ certsRouter.get(
 
       const cert = result.rows[0];
       const revoked = Boolean(cert.revoked_at);
-      const valid = !revoked && new Date(cert.not_after).getTime() > Date.now();
+      const nowMs = Date.now();
+      const valid =
+        !revoked &&
+        new Date(cert.not_before).getTime() <= nowMs &&
+        new Date(cert.not_after).getTime() > nowMs;
 
       res.setHeader("Cache-Control", "no-store");
       res.json({
         valid,
         revoked,
+        not_before: cert.not_before,
         not_after: cert.not_after,
         revoked_at: cert.revoked_at,
         revoked_reason: cert.revoked_reason,

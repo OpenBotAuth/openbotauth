@@ -38,6 +38,7 @@ function mockDb(overrides: Record<string, any> = {}) {
       client_name: null,
     }),
     getPool: () => ({
+      query: vi.fn().mockResolvedValue({ rows: [] }),
       connect: vi.fn().mockResolvedValue({
         query: vi.fn().mockResolvedValue({ rows: [] }),
         release: vi.fn(),
@@ -194,7 +195,10 @@ describe('GET /auth/github/callback (cli mode)', () => {
       .mockResolvedValueOnce({}); // ROLLBACK
     const client = { query, release: vi.fn() };
     const db = mockDb({
-      getPool: () => ({ connect: vi.fn().mockResolvedValue(client) }),
+      getPool: () => ({
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        connect: vi.fn().mockResolvedValue(client),
+      }),
     });
 
     // Seed OAuth state via /auth/cli
@@ -233,7 +237,10 @@ describe('GET /auth/github/callback (cli mode)', () => {
       .mockResolvedValueOnce({}); // COMMIT
     const client = { query, release: vi.fn() };
     const db = mockDb({
-      getPool: () => ({ connect: vi.fn().mockResolvedValue(client) }),
+      getPool: () => ({
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        connect: vi.fn().mockResolvedValue(client),
+      }),
     });
 
     const cliReq = mockReq({

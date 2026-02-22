@@ -22,7 +22,8 @@ function mockReq(overrides: Record<string, any> = {}): any {
       },
       profile: { id: "u-1", username: "testuser", client_name: null },
     },
-    authMethod: "session",
+    authMethod: "token",
+    authScopes: ["agents:write"],
     params: {},
     query: {},
     body: {},
@@ -230,6 +231,69 @@ describe("POST /v1/certs/revoke", () => {
     expect(res.statusCode).toBe(200);
     const [sql] = query.mock.calls[0];
     expect(sql).toContain("AND c.revoked_at IS NULL");
+  });
+});
+
+describe("GET /v1/certs/status", () => {
+  it("includes not_before and reports valid only within not_before/not_after window", async () => {
+    const now = Date.now();
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          serial: "serial-1",
+          fingerprint_sha256: "fp-1",
+          not_before: new Date(now - 60_000).toISOString(),
+          not_after: new Date(now + 60_000).toISOString(),
+          revoked_at: null,
+          revoked_reason: null,
+        },
+      ],
+    });
+    const req = mockReq({
+      query: { serial: "serial-1" },
+      app: { locals: { db: mockDb(query) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs/status", req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["Cache-Control"]).toBe("no-store");
+    expect(res.body.valid).toBe(true);
+    expect(res.body.revoked).toBe(false);
+    expect(res.body.not_before).toBeDefined();
+
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toContain("c.not_before");
+    expect(params).toEqual(["u-1", "serial-1"]);
+  });
+
+  it("returns valid=false when cert is not yet valid", async () => {
+    const now = Date.now();
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          serial: "serial-future",
+          fingerprint_sha256: "fp-future",
+          not_before: new Date(now + 3_600_000).toISOString(),
+          not_after: new Date(now + 7_200_000).toISOString(),
+          revoked_at: null,
+          revoked_reason: null,
+        },
+      ],
+    });
+    const req = mockReq({
+      query: { fingerprint_sha256: "fp-future" },
+      app: { locals: { db: mockDb(query) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs/status", req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.valid).toBe(false);
+    expect(res.body.revoked).toBe(false);
+    expect(res.body.not_before).toBeDefined();
   });
 });
 
