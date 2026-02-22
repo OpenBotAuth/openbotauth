@@ -110,6 +110,9 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
         }
       }
 
+      // Track agent kids regardless of dedupe so x5c lookup can still bind.
+      agentKids.add(kid);
+
       // Dedupe by kid
       if (seenKids.has(kid)) {
         if (process.env.NODE_ENV !== 'production') {
@@ -118,7 +121,6 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
         continue;
       }
       seenKids.add(kid);
-      agentKids.add(kid);
 
       // Build validated JWK with proper typing
       const agentJwk = {

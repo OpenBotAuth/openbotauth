@@ -7,7 +7,6 @@
 import type { SignatureComponents } from "./types.js";
 
 const LABEL_PATTERN = "[A-Za-z][A-Za-z0-9._-]*";
-const LABEL_REGEX = new RegExp(`^${LABEL_PATTERN}`);
 const LABEL_CAPTURE_RE = new RegExp(`^(${LABEL_PATTERN})`);
 const SIGNATURE_INPUT_LABEL_RE = new RegExp(`^(${LABEL_PATTERN})=(.+)$`);
 const SIGNATURE_INPUT_RE = new RegExp(`^(${LABEL_PATTERN})=\\(([^)]+)\\);(.+)$`);

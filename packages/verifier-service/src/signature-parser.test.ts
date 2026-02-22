@@ -272,7 +272,7 @@ describe("resolveJwksUrl", () => {
     vi.restoreAllMocks();
   });
 
-  it("should discover JWKS at /.well-known/jwks.json", async () => {
+  it("should discover JWKS at http-message-signatures-directory", async () => {
     const validJwks = { keys: [{ kid: "test", kty: "OKP" }] };
 
     fetchMock.mockResolvedValueOnce({
@@ -282,9 +282,11 @@ describe("resolveJwksUrl", () => {
     });
 
     const result = await resolveJwksUrl("https://chatgpt.com");
-    expect(result).toBe("https://chatgpt.com/.well-known/jwks.json");
+    expect(result).toBe(
+      "https://chatgpt.com/.well-known/http-message-signatures-directory",
+    );
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://chatgpt.com/.well-known/jwks.json",
+      "https://chatgpt.com/.well-known/http-message-signatures-directory",
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
@@ -311,9 +313,7 @@ describe("resolveJwksUrl", () => {
     });
 
     const result = await resolveJwksUrl("https://example.com");
-    expect(result).toBe(
-      "https://example.com/.well-known/openbotauth/jwks.json",
-    );
+    expect(result).toBe("https://example.com/.well-known/jwks.json");
   });
 
   it("should return null if no valid JWKS found", async () => {
@@ -415,7 +415,7 @@ describe("resolveJwksUrl", () => {
 
     const result = await resolveJwksUrl("https://example.com");
     expect(result).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(3); // Tries all 3 default paths
+    expect(fetchMock).toHaveBeenCalledTimes(4); // Tries all 4 default paths
   });
 
   it("should block 301 redirects (SSRF protection)", async () => {
@@ -570,6 +570,7 @@ describe("parseSignatureInput", () => {
     const result = parseSignatureInput(input);
 
     expect(result).toEqual({
+      label: "sig1",
       keyId: "test-key-ed25519",
       algorithm: "ed25519",
       created: 1618884473,
