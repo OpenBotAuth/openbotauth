@@ -497,6 +497,19 @@ describe("GET /v1/certs/status", () => {
 });
 
 describe("GET /v1/certs/public-status", () => {
+  it("is registered before /v1/certs/:serial to avoid route shadowing", () => {
+    const routePaths = certsRouter.stack
+      .filter((layer: any) => Boolean(layer.route))
+      .map((layer: any) => layer.route.path);
+
+    const publicStatusIndex = routePaths.indexOf("/v1/certs/public-status");
+    const serialIndex = routePaths.indexOf("/v1/certs/:serial");
+
+    expect(publicStatusIndex).toBeGreaterThanOrEqual(0);
+    expect(serialIndex).toBeGreaterThanOrEqual(0);
+    expect(publicStatusIndex).toBeLessThan(serialIndex);
+  });
+
   it("requires fingerprint_sha256 parameter", async () => {
     const req = mockReq({ query: {} });
     const res = mockRes();

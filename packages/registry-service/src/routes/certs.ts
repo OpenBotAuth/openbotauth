@@ -2,12 +2,36 @@
  * Certificate issuance endpoints (MVP)
  */
 
-import { webcrypto } from "node:crypto";
+import { webcrypto, createHash } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import type { Database } from "@openbotauth/github-connector";
 import { issueCertificateForJwk, getCertificateAuthority } from "../utils/ca.js";
 import { requireScope } from "../middleware/scopes.js";
 import { jwkThumbprint } from "../utils/jwk.js";
+
+/**
+ * Check if a PoP nonce has been used and mark it as used.
+ * Returns true if the nonce is new (not a replay), false if already used.
+ * Uses the check_pop_nonce Postgres function for atomic check-and-set.
+ */
+async function checkPopNonce(db: Database, message: string): Promise<boolean> {
+  const hash = createHash("sha256").update(message).digest("hex");
+  try {
+    const result = await db.getPool().query(
+      `SELECT check_pop_nonce($1, 300) AS is_new`,
+      [hash],
+    );
+    return result.rows[0]?.is_new === true;
+  } catch (err: any) {
+    // If function doesn't exist (migration not run), allow the request
+    // but log a warning. This provides graceful degradation.
+    if (err.message?.includes("check_pop_nonce")) {
+      console.warn("PoP nonce check skipped: migration 009 not applied");
+      return true;
+    }
+    throw err;
+  }
+}
 
 /**
  * Verify proof-of-possession signature.
@@ -184,6 +208,15 @@ certsRouter.post(
       if (!popResult.valid) {
         res.status(403).json({
           error: `Proof-of-possession failed: ${popResult.error}`,
+        });
+        return;
+      }
+
+      // Check for replay attack: ensure this proof hasn't been used before
+      const isNewNonce = await checkPopNonce(db, proof.message);
+      if (!isNewNonce) {
+        res.status(403).json({
+          error: "Proof-of-possession replay detected: this proof has already been used",
         });
         return;
       }
@@ -463,46 +496,6 @@ certsRouter.get(
   },
 );
 
-certsRouter.get(
-  "/v1/certs/:serial",
-  requireAuth,
-  requireScope("agents:read"),
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const db: Database = req.app.locals.db;
-      const serial = req.params.serial;
-      if (!serial) {
-        res.status(400).json({ error: "Missing serial" });
-        return;
-      }
-
-      const result = await db.getPool().query(
-        `SELECT c.id, c.agent_id, c.kid, c.serial, c.fingerprint_sha256,
-                c.not_before, c.not_after, c.revoked_at, c.revoked_reason, c.created_at,
-                c.cert_pem, c.chain_pem, c.x5c,
-                (c.revoked_at IS NULL AND c.not_before <= now() AND c.not_after > now()) AS is_active
-         FROM agent_certificates c
-         JOIN agents a ON a.id = c.agent_id
-         WHERE a.user_id = $1 AND c.serial = $2
-         ORDER BY c.created_at DESC
-         LIMIT 1`,
-        [req.session!.user.id, serial],
-      );
-
-      if (result.rows.length === 0) {
-        res.status(404).json({ error: "Certificate not found" });
-        return;
-      }
-
-      res.setHeader("Cache-Control", "no-store");
-      res.json(result.rows[0]);
-    } catch (error: any) {
-      console.error("Certificate get error:", error);
-      res.status(500).json({ error: error.message || "Failed to fetch certificate" });
-    }
-  },
-);
-
 /**
  * Public certificate status endpoint for relying parties (e.g., ClawAuth).
  * No authentication required - allows external services to check revocation.
@@ -568,6 +561,46 @@ certsRouter.get(
     } catch (error: any) {
       console.error("Public certificate status error:", error);
       res.status(500).json({ error: error.message || "Failed to check certificate status" });
+    }
+  },
+);
+
+certsRouter.get(
+  "/v1/certs/:serial",
+  requireAuth,
+  requireScope("agents:read"),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const db: Database = req.app.locals.db;
+      const serial = req.params.serial;
+      if (!serial) {
+        res.status(400).json({ error: "Missing serial" });
+        return;
+      }
+
+      const result = await db.getPool().query(
+        `SELECT c.id, c.agent_id, c.kid, c.serial, c.fingerprint_sha256,
+                c.not_before, c.not_after, c.revoked_at, c.revoked_reason, c.created_at,
+                c.cert_pem, c.chain_pem, c.x5c,
+                (c.revoked_at IS NULL AND c.not_before <= now() AND c.not_after > now()) AS is_active
+         FROM agent_certificates c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE a.user_id = $1 AND c.serial = $2
+         ORDER BY c.created_at DESC
+         LIMIT 1`,
+        [req.session!.user.id, serial],
+      );
+
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: "Certificate not found" });
+        return;
+      }
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json(result.rows[0]);
+    } catch (error: any) {
+      console.error("Certificate get error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch certificate" });
     }
   },
 );
