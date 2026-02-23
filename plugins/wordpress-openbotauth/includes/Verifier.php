@@ -280,26 +280,43 @@ class Verifier {
 	private function parse_covered_headers( $signature_input ) {
 		// Extract the parenthesized list of headers.
 		if ( preg_match( '/\(([^)]+)\)/', $signature_input, $matches ) ) {
-			$headers_str = $matches[1];
+			$headers_str = trim( $matches[1] );
+			if ( '' === $headers_str ) {
+				return array();
+			}
 
-			// Split by whitespace and remove quotes.
-			$headers = preg_split( '/\s+/', $headers_str );
+			// Keep quoted components with optional parameter tails intact, e.g.:
+			// "signature-agent";key="sig1"
+			preg_match_all( '/"[^"]+"(?:;[^\s]+)?|[^\s]+/', $headers_str, $token_matches );
+			$tokens  = $token_matches[0];
 			$headers = array_map(
-				function ( $h ) {
-					// Remove surrounding quotes.
-					$h = trim( $h, '"' );
-					// Extract base header name before any ;key= parameter.
-					// e.g., 'signature-agent;key="sig1"' -> 'signature-agent'
-					$semicolon_pos = strpos( $h, ';' );
-					if ( false !== $semicolon_pos ) {
-						$h = substr( $h, 0, $semicolon_pos );
+				function ( $token ) {
+					$token = trim( $token );
+					if ( '' === $token ) {
+						return '';
 					}
-					return $h;
+
+					$header_name = $token;
+					if ( '"' === $token[0] ) {
+						$quote_end = strpos( $token, '"', 1 );
+						if ( false !== $quote_end ) {
+							$header_name = substr( $token, 1, $quote_end - 1 );
+						} else {
+							$header_name = trim( $token, '"' );
+						}
+					}
+
+					$semicolon_pos = strpos( $header_name, ';' );
+					if ( false !== $semicolon_pos ) {
+						$header_name = substr( $header_name, 0, $semicolon_pos );
+					}
+
+					return strtolower( $header_name );
 				},
-				$headers
+				$tokens
 			);
 
-			return array_filter( $headers );
+			return array_values( array_filter( $headers ) );
 		}
 
 		return array();

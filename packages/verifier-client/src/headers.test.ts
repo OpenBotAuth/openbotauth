@@ -53,6 +53,13 @@ describe('parseCoveredHeaders', () => {
     const result = parseCoveredHeaders(input);
     expect(result).toEqual(['content-type', 'accept']);
   });
+
+  it('parses parameterized covered components', () => {
+    const input =
+      'sig1=("@method" "signature-agent";key="sig1" "content-type");created=1234';
+    const result = parseCoveredHeaders(input);
+    expect(result).toEqual(['@method', 'signature-agent', 'content-type']);
+  });
 });
 
 describe('extractForwardedHeaders', () => {

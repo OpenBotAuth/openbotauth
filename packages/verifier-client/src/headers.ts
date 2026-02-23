@@ -52,23 +52,35 @@ export function parseCoveredHeaders(signatureInput: string): string[] {
 
   const content = signatureInput.slice(openParen + 1, closeParen);
 
-  // Split by whitespace and trim quotes
-  return content
-    .split(/\s+/)
-    .filter((s) => s.length > 0)
-    .map((s) => {
-      // Remove surrounding quotes
-      if (s.startsWith('"') && s.endsWith('"')) {
-        s = s.slice(1, -1);
+  // Match tokens while keeping parameterized quoted components intact, e.g.:
+  // "signature-agent";key="sig1"
+  const tokens =
+    content.match(/"[^"\\]*(?:\\.[^"\\]*)*"(?:;[^\s]+)?|[^\s]+/g) ?? [];
+
+  return tokens.map((token) => {
+    let component = token;
+
+    if (token.startsWith('"')) {
+      // Extract the quoted component name before any ;param tail.
+      const quotedMatch = token.match(/^"((?:\\.|[^"\\])*)"/);
+      if (quotedMatch) {
+        component = quotedMatch[1].replace(/\\(["\\])/g, '$1');
       }
-      // Extract base header name before any ;key= parameter
-      // e.g., 'signature-agent;key="sig1"' -> 'signature-agent'
-      const semicolonPos = s.indexOf(';');
+    } else {
+      const semicolonPos = token.indexOf(';');
       if (semicolonPos !== -1) {
-        s = s.slice(0, semicolonPos);
+        component = token.slice(0, semicolonPos);
       }
-      return s.toLowerCase();
-    });
+    }
+
+    // Be defensive for malformed inputs where ';' may survive.
+    const semicolonPos = component.indexOf(';');
+    if (semicolonPos !== -1) {
+      component = component.slice(0, semicolonPos);
+    }
+
+    return component.toLowerCase();
+  });
 }
 
 /**

@@ -5,6 +5,7 @@ Signature-Input parsing and privacy-safe header forwarding.
 from __future__ import annotations
 
 import re
+import shlex
 from typing import Mapping
 
 
@@ -59,11 +60,16 @@ def parse_covered_headers(signature_input: str) -> list[str]:
     if not content:
         return []
 
-    # Split on whitespace and remove quotes
+    # Split on whitespace while keeping quoted items and parameter tails together.
+    # shlex handles:
+    #   "signature-agent";key="sig1" -> "signature-agent;key=sig1"
+    try:
+        items = shlex.split(content)
+    except ValueError:
+        return []
+
     headers = []
-    for item in content.split():
-        # Remove surrounding quotes
-        item = item.strip('"')
+    for item in items:
         if item:
             # Extract base header name before any ;key= parameter
             # e.g., 'signature-agent;key="sig1"' -> 'signature-agent'
