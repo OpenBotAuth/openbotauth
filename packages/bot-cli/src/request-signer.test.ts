@@ -20,7 +20,10 @@ describe("RequestSigner", () => {
     expect(signed.headers["Signature-Agent"]).toBe(
       'sig1="https://example.com/jwks/test.json"',
     );
-    expect(signed.headers["Signature-Input"]).toContain('"signature-agent"');
+    // RFC 9421: covered component uses ;key= parameter for dictionary member selection
+    expect(signed.headers["Signature-Input"]).toContain('signature-agent;key="sig1"');
+    // IETF draft: tag="web-bot-auth" is mandatory
+    expect(signed.headers["Signature-Input"]).toContain('tag="web-bot-auth"');
   });
 
   it("emits legacy Signature-Agent when explicitly requested", async () => {
@@ -31,6 +34,9 @@ describe("RequestSigner", () => {
     expect(signed.headers["Signature-Agent"]).toBe(
       "https://example.com/jwks/test.json",
     );
-    expect(signed.headers["Signature-Input"]).toContain('"signature-agent"');
+    // Even with legacy format, the covered component uses ;key= for consistency
+    expect(signed.headers["Signature-Input"]).toContain('signature-agent;key="sig1"');
+    // IETF draft: tag="web-bot-auth" is mandatory
+    expect(signed.headers["Signature-Input"]).toContain('tag="web-bot-auth"');
   });
 });
