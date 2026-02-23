@@ -110,6 +110,8 @@ To prevent certificate issuance for keys you don't control, you must provide a s
 
 The timestamp must be within 5 minutes in the past (up to 30 seconds future drift is tolerated for clock skew).
 
+**Replay Protection:** Each proof message can only be used once. The server tracks used proofs for 5 minutes to prevent replay attacks. Clients must generate a fresh timestamp for each issuance request.
+
 Note: if the agent has `oba_agent_id`, it is included as a SAN URI in the leaf
 certificate as an informational hint. This value is user-supplied unless you
 enforce registry-side issuance rules.

@@ -396,6 +396,8 @@ describe("POST /v1/certs/issue - PoP validation", () => {
           },
         ],
       })
+      // Mock the nonce check (new nonce, not a replay)
+      .mockResolvedValueOnce({ rows: [{ is_new: true }] })
       // Mock the INSERT query for certificate
       .mockResolvedValueOnce({ rows: [] });
 
@@ -413,6 +415,61 @@ describe("POST /v1/certs/issue - PoP validation", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.serial).toBe("test-serial-123");
     expect(res.body.fingerprint_sha256).toBeDefined();
+  });
+
+  it("rejects replayed proof (same message used twice)", async () => {
+    // Generate a real Ed25519 keypair
+    const keyPair = await webcrypto.subtle.generateKey(
+      { name: "Ed25519" },
+      true,
+      ["sign", "verify"],
+    );
+
+    const publicJwk = await webcrypto.subtle.exportKey("jwk", keyPair.publicKey);
+
+    const agentId = "agent-replay-test";
+    const ts = Math.floor(Date.now() / 1000);
+    const message = `cert-issue:${agentId}:${ts}`;
+    const messageBuffer = new TextEncoder().encode(message);
+    const signatureBuffer = await webcrypto.subtle.sign(
+      { name: "Ed25519" },
+      keyPair.privateKey,
+      messageBuffer,
+    );
+    const signature = Buffer.from(signatureBuffer).toString("base64");
+
+    // Mock: agent query succeeds, nonce check returns false (already used)
+    const agentQuery = vi.fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: agentId,
+            user_id: "u-1",
+            name: "Test Agent",
+            public_key: {
+              kty: "OKP",
+              crv: "Ed25519",
+              x: publicJwk.x,
+            },
+          },
+        ],
+      })
+      // Nonce check returns false (replay)
+      .mockResolvedValueOnce({ rows: [{ is_new: false }] });
+
+    const req = mockReq({
+      body: {
+        agent_id: agentId,
+        proof: { message, signature },
+      },
+      app: { locals: { db: mockDb(agentQuery) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain("replay");
   });
 });
 
