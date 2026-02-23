@@ -394,10 +394,10 @@ const AgentDetail = () => {
             <div className="mb-4 p-4 bg-muted rounded-lg space-y-2">
               <p className="text-sm text-muted-foreground">
                 Certificate issuance requires proof-of-possession and must be done via CLI.
-                Use the private key file (<code className="bg-background px-1 rounded">agent-*-private-key.json</code>) you downloaded when creating this agent:
+                Use the private key file you downloaded when creating this agent:
               </p>
               <code className="block p-2 bg-background rounded text-xs font-mono break-all">
-                oba-bot cert issue --agent-id {agent?.id ?? "<agent-id>"} --private-key-path ./agent-{agent?.id ? agent.id.slice(0, 8) : "<id>"}...-private-key.json --token {"<pat>"}
+                oba-bot cert issue --agent-id {agent?.id ?? "<agent-id>"} --private-key-path ./agent-{agent?.id ?? "<agent-id>"}-private-key.json --token {"<pat>"}
               </code>
               <p className="text-xs text-muted-foreground">
                 Or set <code className="bg-background px-1 rounded">OPENBOTAUTH_TOKEN</code> env var instead of --token

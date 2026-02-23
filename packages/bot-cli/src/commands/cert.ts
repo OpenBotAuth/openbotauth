@@ -23,16 +23,29 @@ async function importPrivateKey(content: string): Promise<CryptoKey> {
     try {
       const jwk = JSON.parse(trimmed);
 
-      // Validate it's an Ed25519 private key JWK
-      if (jwk.kty !== "OKP" || jwk.crv !== "Ed25519" || !jwk.d) {
+      // Validate it's an Ed25519 private key JWK with required fields
+      if (
+        jwk.kty !== "OKP" ||
+        jwk.crv !== "Ed25519" ||
+        typeof jwk.x !== "string" ||
+        typeof jwk.d !== "string"
+      ) {
         throw new Error(
-          "Invalid JWK: must be an Ed25519 private key (kty=OKP, crv=Ed25519, d=...)"
+          "Invalid JWK: must be an Ed25519 private key (kty=OKP, crv=Ed25519, x=..., d=...)"
         );
       }
 
+      // Import only the minimal required JWK fields (avoid passing extra fields)
+      const minimalJwk = {
+        kty: "OKP" as const,
+        crv: "Ed25519" as const,
+        x: jwk.x,
+        d: jwk.d,
+      };
+
       return await webcrypto.subtle.importKey(
         "jwk",
-        jwk,
+        minimalJwk,
         { name: "Ed25519" },
         false,
         ["sign"]
