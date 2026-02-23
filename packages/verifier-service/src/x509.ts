@@ -14,6 +14,8 @@ export interface X509ValidationResult {
   error?: string;
 }
 
+const MAX_X5U_CERT_BYTES = 1024 * 1024;
+
 function parseCertificate(input: Buffer | string): X509Certificate {
   return new X509Certificate(input);
 }
@@ -75,6 +77,9 @@ function validateChain(
     if (!cert.verify(issuer.publicKey)) {
       return "X.509 validation failed: certificate chain signature mismatch";
     }
+    if (!cert.checkIssued(issuer)) {
+      return "X.509 validation failed: issuer certificate is not authorized to sign child certificates";
+    }
   }
 
   // Verify last cert against trust anchors
@@ -84,11 +89,51 @@ function validateChain(
       return null;
     }
     if (last.verify(anchor.publicKey)) {
+      if (!last.checkIssued(anchor)) {
+        return "X.509 validation failed: trust anchor is not authorized to sign child certificates";
+      }
       return null;
     }
   }
 
   return "X.509 validation failed: chain does not terminate at a trusted anchor";
+}
+
+async function readResponseBufferLimited(
+  response: Response,
+  maxBytes: number,
+): Promise<Buffer> {
+  if (!response.body) {
+    const arrayBuffer = await response.arrayBuffer();
+    if (arrayBuffer.byteLength > maxBytes) {
+      throw new Error("x5u certificate too large");
+    }
+    return Buffer.from(arrayBuffer);
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+
+    const chunk = Buffer.from(value);
+    total += chunk.length;
+    if (total > maxBytes) {
+      try {
+        await reader.cancel();
+      } catch {
+        // Ignore stream cancellation errors.
+      }
+      throw new Error("x5u certificate too large");
+    }
+    chunks.push(chunk);
+  }
+
+  return Buffer.concat(chunks, total);
 }
 
 async function fetchX5uCert(x5u: string): Promise<X509Certificate> {
@@ -113,11 +158,11 @@ async function fetchX5uCert(x5u: string): Promise<X509Certificate> {
   }
 
   const contentLength = response.headers.get("content-length");
-  if (contentLength && parseInt(contentLength, 10) > 1024 * 1024) {
+  if (contentLength && parseInt(contentLength, 10) > MAX_X5U_CERT_BYTES) {
     throw new Error("x5u certificate too large");
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const buffer = await readResponseBufferLimited(response, MAX_X5U_CERT_BYTES);
   if (isPem(buffer)) {
     return parseCertificate(buffer.toString("utf-8"));
   }
