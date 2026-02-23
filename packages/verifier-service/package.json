@@ -21,6 +21,7 @@
   "author": "",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@peculiar/x509": "^1.12.4",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.0",
     "@types/pg": "^8.15.6",

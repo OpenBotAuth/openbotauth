@@ -492,6 +492,9 @@ importers:
         specifier: ^4.6.13
         version: 4.7.1
     devDependencies:
+      '@peculiar/x509':
+        specifier: ^1.12.4
+        version: 1.14.3
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25

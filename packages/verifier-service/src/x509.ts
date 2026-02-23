@@ -7,6 +7,10 @@ import { validateSafeUrl } from "./signature-parser.js";
 
 export interface X509ValidationOptions {
   trustAnchors: string[];
+  /** Require leaf certificate EKU to include clientAuth (default: true) */
+  requireClientAuthEku?: boolean;
+  /** Expected SAN URI to match against leaf certificate (optional soft binding) */
+  expectedSanUri?: string;
 }
 
 export interface X509ValidationResult {
@@ -61,6 +65,70 @@ function validateCertificateTimes(certs: X509Certificate[]): string | null {
 
 function normalizeKeyUsage(value: string): string {
   return value.toLowerCase().replace(/[^a-z]/g, "");
+}
+
+const CLIENT_AUTH_OID = "1.3.6.1.5.5.7.3.2";
+
+/**
+ * Validate that leaf certificate EKU includes clientAuth.
+ * If no EKU extension is present, the certificate is not constrained (allowed).
+ *
+ * Note: Node.js exposes Extended Key Usage OIDs via the `keyUsage` property
+ * (confusingly named - it's not the standard Key Usage extension).
+ */
+function validateLeafEku(cert: X509Certificate): string | null {
+  // Node.js exposes EKU OIDs in the `keyUsage` property (array of OID strings)
+  const ekuOids = cert.keyUsage;
+  if (!Array.isArray(ekuOids) || ekuOids.length === 0) {
+    // No EKU extension means certificate is not constrained to specific usages
+    return null;
+  }
+
+  // Check if any OID looks like an EKU OID (starts with 1.3.6.1.5.5.7.3.)
+  const hasEkuExtension = ekuOids.some((oid) => oid.startsWith("1.3.6.1.5.5.7.3."));
+  if (!hasEkuExtension) {
+    // keyUsage contains Key Usage flags, not EKU - certificate is not constrained
+    return null;
+  }
+
+  if (!ekuOids.includes(CLIENT_AUTH_OID)) {
+    return "X.509 validation failed: leaf certificate EKU does not include clientAuth (1.3.6.1.5.5.7.3.2)";
+  }
+
+  return null;
+}
+
+/**
+ * Extract URI from certificate Subject Alternative Name extension.
+ * Returns null if no URI SAN is present.
+ */
+function extractSanUri(cert: X509Certificate): string | null {
+  const san = cert.subjectAltName;
+  if (!san) return null;
+
+  // Node.js formats SAN as: "URI:agent:foo@example.com, DNS:example.com"
+  const uriMatch = san.match(/URI:([^,]+)/i);
+  return uriMatch ? uriMatch[1].trim() : null;
+}
+
+/**
+ * Validate that leaf certificate SAN URI matches expected identity.
+ * This provides soft binding between certificate and agent identity.
+ */
+function validateSanUriBinding(
+  cert: X509Certificate,
+  expectedUri: string,
+): string | null {
+  const actualUri = extractSanUri(cert);
+  if (!actualUri) {
+    return "X.509 validation failed: leaf certificate has no SAN URI for identity binding";
+  }
+
+  if (actualUri !== expectedUri) {
+    return `X.509 validation failed: SAN URI mismatch (expected: ${expectedUri}, got: ${actualUri})`;
+  }
+
+  return null;
 }
 
 function certCanSignChildren(cert: X509Certificate): boolean {
@@ -244,6 +312,23 @@ export async function validateJwkX509(
     const chainError = validateChain(certs, trustAnchors);
     if (chainError) {
       return { valid: false, error: chainError };
+    }
+
+    // Validate leaf certificate EKU includes clientAuth (default: enabled)
+    const requireEku = options.requireClientAuthEku !== false;
+    if (requireEku) {
+      const ekuError = validateLeafEku(certs[0]);
+      if (ekuError) {
+        return { valid: false, error: ekuError };
+      }
+    }
+
+    // Validate SAN URI binding if expected URI is provided
+    if (options.expectedSanUri) {
+      const sanError = validateSanUriBinding(certs[0], options.expectedSanUri);
+      if (sanError) {
+        return { valid: false, error: sanError };
+      }
     }
 
     return { valid: true };
