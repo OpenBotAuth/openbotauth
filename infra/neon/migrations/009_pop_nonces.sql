@@ -14,7 +14,7 @@ CREATE INDEX IF NOT EXISTS idx_pop_nonces_expires_at ON pop_nonces (expires_at);
 CREATE OR REPLACE FUNCTION check_pop_nonce(nonce_hash TEXT, ttl_seconds INT DEFAULT 300)
 RETURNS BOOLEAN AS $$
 DECLARE
-  inserted BOOLEAN;
+  inserted_count INTEGER;
 BEGIN
   -- Clean up expired nonces (limit to avoid long locks)
   DELETE FROM pop_nonces WHERE expires_at < now() AND ctid IN (
@@ -27,8 +27,8 @@ BEGIN
   ON CONFLICT (hash) DO NOTHING;
 
   -- Check if we inserted (FOUND is true if INSERT affected a row)
-  GET DIAGNOSTICS inserted = ROW_COUNT;
+  GET DIAGNOSTICS inserted_count = ROW_COUNT;
 
-  RETURN inserted > 0;
+  RETURN inserted_count > 0;
 END;
 $$ LANGUAGE plpgsql;
