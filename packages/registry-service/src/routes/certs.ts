@@ -284,8 +284,9 @@ certsRouter.post(
         return;
       }
 
-      // Check for replay attack: ensure this proof hasn't been used before
-      const isNewNonce = await checkPopNonce(client, proof.message);
+      // Check for replay attack using an independent query executor so nonce
+      // persistence is not rolled back with the issuance transaction.
+      const isNewNonce = await checkPopNonce(db.getPool(), proof.message);
       if (!isNewNonce) {
         await rollbackIfNeeded();
         res.status(403).json({

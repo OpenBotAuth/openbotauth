@@ -480,6 +480,103 @@ describe("POST /v1/certs/issue - PoP validation", () => {
     expect(res.body.fingerprint_sha256).toBeDefined();
   });
 
+  it("checks PoP nonce through pool query (outside issuance transaction)", async () => {
+    const keyPair = await webcrypto.subtle.generateKey(
+      { name: "Ed25519" },
+      true,
+      ["sign", "verify"],
+    );
+    const publicJwk = await webcrypto.subtle.exportKey("jwk", keyPair.publicKey);
+
+    const agentId = "agent-nonce-outside-tx";
+    const ts = Math.floor(Date.now() / 1000);
+    const message = `cert-issue:${agentId}:${ts}`;
+    const signature = Buffer.from(
+      await webcrypto.subtle.sign(
+        { name: "Ed25519" },
+        keyPair.privateKey,
+        new TextEncoder().encode(message),
+      ),
+    ).toString("base64");
+
+    const poolQuery = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes("SELECT check_pop_nonce")) {
+        return { rows: [{ is_new: true }] };
+      }
+      return { rows: [] };
+    });
+
+    const clientQuery = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes("SELECT check_pop_nonce")) {
+        throw new Error("check_pop_nonce must not run on transaction client");
+      }
+      if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
+        return { rows: [] };
+      }
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: agentId,
+              user_id: "u-1",
+              name: "Test Agent",
+              public_key: {
+                kty: "OKP",
+                crv: "Ed25519",
+                x: publicJwk.x,
+              },
+            },
+          ],
+        };
+      }
+      if (sql.includes("c.created_at >= now() - interval '1 day'")) {
+        return { rows: [{ count: 0 }] };
+      }
+      if (sql.includes("AND c.kid = $3")) {
+        return { rows: [{ count: 0 }] };
+      }
+      if (sql.includes("INSERT INTO agent_certificates")) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const connect = vi.fn().mockResolvedValue({
+      query: clientQuery,
+      release: vi.fn(),
+    });
+
+    const db = {
+      getPool: () => ({
+        query: poolQuery,
+        connect,
+      }),
+    };
+
+    const req = mockReq({
+      body: {
+        agent_id: agentId,
+        proof: { message, signature },
+      },
+      app: { locals: { db } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(
+      poolQuery.mock.calls.some(([sql]) =>
+        String(sql).includes("SELECT check_pop_nonce"),
+      ),
+    ).toBe(true);
+    expect(
+      clientQuery.mock.calls.some(([sql]) =>
+        String(sql).includes("SELECT check_pop_nonce"),
+      ),
+    ).toBe(false);
+  });
+
   it("rejects replayed proof (same message used twice)", async () => {
     // Generate a real Ed25519 keypair
     const keyPair = await webcrypto.subtle.generateKey(
