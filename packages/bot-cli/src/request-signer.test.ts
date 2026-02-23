@@ -20,6 +20,7 @@ describe("RequestSigner", () => {
     expect(signed.headers["Signature-Agent"]).toBe(
       'sig1="https://example.com/jwks/test.json"',
     );
+    expect(signed.headers["Signature-Input"]).toContain('"signature-agent"');
   });
 
   it("emits legacy Signature-Agent when explicitly requested", async () => {
@@ -30,5 +31,6 @@ describe("RequestSigner", () => {
     expect(signed.headers["Signature-Agent"]).toBe(
       "https://example.com/jwks/test.json",
     );
+    expect(signed.headers["Signature-Input"]).toContain('"signature-agent"');
   });
 });

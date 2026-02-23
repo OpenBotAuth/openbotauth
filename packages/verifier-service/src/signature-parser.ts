@@ -11,6 +11,113 @@ const LABEL_CAPTURE_RE = new RegExp(`^(${LABEL_PATTERN})`);
 const SIGNATURE_INPUT_LABEL_RE = new RegExp(`^(${LABEL_PATTERN})=(.+)$`);
 const SIGNATURE_INPUT_RE = new RegExp(`^(${LABEL_PATTERN})=\\(([^)]+)\\);(.+)$`);
 const SIGNATURE_RE = new RegExp(`^(${LABEL_PATTERN})=:([^:]+):$`);
+const DIRECTORY_ACCEPT_HEADER =
+  "application/http-message-signatures-directory+json, application/http-message-signatures-directory, application/jwk-set+json, application/json";
+
+function splitTopLevelMembers(input: string): string[] {
+  const members: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  let escape = false;
+  let parenDepth = 0;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+
+    if (escape) {
+      current += ch;
+      escape = false;
+      continue;
+    }
+
+    if (ch === "\\" && inQuotes) {
+      current += ch;
+      escape = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      current += ch;
+      continue;
+    }
+
+    if (!inQuotes) {
+      if (ch === "(") {
+        parenDepth++;
+      } else if (ch === ")" && parenDepth > 0) {
+        parenDepth--;
+      }
+    }
+
+    if (ch === "," && !inQuotes && parenDepth === 0) {
+      const trimmed = current.trim();
+      if (trimmed) members.push(trimmed);
+      current = "";
+      continue;
+    }
+
+    current += ch;
+  }
+
+  const finalMember = current.trim();
+  if (finalMember) {
+    members.push(finalMember);
+  }
+
+  return members;
+}
+
+function parseSingleSignatureInputMember(
+  signatureInputMember: string,
+): SignatureComponents | null {
+  const labelMatch = signatureInputMember.match(SIGNATURE_INPUT_LABEL_RE);
+  if (!labelMatch) {
+    return null;
+  }
+
+  const label = labelMatch[1];
+  const rawSignatureParams = labelMatch[2];
+  const match = signatureInputMember.match(SIGNATURE_INPUT_RE);
+  if (!match) {
+    return null;
+  }
+
+  const [, , headersList, paramsStr] = match;
+
+  // Parse covered headers
+  const headers = headersList
+    .split(/\s+/)
+    .map((h) => h.replace(/"/g, "").trim())
+    .filter(Boolean);
+
+  // Parse parameters
+  const params: Record<string, string | number> = {};
+  const paramPairs = paramsStr.split(";");
+
+  for (const pair of paramPairs) {
+    const [key, value] = pair.split("=").map((s) => s.trim());
+    if (key && value) {
+      // Remove quotes and parse numbers
+      const cleanValue = value.replace(/"/g, "");
+      params[key] = isNaN(Number(cleanValue))
+        ? cleanValue
+        : Number(cleanValue);
+    }
+  }
+
+  return {
+    label,
+    keyId: params.keyid as string,
+    algorithm: (params.alg as string) || "ed25519",
+    created: params.created as number,
+    expires: params.expires as number,
+    nonce: params.nonce as string,
+    headers,
+    signature: "", // Will be filled from Signature header
+    rawSignatureParams,
+  };
+}
 
 /**
  * SSRF protection: validate that a URL is safe to fetch
@@ -104,58 +211,15 @@ export function parseSignatureInput(
   signatureInput: string,
 ): SignatureComponents | null {
   try {
-    // Extract the signature label and the raw params (everything after "label=")
-    const labelMatch = signatureInput.match(SIGNATURE_INPUT_LABEL_RE);
-    if (!labelMatch) {
-      return null;
-    }
-
-    const label = labelMatch[1];
-
-    // Store the raw signature params (everything after "sig1=")
-    // This is used verbatim in the signature base per RFC 9421
-    const rawSignatureParams = labelMatch[2];
-
-    // Now parse for validation and component extraction
-    const match = signatureInput.match(SIGNATURE_INPUT_RE);
-    if (!match) {
-      return null;
-    }
-
-    const [, , headersList, paramsStr] = match;
-
-    // Parse covered headers
-    const headers = headersList
-      .split(/\s+/)
-      .map((h) => h.replace(/"/g, "").trim())
-      .filter(Boolean);
-
-    // Parse parameters
-    const params: Record<string, string | number> = {};
-    const paramPairs = paramsStr.split(";");
-
-    for (const pair of paramPairs) {
-      const [key, value] = pair.split("=").map((s) => s.trim());
-      if (key && value) {
-        // Remove quotes and parse numbers
-        const cleanValue = value.replace(/"/g, "");
-        params[key] = isNaN(Number(cleanValue))
-          ? cleanValue
-          : Number(cleanValue);
+    // MVP behavior: when multiple labels are present, verify the first parsable member.
+    const members = splitTopLevelMembers(signatureInput);
+    for (const member of members) {
+      const parsed = parseSingleSignatureInputMember(member);
+      if (parsed) {
+        return parsed;
       }
     }
-
-    return {
-      label,
-      keyId: params.keyid as string,
-      algorithm: (params.alg as string) || "ed25519",
-      created: params.created as number,
-      expires: params.expires as number,
-      nonce: params.nonce as string,
-      headers,
-      signature: "", // Will be filled from Signature header
-      rawSignatureParams,
-    };
+    return null;
   } catch (error) {
     console.error("Error parsing Signature-Input:", error);
     return null;
@@ -168,14 +232,30 @@ export function parseSignatureInput(
  * Example:
  *   Signature: sig1=:K2qGT5srn2OGbOIDzQ6kYT+ruaycnDAAUpKv+ePFfD0RAxn/1BUeZx/Kdrq32DrfakQ6bPsvB9aqZqognNT6be4olHROIkeV879RrsrObury8L9SCEibeoHyqU/yCjphSmEdd7WD+zrchK57quskKwRefy2iEC5S2uAH0EPyOZKWlvbKmKu5q4CaB8X/I5/+HLZLGvDiezqi6/7p2Gngf5hwZ0lSdy39vyNMaaAT0tKo6nuVw0S1MVg1Q7MpWYZs0soHjttq0uLIA3DIbQfLiIvK6/l0BdWTU7+2uQj7lBkQAsFZHoA96ZZgFquQrXRlmYOh+Hx5D4m8eNqsKzeDQg==:
  */
-export function parseSignature(signature: string): string | null {
+export function parseSignature(
+  signature: string,
+  expectedLabel?: string,
+): string | null {
   try {
-    // Extract base64 signature from sig1=:...:
-    const match = signature.match(SIGNATURE_RE);
-    if (!match) {
-      return null;
+    const members = splitTopLevelMembers(signature);
+    let fallback: string | null = null;
+
+    for (const member of members) {
+      const match = member.match(SIGNATURE_RE);
+      if (!match) {
+        continue;
+      }
+      const label = match[1];
+      const value = match[2];
+      if (!fallback) {
+        fallback = value;
+      }
+      if (!expectedLabel || label === expectedLabel) {
+        return value;
+      }
     }
-    return match[2];
+
+    return expectedLabel ? null : fallback;
   } catch (error) {
     console.error("Error parsing Signature:", error);
     return null;
@@ -445,8 +525,7 @@ export async function resolveJwksUrl(
       const response = await fetch(candidateUrl, {
         method: "GET",
         headers: {
-          Accept:
-            "application/jwk-set+json, application/http-message-signatures-directory, application/json",
+          Accept: DIRECTORY_ACCEPT_HEADER,
           "User-Agent": "OpenBotAuth-Verifier/0.1.0",
         },
         signal: AbortSignal.timeout(3000), // 3s timeout

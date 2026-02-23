@@ -9,6 +9,8 @@ import { validateSafeUrl } from "./signature-parser.js";
 
 const JWKS_CACHE_TTL = 3600; // 1 hour default
 const JWKS_CACHE_PREFIX = "jwks:";
+const DIRECTORY_ACCEPT_HEADER =
+  "application/http-message-signatures-directory+json, application/http-message-signatures-directory, application/jwk-set+json, application/json";
 
 export class JWKSCacheManager {
   constructor(private redis: any) {}
@@ -64,8 +66,7 @@ export class JWKSCacheManager {
       const response = await fetch(jwksUrl, {
         method: "GET",
         headers: {
-          Accept:
-            "application/jwk-set+json, application/http-message-signatures-directory, application/json",
+          Accept: DIRECTORY_ACCEPT_HEADER,
           "User-Agent": "OpenBotAuth-Verifier/0.1.0",
         },
         signal: AbortSignal.timeout(3000), // 3s timeout

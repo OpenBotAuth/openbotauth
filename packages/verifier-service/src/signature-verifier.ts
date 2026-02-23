@@ -99,7 +99,7 @@ export class SignatureVerifier {
         }
       }
 
-      const signatureValue = parseSignature(signature);
+      const signatureValue = parseSignature(signature, components.label);
       if (!signatureValue) {
         return {
           verified: false,

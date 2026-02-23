@@ -250,12 +250,28 @@ describe("parseSignatureInput", () => {
     );
     expect(parsed?.label).toBe("sig-1.test");
   });
+
+  it("should parse first member when multiple signature-input members are present", () => {
+    const parsed = parseSignatureInput(
+      'sig1=("@method");created=1;keyid="k1";alg="ed25519", sig2=("@path");created=2;keyid="k2";alg="ed25519"',
+    );
+    expect(parsed?.label).toBe("sig1");
+    expect(parsed?.keyId).toBe("k1");
+  });
 });
 
 describe("parseSignature", () => {
   it("should parse signature with dash/dot label", () => {
     const parsed = parseSignature("sig-1.test=:Zm9vYmFyOg==:");
     expect(parsed).toBe("Zm9vYmFyOg==");
+  });
+
+  it("should select matching signature by label when multiple members are present", () => {
+    const parsed = parseSignature(
+      "sig1=:Zmlyc3Q=:, sig2=:c2Vjb25k:",
+      "sig2",
+    );
+    expect(parsed).toBe("c2Vjb25k");
   });
 });
 

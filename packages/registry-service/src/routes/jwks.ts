@@ -194,7 +194,7 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       verified: false, // Placeholder
     });
 
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Type', 'application/http-message-signatures-directory+json');
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=300');
     res.json(response);
   } catch (error) {

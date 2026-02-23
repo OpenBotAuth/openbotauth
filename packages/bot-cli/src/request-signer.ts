@@ -25,6 +25,10 @@ export class RequestSigner {
       options?.signatureAgentFormat ||
       this.config.signature_agent_format ||
       "dict";
+    const signatureAgentValue =
+      signatureAgentFormat === "dict"
+        ? `${signatureLabel}="${this.config.jwks_url}"`
+        : this.config.jwks_url;
     
     // Generate signature parameters
     const params: SignatureParams = {
@@ -33,7 +37,7 @@ export class RequestSigner {
       nonce: this.generateNonce(),
       keyId: this.config.kid,
       algorithm: 'ed25519',
-      headers: ['@method', '@path', '@authority'],
+      headers: ['@method', '@path', '@authority', 'signature-agent'],
     };
 
     // Add content-type if there's a body
@@ -48,17 +52,13 @@ export class RequestSigner {
       path: urlObj.pathname,
       authority: urlObj.host,
       contentType: body ? 'application/json' : undefined,
+      signatureAgent: signatureAgentValue,
     });
 
     // Sign the base string
     const signature = await this.signString(signatureBase);
 
     // Build headers
-    const signatureAgentValue =
-      signatureAgentFormat === "dict"
-        ? `${signatureLabel}="${this.config.jwks_url}"`
-        : this.config.jwks_url;
-
     const headers: Record<string, string> = {
       'Signature-Input': this.buildSignatureInput(params, signatureLabel),
       'Signature': `${signatureLabel}=:${signature}:`,
@@ -89,6 +89,7 @@ export class RequestSigner {
       path: string;
       authority: string;
       contentType?: string;
+      signatureAgent?: string;
     }
   ): string {
     const lines: string[] = [];
@@ -109,8 +110,18 @@ export class RequestSigner {
         }
       } else {
         // Regular headers
-        if (component === 'content-type' && request.contentType) {
+        if (component === 'content-type') {
+          if (!request.contentType) {
+            throw new Error('Missing covered header: content-type');
+          }
           lines.push(`"content-type": ${request.contentType}`);
+          continue;
+        }
+        if (component === 'signature-agent') {
+          if (!request.signatureAgent) {
+            throw new Error('Missing covered header: signature-agent');
+          }
+          lines.push(`"signature-agent": ${request.signatureAgent}`);
         }
       }
     }
