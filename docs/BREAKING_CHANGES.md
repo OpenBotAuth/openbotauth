@@ -11,7 +11,7 @@ These changes are intentional and may break clients built against older OpenBotA
 
 Impact:
 
-- Existing clients hardcoded to old short `kid` values will fail key lookup until re-provisioned.
+- Existing clients hardcoded to old short `kid` values are still accepted via compatibility aliases/fallback lookup.
 - Any local configs/scripts that assume fixed 16-char `kid` length must be updated.
 
 Recommended migration:
@@ -38,4 +38,3 @@ Impact:
 Impact:
 
 - Strict custom verifiers expecting old parameter sets may need updates.
-

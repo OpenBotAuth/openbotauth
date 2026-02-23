@@ -7,10 +7,55 @@
 
 import { Router, type Request, type Response } from 'express';
 import type { Database } from '@openbotauth/github-connector';
-import { base64PublicKeyToJWK, createWebBotAuthJWKS, generateKidFromJWK } from '@openbotauth/registry-signer';
+import {
+  base64PublicKeyToJWK,
+  createWebBotAuthJWKS,
+  generateKidFromJWK,
+  generateLegacyKidFromJWK,
+} from '@openbotauth/registry-signer';
 import { jwkThumbprint } from '../utils/jwk.js';
 
 export const jwksRouter: Router = Router();
+
+function withLegacyKidAliases(
+  keys: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const result: Array<Record<string, unknown>> = [...keys];
+  const seenKids = new Set(
+    keys
+      .map((key) => (typeof key.kid === "string" ? key.kid : null))
+      .filter((kid): kid is string => !!kid),
+  );
+
+  for (const key of keys) {
+    if (
+      key.kty !== "OKP" ||
+      key.crv !== "Ed25519" ||
+      typeof key.x !== "string" ||
+      typeof key.kid !== "string"
+    ) {
+      continue;
+    }
+
+    const thumbprintInput = { kty: "OKP" as const, crv: "Ed25519" as const, x: key.x };
+    const fullKid = generateKidFromJWK(thumbprintInput);
+    const legacyKid = generateLegacyKidFromJWK(thumbprintInput);
+    const aliasKid =
+      key.kid === fullKid ? legacyKid : key.kid === legacyKid ? fullKid : null;
+
+    if (!aliasKid || seenKids.has(aliasKid)) {
+      continue;
+    }
+
+    seenKids.add(aliasKid);
+    result.push({
+      ...key,
+      kid: aliasKid,
+    });
+  }
+
+  return result;
+}
 
 /**
  * GET /jwks/{username}.json
@@ -176,7 +221,7 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
     }
 
     // Build Web Bot Auth response
-    const response = createWebBotAuthJWKS(jwks, {
+    const response = createWebBotAuthJWKS(withLegacyKidAliases(jwks as unknown as Array<Record<string, unknown>>) as any, {
       client_name: profile.client_name || profile.username,
       client_uri: profile.client_uri || undefined,
       logo_uri: profile.logo_uri || undefined,

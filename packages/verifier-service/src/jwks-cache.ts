@@ -6,6 +6,7 @@
 
 import type { JWKSCache } from "./types.js";
 import { validateSafeUrl } from "./signature-parser.js";
+import { generateKidFromJWK, generateLegacyKidFromJWK } from "@openbotauth/registry-signer";
 
 const JWKS_CACHE_TTL = 3600; // 1 hour default
 const JWKS_CACHE_PREFIX = "jwks:";
@@ -14,6 +15,44 @@ const DIRECTORY_ACCEPT_HEADER =
 
 export class JWKSCacheManager {
   constructor(private redis: any) {}
+
+  private findKeyByCompatibleKid(keys: any[], requestedKid: string): any {
+    const matches: any[] = [];
+
+    for (const key of keys || []) {
+      if (
+        key?.kty !== "OKP" ||
+        key?.crv !== "Ed25519" ||
+        typeof key?.x !== "string"
+      ) {
+        continue;
+      }
+
+      const thumbprintInput = {
+        kty: "OKP" as const,
+        crv: "Ed25519" as const,
+        x: key.x,
+      };
+      const fullKid = generateKidFromJWK(thumbprintInput);
+      const legacyKid = generateLegacyKidFromJWK(thumbprintInput);
+
+      if (requestedKid === fullKid || requestedKid === legacyKid) {
+        matches.push(key);
+      }
+    }
+
+    if (matches.length === 1) {
+      return matches[0];
+    }
+
+    if (matches.length > 1) {
+      throw new Error(
+        `Ambiguous kid ${requestedKid}: multiple keys matched compatibility lookup`,
+      );
+    }
+
+    return null;
+  }
 
   /**
    * Get JWKS from cache or fetch from URL
@@ -115,7 +154,9 @@ export class JWKSCacheManager {
   async getKey(jwksUrl: string, kid: string): Promise<any> {
     const jwks: any = await this.getJWKS(jwksUrl);
 
-    const key = jwks.keys?.find((k: any) => k.kid === kid);
+    const key =
+      jwks.keys?.find((k: any) => k.kid === kid) ||
+      this.findKeyByCompatibleKid(jwks.keys, kid);
     if (!key) {
       throw new Error(`Key with kid ${kid} not found in JWKS`);
     }

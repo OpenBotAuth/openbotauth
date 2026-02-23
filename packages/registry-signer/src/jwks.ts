@@ -6,6 +6,13 @@ import { createHash } from 'crypto';
 import { pemToBase64, base64ToBase64Url } from './keygen.js';
 import type { JWK, JWKS, WebBotAuthJWKS } from './types.js';
 
+const LEGACY_KID_LENGTH = 16;
+
+function canonicalOkpThumbprint(crv: string, kty: string, x: string): string {
+  // RFC 7638 canonical members in lexicographic order for OKP.
+  return JSON.stringify({ crv, kty, x });
+}
+
 /**
  * Generate a key ID (kid) from a public key using RFC 7638 JWK Thumbprint.
  * Returns the full base64url-encoded SHA-256 hash (no truncation).
@@ -26,7 +33,7 @@ export function generateKid(publicKeyPem: string): string {
   }
 
   // RFC 7638: canonical JSON with members in lexicographic order
-  const canonical = JSON.stringify({ crv: 'Ed25519', kty: 'OKP', x });
+  const canonical = canonicalOkpThumbprint('Ed25519', 'OKP', x);
   const hash = createHash('sha256').update(canonical).digest('base64');
   return base64ToBase64Url(hash);
 }
@@ -37,9 +44,29 @@ export function generateKid(publicKeyPem: string): string {
  */
 export function generateKidFromJWK(jwk: Partial<JWK>): string {
   // RFC 7638: canonical JSON with members in lexicographic order (crv, kty, x for OKP)
-  const canonical = JSON.stringify({ crv: jwk.crv, kty: jwk.kty, x: jwk.x });
+  const canonical = canonicalOkpThumbprint(
+    String(jwk.crv),
+    String(jwk.kty),
+    String(jwk.x),
+  );
   const hash = createHash('sha256').update(canonical).digest('base64');
   return base64ToBase64Url(hash);
+}
+
+/**
+ * Legacy OpenBotAuth kid (first 16 chars of the RFC 7638 thumbprint).
+ * Kept only for backwards compatibility with older clients.
+ */
+export function generateLegacyKid(publicKeyPem: string): string {
+  return generateKid(publicKeyPem).slice(0, LEGACY_KID_LENGTH);
+}
+
+/**
+ * Legacy OpenBotAuth kid (first 16 chars of the RFC 7638 thumbprint).
+ * Kept only for backwards compatibility with older clients.
+ */
+export function generateLegacyKidFromJWK(jwk: Partial<JWK>): string {
+  return generateKidFromJWK(jwk).slice(0, LEGACY_KID_LENGTH);
 }
 
 /**
@@ -206,4 +233,3 @@ export function validateJWK(jwk: unknown): jwk is JWK {
     key.use === 'sig'
   );
 }
-

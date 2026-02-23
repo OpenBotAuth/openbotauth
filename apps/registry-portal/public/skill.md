@@ -46,7 +46,7 @@ const spki = publicKey.export({ type: 'spki', format: 'der' });
 if (spki.length !== 44) throw new Error(`Unexpected SPKI length: ${spki.length}`);
 const rawPub = spki.subarray(12, 44);
 const x = rawPub.toString('base64url');
-const thumbprint = JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x });
+const thumbprint = JSON.stringify({ crv: 'Ed25519', kty: 'OKP', x });
 const hash = crypto.createHash('sha256').update(thumbprint).digest();
 const kid = hash.toString('base64url');
 

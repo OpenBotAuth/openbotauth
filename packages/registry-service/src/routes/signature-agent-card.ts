@@ -6,6 +6,7 @@
 
 import { Router, type Request, type Response } from "express";
 import type { Database } from "@openbotauth/github-connector";
+import { generateKidFromJWK, generateLegacyKidFromJWK } from "@openbotauth/registry-signer";
 import { jwkThumbprint } from "../utils/jwk.js";
 
 export const signatureAgentCardRouter: Router = Router();
@@ -104,13 +105,27 @@ signatureAgentCardRouter.get(
         agentJwk.x5c = certResult.rows[0].x5c;
       }
 
+      const jwksKeys: Array<Record<string, unknown>> = [agentJwk];
+      const thumbprintInput = { kty: "OKP" as const, crv: "Ed25519" as const, x: pk.x };
+      const fullKid = generateKidFromJWK(thumbprintInput);
+      const legacyKid = generateLegacyKidFromJWK(thumbprintInput);
+      const aliasKid =
+        kid === fullKid ? legacyKid : kid === legacyKid ? fullKid : null;
+
+      if (aliasKid) {
+        jwksKeys.push({
+          ...agentJwk,
+          kid: aliasKid,
+        });
+      }
+
       const card: Record<string, unknown> = {
         client_name: agent.name,
         client_uri: profile?.client_uri || undefined,
         contacts: profile?.contacts || undefined,
         "rfc9309-product-token": profile?.rfc9309_product_token || undefined,
         purpose: profile?.purpose ? [profile.purpose] : undefined,
-        keys: { keys: [agentJwk] },
+        keys: { keys: jwksKeys },
         oba_agent_id: agent.oba_agent_id || undefined,
         oba_parent_agent_id: agent.oba_parent_agent_id || undefined,
         oba_principal: agent.oba_principal || undefined,

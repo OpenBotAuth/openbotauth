@@ -11,6 +11,8 @@ import {
   // JWKS
   generateKid,
   generateKidFromJWK,
+  generateLegacyKid,
+  generateLegacyKidFromJWK,
   publicKeyToJWK,
   base64PublicKeyToJWK,
   createJWKS,
@@ -141,11 +143,11 @@ describe('Key Extraction', () => {
 
 describe('JWK Functions', () => {
   describe('generateKid', () => {
-    it('should generate a 16-character key ID', () => {
+    it('should generate a full RFC 7638 thumbprint kid', () => {
       const keyPair = generateKeyPair();
       const kid = generateKid(keyPair.publicKey);
 
-      expect(kid.length).toBe(16);
+      expect(kid.length).toBe(43);
       // Should be base64url safe
       expect(kid).toMatch(/^[A-Za-z0-9_-]+$/);
     });
@@ -167,13 +169,34 @@ describe('JWK Functions', () => {
   });
 
   describe('generateKidFromJWK', () => {
-    it('should generate a 16-character key ID from JWK', () => {
+    it('should generate a full RFC 7638 thumbprint kid from JWK', () => {
       const keyPair = generateKeyPair();
       const jwk = publicKeyToJWK(keyPair.publicKey);
       const kid = generateKidFromJWK(jwk);
 
-      expect(kid.length).toBe(16);
+      expect(kid.length).toBe(43);
       expect(kid).toMatch(/^[A-Za-z0-9_-]+$/);
+    });
+  });
+
+  describe('legacy kid helpers', () => {
+    it('should derive 16-char legacy kid from public key', () => {
+      const keyPair = generateKeyPair();
+      const fullKid = generateKid(keyPair.publicKey);
+      const legacyKid = generateLegacyKid(keyPair.publicKey);
+
+      expect(legacyKid).toBe(fullKid.slice(0, 16));
+      expect(legacyKid.length).toBe(16);
+    });
+
+    it('should derive 16-char legacy kid from JWK', () => {
+      const keyPair = generateKeyPair();
+      const jwk = publicKeyToJWK(keyPair.publicKey);
+      const fullKid = generateKidFromJWK(jwk);
+      const legacyKid = generateLegacyKidFromJWK(jwk);
+
+      expect(legacyKid).toBe(fullKid.slice(0, 16));
+      expect(legacyKid.length).toBe(16);
     });
   });
 
