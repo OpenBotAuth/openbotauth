@@ -36,7 +36,7 @@ async function checkPopNonce(db: Database, message: string): Promise<boolean> {
 /**
  * Verify proof-of-possession signature.
  * The proof message format is: "cert-issue:{agent_id}:{timestamp}"
- * Timestamp must be within 5 minutes in the past (no future timestamps).
+ * Timestamp must be within 5 minutes in the past (30s future drift tolerated for clock skew).
  */
 async function verifyProofOfPossession(
   proof: unknown,
@@ -443,12 +443,20 @@ certsRouter.get(
       const fingerprint =
         typeof req.query.fingerprint_sha256 === "string" &&
         req.query.fingerprint_sha256.length > 0
-          ? req.query.fingerprint_sha256
+          ? req.query.fingerprint_sha256.toLowerCase()
           : null;
 
       if ((!serial && !fingerprint) || (serial && fingerprint)) {
         res.status(400).json({
           error: "Provide exactly one lookup parameter: serial or fingerprint_sha256",
+        });
+        return;
+      }
+
+      // Validate fingerprint format if provided
+      if (fingerprint && !/^[a-f0-9]{64}$/.test(fingerprint)) {
+        res.status(400).json({
+          error: "Invalid fingerprint_sha256: must be 64 hex characters",
         });
         return;
       }

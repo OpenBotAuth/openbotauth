@@ -526,11 +526,12 @@ describe("GET /v1/certs/status", () => {
 
   it("returns valid=false when cert is not yet valid", async () => {
     const now = Date.now();
+    const futureFingerprint = "a".repeat(64);
     const query = vi.fn().mockResolvedValue({
       rows: [
         {
           serial: "serial-future",
-          fingerprint_sha256: "fp-future",
+          fingerprint_sha256: futureFingerprint,
           not_before: new Date(now + 3_600_000).toISOString(),
           not_after: new Date(now + 7_200_000).toISOString(),
           revoked_at: null,
@@ -539,7 +540,7 @@ describe("GET /v1/certs/status", () => {
       ],
     });
     const req = mockReq({
-      query: { fingerprint_sha256: "fp-future" },
+      query: { fingerprint_sha256: futureFingerprint },
       app: { locals: { db: mockDb(query) } },
     });
     const res = mockRes();

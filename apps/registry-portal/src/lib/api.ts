@@ -92,16 +92,6 @@ export interface ListCertsResponse {
   offset: number;
 }
 
-export interface IssueCertResponse {
-  serial: string;
-  not_before: string;
-  not_after: string;
-  fingerprint_sha256: string;
-  cert_pem: string;
-  chain_pem: string;
-  x5c: string[];
-}
-
 // Radar types
 export interface RadarOverview {
   window: 'today' | '7d';
@@ -381,24 +371,6 @@ class RegistryAPI {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
       throw new Error(error.error || 'Failed to fetch certificate');
-    }
-    return await response.json();
-  }
-
-  /**
-   * Issue a certificate for an agent key.
-   */
-  async issueCert(data: {
-    agent_id?: string;
-    kid?: string;
-  }): Promise<IssueCertResponse> {
-    const response = await this.fetch('/v1/certs/issue', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || 'Failed to issue certificate');
     }
     return await response.json();
   }

@@ -50,9 +50,11 @@ const AgentDetail = () => {
     return `${value.slice(0, prefix)}...${value.slice(-suffix)}`;
   };
 
-  const getCertificateStatus = (cert: AgentCertificate): "active" | "revoked" | "expired" => {
+  const getCertificateStatus = (cert: AgentCertificate): "active" | "revoked" | "expired" | "pending" => {
     if (cert.revoked_at) return "revoked";
-    if (new Date(cert.not_after).getTime() <= Date.now()) return "expired";
+    const now = Date.now();
+    if (new Date(cert.not_before).getTime() > now) return "pending";
+    if (new Date(cert.not_after).getTime() <= now) return "expired";
     return "active";
   };
 
@@ -450,7 +452,9 @@ const AgentDetail = () => {
                                     ? "default"
                                     : status === "revoked"
                                       ? "destructive"
-                                      : "secondary"
+                                      : status === "pending"
+                                        ? "outline"
+                                        : "secondary"
                                 }
                                 className="capitalize"
                               >

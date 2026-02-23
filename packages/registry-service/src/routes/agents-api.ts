@@ -12,6 +12,18 @@ import { requireScope } from '../middleware/scopes.js';
 export const agentsAPIRouter: Router = Router();
 
 /**
+ * Validate and sanitize oba_* fields.
+ * Returns null for invalid/missing values, trimmed string otherwise.
+ */
+function validateObaField(value: unknown, maxLen = 512): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > maxLen) return null;
+  return trimmed;
+}
+
+/**
  * Middleware to check authentication
  */
 const requireAuth = (req: Request, res: Response, next: Function) => {
@@ -126,6 +138,11 @@ agentsAPIRouter.post(
         return;
       }
 
+      // Validate and sanitize oba_* fields
+      const validatedObaAgentId = validateObaField(oba_agent_id);
+      const validatedObaParentAgentId = validateObaField(oba_parent_agent_id);
+      const validatedObaPrincipal = validateObaField(oba_principal);
+
       const result = await db.getPool().query(
         `INSERT INTO agents (user_id, name, description, agent_type, public_key, oba_agent_id, oba_parent_agent_id, oba_principal)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -138,9 +155,9 @@ agentsAPIRouter.post(
           description || null,
           agent_type,
           JSON.stringify(public_key),
-          oba_agent_id || null,
-          oba_parent_agent_id || null,
-          oba_principal || null,
+          validatedObaAgentId,
+          validatedObaParentAgentId,
+          validatedObaPrincipal,
         ]
       );
 
@@ -217,17 +234,17 @@ agentsAPIRouter.put(
       }
       if (oba_agent_id !== undefined) {
         updates.push(`oba_agent_id = $${paramIndex}`);
-        values.push(oba_agent_id || null);
+        values.push(validateObaField(oba_agent_id));
         paramIndex++;
       }
       if (oba_parent_agent_id !== undefined) {
         updates.push(`oba_parent_agent_id = $${paramIndex}`);
-        values.push(oba_parent_agent_id || null);
+        values.push(validateObaField(oba_parent_agent_id));
         paramIndex++;
       }
       if (oba_principal !== undefined) {
         updates.push(`oba_principal = $${paramIndex}`);
-        values.push(oba_principal || null);
+        values.push(validateObaField(oba_principal));
         paramIndex++;
       }
 
