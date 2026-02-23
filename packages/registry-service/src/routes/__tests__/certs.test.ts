@@ -268,6 +268,48 @@ describe("POST /v1/certs/issue - PoP validation", () => {
     expect(res.body.error).toContain("proof-of-possession");
   });
 
+  it("rolls back transaction when validation fails after BEGIN", async () => {
+    const query = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql === "BEGIN" || sql === "ROLLBACK") {
+        return { rows: [] };
+      }
+      if (
+        sql.includes(
+          "SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE",
+        )
+      ) {
+        return {
+          rows: [
+            {
+              id: "agent-123",
+              user_id: "u-1",
+              name: "Test Agent",
+              public_key: {
+                kty: "OKP",
+                crv: "Ed25519",
+                x: "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+              },
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const req = mockReq({
+      body: { agent_id: "agent-123" }, // Missing proof on purpose
+      app: { locals: { db: mockDb(query) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(query).toHaveBeenCalledWith("BEGIN");
+    expect(query).toHaveBeenCalledWith("ROLLBACK");
+    expect(query).not.toHaveBeenCalledWith("COMMIT");
+  });
+
   it("rejects invalid proof message format", async () => {
     const req = mockReq({
       body: {

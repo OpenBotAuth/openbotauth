@@ -48,7 +48,14 @@ export class RequestSigner {
       keyId: this.config.kid,
       algorithm: 'ed25519',
       tag: 'web-bot-auth',
-      headers: ['@method', '@path', '@authority', `signature-agent;key="${signatureLabel}"`],
+      headers: [
+        '@method',
+        '@path',
+        '@authority',
+        signatureAgentFormat === "legacy"
+          ? "signature-agent"
+          : `signature-agent;key="${signatureLabel}"`,
+      ],
     };
 
     // Add content-type if there's a body

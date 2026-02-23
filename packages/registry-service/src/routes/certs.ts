@@ -260,6 +260,7 @@ certsRouter.post(
 
       const pk = agent.public_key;
       if (!pk || typeof pk !== "object" || typeof pk.x !== "string") {
+        await rollbackIfNeeded();
         res.status(400).json({ error: "Agent public key is invalid" });
         return;
       }
@@ -267,6 +268,7 @@ certsRouter.post(
       // Verify proof-of-possession: caller must prove they have the private key
       const { proof } = req.body || {};
       if (!proof) {
+        await rollbackIfNeeded();
         res.status(400).json({
           error: "Missing proof-of-possession. Provide proof: { message: 'cert-issue:{agent_id}:{timestamp}', signature: '<base64>' }",
         });
@@ -275,6 +277,7 @@ certsRouter.post(
 
       const popResult = await verifyProofOfPossession(proof, agent.id, pk);
       if (!popResult.valid) {
+        await rollbackIfNeeded();
         res.status(403).json({
           error: `Proof-of-possession failed: ${popResult.error}`,
         });

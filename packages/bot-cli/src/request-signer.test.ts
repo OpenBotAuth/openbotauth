@@ -34,8 +34,9 @@ describe("RequestSigner", () => {
     expect(signed.headers["Signature-Agent"]).toBe(
       "https://example.com/jwks/test.json",
     );
-    // Even with legacy format, the covered component uses ;key= for consistency
-    expect(signed.headers["Signature-Input"]).toContain('"signature-agent";key="sig1"');
+    // Legacy mode covers the whole header field directly (no dictionary key selector)
+    expect(signed.headers["Signature-Input"]).toContain('"signature-agent"');
+    expect(signed.headers["Signature-Input"]).not.toContain('";key=');
     // IETF draft: tag="web-bot-auth" is mandatory
     expect(signed.headers["Signature-Input"]).toContain('tag="web-bot-auth"');
   });
