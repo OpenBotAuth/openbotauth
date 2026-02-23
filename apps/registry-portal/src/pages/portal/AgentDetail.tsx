@@ -148,7 +148,7 @@ const AgentDetail = () => {
 
     setRevokingSerial(serial);
     try {
-      await api.revokeCert({ serial, reason: "manual-revoke" });
+      await api.revokeCert({ serial, reason: "unspecified" });
       toast({
         title: "Certificate Revoked",
         description: `Serial ${shortText(serial)} was revoked`,

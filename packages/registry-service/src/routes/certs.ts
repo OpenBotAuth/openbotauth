@@ -14,10 +14,17 @@ import { jwkThumbprint } from "../utils/jwk.js";
  * Returns true if the nonce is new (not a replay), false if already used.
  * Uses the check_pop_nonce Postgres function for atomic check-and-set.
  */
-async function checkPopNonce(db: Database, message: string): Promise<boolean> {
+interface SqlQueryExecutor {
+  query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
+}
+
+async function checkPopNonce(
+  queryExecutor: SqlQueryExecutor,
+  message: string,
+): Promise<boolean> {
   const hash = createHash("sha256").update(message).digest("hex");
   try {
-    const result = await db.getPool().query(
+    const result = await queryExecutor.query(
       `SELECT check_pop_nonce($1, 300) AS is_new`,
       [hash],
     );
@@ -211,8 +218,22 @@ certsRouter.post(
   requireAuth,
   requireScope("agents:write"),
   async (req: Request, res: Response): Promise<void> => {
+    const db: Database = req.app.locals.db;
+    const client = await db.getPool().connect();
+    let transactionOpen = false;
+
+    const rollbackIfNeeded = async () => {
+      if (!transactionOpen) return;
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Certificate issuance rollback error:", rollbackError);
+      } finally {
+        transactionOpen = false;
+      }
+    };
+
     try {
-      const db: Database = req.app.locals.db;
       const { agent_id } = req.body || {};
 
       if (!agent_id) {
@@ -222,13 +243,17 @@ certsRouter.post(
         return;
       }
 
-      const result = await db.getPool().query(
-        `SELECT * FROM agents WHERE id = $1 AND user_id = $2`,
+      await client.query("BEGIN");
+      transactionOpen = true;
+
+      const result = await client.query(
+        `SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE`,
         [agent_id, req.session!.user.id],
       );
       const agent = result.rows[0] || null;
 
       if (!agent) {
+        await rollbackIfNeeded();
         res.status(404).json({ error: "Agent not found" });
         return;
       }
@@ -257,8 +282,9 @@ certsRouter.post(
       }
 
       // Check for replay attack: ensure this proof hasn't been used before
-      const isNewNonce = await checkPopNonce(db, proof.message);
+      const isNewNonce = await checkPopNonce(client, proof.message);
       if (!isNewNonce) {
+        await rollbackIfNeeded();
         res.status(403).json({
           error:
             "Proof-of-possession replay detected or replay protection unavailable",
@@ -275,7 +301,7 @@ certsRouter.post(
         "OBA_CERT_MAX_ISSUES_PER_AGENT_PER_DAY",
         10,
       );
-      const dailyIssueCountResult = await db.getPool().query(
+      const dailyIssueCountResult = await client.query(
         `SELECT COUNT(*)::int AS count
          FROM agent_certificates c
          JOIN agents a ON a.id = c.agent_id
@@ -286,6 +312,7 @@ certsRouter.post(
       );
       const dailyIssueCount = Number(dailyIssueCountResult.rows[0]?.count ?? 0);
       if (dailyIssueCount >= maxDailyIssues) {
+        await rollbackIfNeeded();
         res.status(429).json({
           error: `Daily certificate issuance limit exceeded (${maxDailyIssues} per 24h)`,
         });
@@ -296,7 +323,7 @@ certsRouter.post(
         "OBA_CERT_MAX_ACTIVE_PER_KID",
         1,
       );
-      const activeForKidResult = await db.getPool().query(
+      const activeForKidResult = await client.query(
         `SELECT COUNT(*)::int AS count
          FROM agent_certificates c
          JOIN agents a ON a.id = c.agent_id
@@ -309,6 +336,7 @@ certsRouter.post(
       );
       const activeForKidCount = Number(activeForKidResult.rows[0]?.count ?? 0);
       if (activeForKidCount >= maxActivePerKid) {
+        await rollbackIfNeeded();
         res.status(409).json({
           error: `Active certificate limit reached for key ${resolvedKid}; revoke existing certificates before issuing a new one`,
         });
@@ -341,7 +369,7 @@ certsRouter.post(
           : null,
       );
 
-      await db.getPool().query(
+      await client.query(
         `INSERT INTO agent_certificates
          (agent_id, kid, serial, cert_pem, chain_pem, x5c, not_before, not_after, fingerprint_sha256)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -357,6 +385,8 @@ certsRouter.post(
           issued.fingerprintSha256,
         ],
       );
+      await client.query("COMMIT");
+      transactionOpen = false;
 
       res.setHeader("Cache-Control", "no-store");
       res.json({
@@ -369,8 +399,11 @@ certsRouter.post(
         x5c: issued.x5c,
       });
     } catch (error: any) {
+      await rollbackIfNeeded();
       console.error("Certificate issuance error:", error);
       res.status(500).json({ error: "Failed to issue certificate" });
+    } finally {
+      client.release();
     }
   },
 );

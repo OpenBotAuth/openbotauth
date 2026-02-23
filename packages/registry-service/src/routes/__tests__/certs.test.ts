@@ -16,9 +16,16 @@ vi.mock("../../utils/ca.js", () => ({
 }));
 
 function mockDb(queryFn?: (...args: any[]) => any) {
+  const query = queryFn ?? vi.fn().mockResolvedValue({ rows: [] });
+  const connect = vi.fn().mockResolvedValue({
+    query,
+    release: vi.fn(),
+  });
+
   return {
     getPool: () => ({
-      query: queryFn ?? vi.fn().mockResolvedValue({ rows: [] }),
+      query,
+      connect,
     }),
   };
 }
@@ -380,30 +387,40 @@ describe("POST /v1/certs/issue - PoP validation", () => {
     );
     const signature = Buffer.from(signatureBuffer).toString("base64");
 
-    // Mock agent query to return our generated public key
-    const agentQuery = vi.fn()
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            id: agentId,
-            user_id: "u-1",
-            name: "Test Agent",
-            public_key: {
-              kty: "OKP",
-              crv: "Ed25519",
-              x: publicJwk.x,
+    const agentQuery = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
+        return { rows: [] };
+      }
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: agentId,
+              user_id: "u-1",
+              name: "Test Agent",
+              public_key: {
+                kty: "OKP",
+                crv: "Ed25519",
+                x: publicJwk.x,
+              },
             },
-          },
-        ],
-      })
-      // Mock the nonce check (new nonce, not a replay)
-      .mockResolvedValueOnce({ rows: [{ is_new: true }] })
-      // Daily issuance count
-      .mockResolvedValueOnce({ rows: [{ count: 0 }] })
-      // Active cert count for this kid
-      .mockResolvedValueOnce({ rows: [{ count: 0 }] })
-      // Mock the INSERT query for certificate
-      .mockResolvedValueOnce({ rows: [] });
+          ],
+        };
+      }
+      if (sql.includes("SELECT check_pop_nonce")) {
+        return { rows: [{ is_new: true }] };
+      }
+      if (sql.includes("c.created_at >= now() - interval '1 day'")) {
+        return { rows: [{ count: 0 }] };
+      }
+      if (sql.includes("AND c.kid = $3")) {
+        return { rows: [{ count: 0 }] };
+      }
+      if (sql.includes("INSERT INTO agent_certificates")) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
 
     const req = mockReq({
       body: {
@@ -442,24 +459,31 @@ describe("POST /v1/certs/issue - PoP validation", () => {
     );
     const signature = Buffer.from(signatureBuffer).toString("base64");
 
-    // Mock: agent query succeeds, nonce check returns false (already used)
-    const agentQuery = vi.fn()
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            id: agentId,
-            user_id: "u-1",
-            name: "Test Agent",
-            public_key: {
-              kty: "OKP",
-              crv: "Ed25519",
-              x: publicJwk.x,
+    const agentQuery = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
+        return { rows: [] };
+      }
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: agentId,
+              user_id: "u-1",
+              name: "Test Agent",
+              public_key: {
+                kty: "OKP",
+                crv: "Ed25519",
+                x: publicJwk.x,
+              },
             },
-          },
-        ],
-      })
-      // Nonce check returns false (replay)
-      .mockResolvedValueOnce({ rows: [{ is_new: false }] });
+          ],
+        };
+      }
+      if (sql.includes("SELECT check_pop_nonce")) {
+        return { rows: [{ is_new: false }] };
+      }
+      return { rows: [] };
+    });
 
     const req = mockReq({
       body: {
@@ -498,23 +522,31 @@ describe("POST /v1/certs/issue - PoP validation", () => {
     };
     err.code = "42883";
 
-    const agentQuery = vi
-      .fn()
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            id: agentId,
-            user_id: "u-1",
-            name: "Test Agent",
-            public_key: {
-              kty: "OKP",
-              crv: "Ed25519",
-              x: publicJwk.x,
+    const agentQuery = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
+        return { rows: [] };
+      }
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: agentId,
+              user_id: "u-1",
+              name: "Test Agent",
+              public_key: {
+                kty: "OKP",
+                crv: "Ed25519",
+                x: publicJwk.x,
+              },
             },
-          },
-        ],
-      })
-      .mockRejectedValueOnce(err);
+          ],
+        };
+      }
+      if (sql.includes("SELECT check_pop_nonce")) {
+        throw err;
+      }
+      return { rows: [] };
+    });
 
     const req = mockReq({
       body: {
@@ -553,24 +585,34 @@ describe("POST /v1/certs/issue - PoP validation", () => {
       ),
     ).toString("base64");
 
-    const agentQuery = vi
-      .fn()
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            id: agentId,
-            user_id: "u-1",
-            name: "Test Agent",
-            public_key: {
-              kty: "OKP",
-              crv: "Ed25519",
-              x: publicJwk.x,
+    const agentQuery = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
+        return { rows: [] };
+      }
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: agentId,
+              user_id: "u-1",
+              name: "Test Agent",
+              public_key: {
+                kty: "OKP",
+                crv: "Ed25519",
+                x: publicJwk.x,
+              },
             },
-          },
-        ],
-      })
-      .mockResolvedValueOnce({ rows: [{ is_new: true }] })
-      .mockResolvedValueOnce({ rows: [{ count: 10 }] });
+          ],
+        };
+      }
+      if (sql.includes("SELECT check_pop_nonce")) {
+        return { rows: [{ is_new: true }] };
+      }
+      if (sql.includes("c.created_at >= now() - interval '1 day'")) {
+        return { rows: [{ count: 10 }] };
+      }
+      return { rows: [] };
+    });
 
     const req = mockReq({
       body: {
@@ -606,25 +648,37 @@ describe("POST /v1/certs/issue - PoP validation", () => {
       ),
     ).toString("base64");
 
-    const agentQuery = vi
-      .fn()
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            id: agentId,
-            user_id: "u-1",
-            name: "Test Agent",
-            public_key: {
-              kty: "OKP",
-              crv: "Ed25519",
-              x: publicJwk.x,
+    const agentQuery = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
+        return { rows: [] };
+      }
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: agentId,
+              user_id: "u-1",
+              name: "Test Agent",
+              public_key: {
+                kty: "OKP",
+                crv: "Ed25519",
+                x: publicJwk.x,
+              },
             },
-          },
-        ],
-      })
-      .mockResolvedValueOnce({ rows: [{ is_new: true }] })
-      .mockResolvedValueOnce({ rows: [{ count: 0 }] })
-      .mockResolvedValueOnce({ rows: [{ count: 1 }] });
+          ],
+        };
+      }
+      if (sql.includes("SELECT check_pop_nonce")) {
+        return { rows: [{ is_new: true }] };
+      }
+      if (sql.includes("c.created_at >= now() - interval '1 day'")) {
+        return { rows: [{ count: 0 }] };
+      }
+      if (sql.includes("AND c.kid = $3")) {
+        return { rows: [{ count: 1 }] };
+      }
+      return { rows: [] };
+    });
 
     const req = mockReq({
       body: {
