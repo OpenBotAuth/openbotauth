@@ -7,22 +7,39 @@ import { pemToBase64, base64ToBase64Url } from './keygen.js';
 import type { JWK, JWKS, WebBotAuthJWKS } from './types.js';
 
 /**
- * Generate a key ID (kid) from a public key
- * Uses SHA-256 hash of the key material
+ * Generate a key ID (kid) from a public key using RFC 7638 JWK Thumbprint.
+ * Returns the full base64url-encoded SHA-256 hash (no truncation).
  */
 export function generateKid(publicKeyPem: string): string {
+  // Extract raw Ed25519 public key from SPKI PEM
   const base64 = pemToBase64(publicKeyPem);
-  const hash = createHash('sha256').update(base64).digest('base64');
-  return base64ToBase64Url(hash).substring(0, 16);
+  const buffer = Buffer.from(base64, 'base64');
+
+  // Ed25519 SPKI format: 12 bytes header + 32 bytes raw key
+  let x: string;
+  if (buffer.length === 44) {
+    x = base64ToBase64Url(buffer.slice(12).toString('base64'));
+  } else if (buffer.length === 32) {
+    x = base64ToBase64Url(base64);
+  } else {
+    x = base64ToBase64Url(base64);
+  }
+
+  // RFC 7638: canonical JSON with members in lexicographic order
+  const canonical = JSON.stringify({ crv: 'Ed25519', kty: 'OKP', x });
+  const hash = createHash('sha256').update(canonical).digest('base64');
+  return base64ToBase64Url(hash);
 }
 
 /**
- * Generate a kid from JWK
+ * Generate a kid from JWK using RFC 7638 JWK Thumbprint.
+ * Returns the full base64url-encoded SHA-256 hash (no truncation).
  */
 export function generateKidFromJWK(jwk: Partial<JWK>): string {
-  const data = JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x });
-  const hash = createHash('sha256').update(data).digest('base64');
-  return base64ToBase64Url(hash).substring(0, 16);
+  // RFC 7638: canonical JSON with members in lexicographic order (crv, kty, x for OKP)
+  const canonical = JSON.stringify({ crv: jwk.crv, kty: jwk.kty, x: jwk.x });
+  const hash = createHash('sha256').update(canonical).digest('base64');
+  return base64ToBase64Url(hash);
 }
 
 /**

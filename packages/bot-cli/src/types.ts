@@ -38,5 +38,6 @@ export interface SignatureParams {
   nonce: string;
   keyId: string;
   algorithm: string;
+  tag?: string;
   headers: string[];
 }

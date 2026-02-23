@@ -37,7 +37,8 @@ export class RequestSigner {
       nonce: this.generateNonce(),
       keyId: this.config.kid,
       algorithm: 'ed25519',
-      headers: ['@method', '@path', '@authority', 'signature-agent'],
+      tag: 'web-bot-auth',
+      headers: ['@method', '@path', '@authority', `signature-agent;key="${signatureLabel}"`],
     };
 
     // Add content-type if there's a body
@@ -117,6 +118,20 @@ export class RequestSigner {
           lines.push(`"content-type": ${request.contentType}`);
           continue;
         }
+        // Handle signature-agent with ;key= parameter (RFC 8941 dictionary member selection)
+        const sigAgentMatch = component.match(/^signature-agent;key="([^"]+)"$/);
+        if (sigAgentMatch) {
+          if (!request.signatureAgent) {
+            throw new Error('Missing covered header: signature-agent');
+          }
+          // Extract the value for the specific dictionary member key
+          // The signature base uses the raw URI value, not the dict format
+          const dictKey = sigAgentMatch[1];
+          const dictMatch = request.signatureAgent.match(new RegExp(`${dictKey}="([^"]+)"`));
+          const uriValue = dictMatch ? dictMatch[1] : request.signatureAgent;
+          lines.push(`"signature-agent";key="${dictKey}": ${uriValue}`);
+          continue;
+        }
         if (component === 'signature-agent') {
           if (!request.signatureAgent) {
             throw new Error('Missing covered header: signature-agent');
@@ -148,7 +163,11 @@ export class RequestSigner {
     label: string,
   ): string {
     const components = params.headers.map(h => `"${h}"`).join(' ');
-    return `${label}=(${components});created=${params.created};expires=${params.expires};nonce="${params.nonce}";keyid="${params.keyId}";alg="${params.algorithm}"`;
+    let input = `${label}=(${components});created=${params.created};expires=${params.expires};nonce="${params.nonce}";keyid="${params.keyId}";alg="${params.algorithm}"`;
+    if (params.tag) {
+      input += `;tag="${params.tag}"`;
+    }
+    return input;
   }
 
   /**
@@ -197,10 +216,10 @@ export class RequestSigner {
   }
 
   /**
-   * Generate a random nonce
+   * Generate a random nonce (64 bytes per IETF draft recommendation)
    */
   private generateNonce(): string {
-    const bytes = webcrypto.getRandomValues(new Uint8Array(16));
+    const bytes = webcrypto.getRandomValues(new Uint8Array(64));
     return Buffer.from(bytes).toString('base64url');
   }
 }

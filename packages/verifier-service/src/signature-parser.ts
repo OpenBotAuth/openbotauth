@@ -85,11 +85,26 @@ function parseSingleSignatureInputMember(
 
   const [, , headersList, paramsStr] = match;
 
-  // Parse covered headers
-  const headers = headersList
-    .split(/\s+/)
-    .map((h) => h.replace(/"/g, "").trim())
-    .filter(Boolean);
+  // Parse covered headers (may include parameters like "signature-agent";key="sig1")
+  // RFC 9421: covered components can have parameters, e.g., "signature-agent";key="sig1"
+  const headers: string[] = [];
+  // Match quoted component name followed by optional parameters
+  const componentRegex = /"([^"]+)"(;[^"\s]+="[^"]*")*/g;
+  let componentMatch;
+  while ((componentMatch = componentRegex.exec(headersList)) !== null) {
+    // Capture the full component including parameters (e.g., signature-agent;key="sig1")
+    const componentName = componentMatch[1];
+    const params = componentMatch[2] || "";
+    headers.push(componentName + params);
+  }
+  // Fallback if regex didn't match (simple space-separated quoted strings)
+  if (headers.length === 0) {
+    const simpleHeaders = headersList
+      .split(/\s+/)
+      .map((h) => h.replace(/"/g, "").trim())
+      .filter(Boolean);
+    headers.push(...simpleHeaders);
+  }
 
   // Parse parameters
   const params: Record<string, string | number> = {};
@@ -263,6 +278,21 @@ export function parseSignature(
 }
 
 /**
+ * Extract dictionary key from component with ;key= parameter
+ * e.g., "signature-agent;key=\"sig1\"" -> { headerName: "signature-agent", dictKey: "sig1" }
+ */
+function parseComponentWithKeyParam(component: string): {
+  headerName: string;
+  dictKey: string | null;
+} {
+  const keyMatch = component.match(/^([^;]+);key="([^"]+)"$/);
+  if (keyMatch) {
+    return { headerName: keyMatch[1], dictKey: keyMatch[2] };
+  }
+  return { headerName: component, dictKey: null };
+}
+
+/**
  * Build the signature base string according to RFC 9421
  *
  * This is what gets signed by the client
@@ -304,13 +334,31 @@ export function buildSignatureBase(
           console.warn(`Unknown derived component: ${component}`);
       }
     } else {
-      // Regular headers - use raw value as-is per RFC 9421
-      const headerValue = request.headers[component.toLowerCase()];
-      if (headerValue !== undefined) {
-        lines.push(`"${component}": ${headerValue}`);
+      // Check for dictionary key selection parameter (RFC 9421 Section 2.1.2)
+      const { headerName, dictKey } = parseComponentWithKeyParam(component);
+      const headerValue = request.headers[headerName.toLowerCase()];
+
+      if (headerValue === undefined) {
+        throw new Error(`Missing covered header: ${headerName}`);
+      }
+
+      if (dictKey) {
+        // Handle dictionary member selection (e.g., signature-agent;key="sig1")
+        // Extract the value for the specific dictionary key
+        const dict = parseStructuredDictionaryStringItems(headerValue);
+        const memberValue = dict[dictKey];
+
+        if (memberValue === undefined) {
+          throw new Error(
+            `Missing dictionary key "${dictKey}" in header "${headerName}"`,
+          );
+        }
+
+        // RFC 9421: component identifier includes the ;key= parameter
+        lines.push(`"${headerName}";key="${dictKey}": ${memberValue}`);
       } else {
-        // Header is in Signature-Input but not provided in request
-        throw new Error(`Missing covered header: ${component}`);
+        // Regular headers - use raw value as-is per RFC 9421
+        lines.push(`"${headerName}": ${headerValue}`);
       }
     }
   }
