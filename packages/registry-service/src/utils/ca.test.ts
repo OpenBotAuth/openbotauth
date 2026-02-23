@@ -3,6 +3,7 @@ import { readFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect, beforeEach } from "vitest";
+import * as x509 from "@peculiar/x509";
 import {
   issueCertificateForJwk,
   resetCertificateAuthorityCacheForTests,
@@ -70,6 +71,38 @@ describe("issueCertificateForJwk", () => {
 
     const cert = new X509Certificate(issued.certPem);
     expect(cert.subjectAltName ?? "").not.toContain("URI:");
+  });
+
+  it("includes clientAuth EKU on issued leaf certificates", async () => {
+    const baseDir = join(tmpdir(), `oba-ca-test-${Date.now()}-eku`);
+    process.env.OBA_CA_MODE = "local";
+    process.env.OBA_CA_DIR = baseDir;
+    process.env.OBA_CA_KEY_PATH = join(baseDir, "ca.key.json");
+    process.env.OBA_CA_CERT_PATH = join(baseDir, "ca.pem");
+
+    const keyPair = (await webcrypto.subtle.generateKey(
+      { name: "Ed25519" } as any,
+      true,
+      ["sign", "verify"],
+    )) as any;
+    const publicJwk = await webcrypto.subtle.exportKey(
+      "jwk",
+      keyPair.publicKey,
+    );
+
+    const issued = await issueCertificateForJwk(
+      publicJwk as any,
+      "CN=OBA Test Leaf",
+      1,
+      null,
+    );
+
+    const cert = new (x509 as any).X509Certificate(issued.certPem);
+    const eku = cert.getExtension((x509 as any).ExtendedKeyUsageExtension);
+    expect(eku).toBeTruthy();
+    expect(eku.usages).toContain(
+      (x509 as any).ExtendedKeyUsage.clientAuth || "1.3.6.1.5.5.7.3.2",
+    );
   });
 
   it("regenerates CA cert when persisted key and cert are mismatched", async () => {

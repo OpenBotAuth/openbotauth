@@ -77,7 +77,7 @@ describe("validateJwkX509", () => {
       { trustAnchors: [nonCaRootPem] },
     );
     expect(result.valid).toBe(false);
-    expect(result.error).toContain("not authorized");
+    expect(result.error).toMatch(/not authorized|not a valid CA/);
   });
 
   it("rejects oversized x5u response without content-length", async () => {

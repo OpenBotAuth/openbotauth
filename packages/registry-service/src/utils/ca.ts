@@ -12,8 +12,11 @@ const {
   PemConverter,
   BasicConstraintsExtension,
   KeyUsagesExtension,
+  ExtendedKeyUsageExtension,
+  ExtendedKeyUsage,
   SubjectAlternativeNameExtension,
   KeyUsageFlags,
+  URL: GENERAL_NAME_URL,
 } = x509 as any;
 
 export interface CertificateAuthority {
@@ -277,9 +280,14 @@ export async function issueCertificateForJwk(
       extensions.push(new KeyUsagesExtension(usage, true));
     }
   }
+  if (ExtendedKeyUsageExtension) {
+    const clientAuthUsage =
+      ExtendedKeyUsage?.clientAuth || "1.3.6.1.5.5.7.3.2";
+    extensions.push(new ExtendedKeyUsageExtension([clientAuthUsage], false));
+  }
   if (subjectAltUri && SubjectAlternativeNameExtension) {
     const sanType =
-      typeof (x509 as any).URL === "string" ? (x509 as any).URL : "url";
+      typeof GENERAL_NAME_URL === "string" ? GENERAL_NAME_URL : "url";
     extensions.push(
       new SubjectAlternativeNameExtension(
         [{ type: sanType, value: subjectAltUri }],

@@ -23,11 +23,12 @@ async function checkPopNonce(db: Database, message: string): Promise<boolean> {
     );
     return result.rows[0]?.is_new === true;
   } catch (err: any) {
-    // If function doesn't exist (migration not run), allow the request
-    // but log a warning. This provides graceful degradation.
-    if (err.message?.includes("check_pop_nonce")) {
-      console.warn("PoP nonce check skipped: migration 009 not applied");
-      return true;
+    // Fail closed if migration 009 is missing. Replay protection is required.
+    if (err?.code === "42883" || err.message?.includes("check_pop_nonce")) {
+      console.error(
+        "PoP nonce check unavailable: migration 009 not applied or function missing",
+      );
+      return false;
     }
     throw err;
   }
@@ -162,6 +163,49 @@ function parsePositiveInt(
   return parsed;
 }
 
+function readPositiveEnvInt(envName: string, fallback: number): number {
+  const raw = process.env[envName];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return parsed;
+}
+
+const REVOCATION_REASONS = new Set([
+  "unspecified",
+  "key_compromise",
+  "ca_compromise",
+  "affiliation_changed",
+  "superseded",
+  "cessation_of_operation",
+  "certificate_hold",
+  "privilege_withdrawn",
+  "remove_from_crl",
+  "aa_compromise",
+]);
+
+function parseRevocationReason(value: unknown): string | null | undefined {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase().replace(/-/g, "_");
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.length > 64) {
+    return undefined;
+  }
+  if (!REVOCATION_REASONS.has(normalized)) {
+    return undefined;
+  }
+  return normalized;
+}
+
 certsRouter.post(
   "/v1/certs/issue",
   requireAuth,
@@ -216,7 +260,8 @@ certsRouter.post(
       const isNewNonce = await checkPopNonce(db, proof.message);
       if (!isNewNonce) {
         res.status(403).json({
-          error: "Proof-of-possession replay detected: this proof has already been used",
+          error:
+            "Proof-of-possession replay detected or replay protection unavailable",
         });
         return;
       }
@@ -225,6 +270,50 @@ certsRouter.post(
         typeof pk.kid === "string" && pk.kid.length > 0
           ? pk.kid
           : jwkThumbprint({ kty: "OKP", crv: "Ed25519", x: pk.x });
+
+      const maxDailyIssues = readPositiveEnvInt(
+        "OBA_CERT_MAX_ISSUES_PER_AGENT_PER_DAY",
+        10,
+      );
+      const dailyIssueCountResult = await db.getPool().query(
+        `SELECT COUNT(*)::int AS count
+         FROM agent_certificates c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE c.agent_id = $1
+           AND a.user_id = $2
+           AND c.created_at >= now() - interval '1 day'`,
+        [agent.id, req.session!.user.id],
+      );
+      const dailyIssueCount = Number(dailyIssueCountResult.rows[0]?.count ?? 0);
+      if (dailyIssueCount >= maxDailyIssues) {
+        res.status(429).json({
+          error: `Daily certificate issuance limit exceeded (${maxDailyIssues} per 24h)`,
+        });
+        return;
+      }
+
+      const maxActivePerKid = readPositiveEnvInt(
+        "OBA_CERT_MAX_ACTIVE_PER_KID",
+        1,
+      );
+      const activeForKidResult = await db.getPool().query(
+        `SELECT COUNT(*)::int AS count
+         FROM agent_certificates c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE c.agent_id = $1
+           AND a.user_id = $2
+           AND c.kid = $3
+           AND c.revoked_at IS NULL
+           AND c.not_after > now()`,
+        [agent.id, req.session!.user.id, resolvedKid],
+      );
+      const activeForKidCount = Number(activeForKidResult.rows[0]?.count ?? 0);
+      if (activeForKidCount >= maxActivePerKid) {
+        res.status(409).json({
+          error: `Active certificate limit reached for key ${resolvedKid}; revoke existing certificates before issuing a new one`,
+        });
+        return;
+      }
 
       const subjectCn = sanitizeDnValue(
         agent.name || "OpenBotAuth Agent",
@@ -281,7 +370,7 @@ certsRouter.post(
       });
     } catch (error: any) {
       console.error("Certificate issuance error:", error);
-      res.status(500).json({ error: error.message || "Failed to issue certificate" });
+      res.status(500).json({ error: "Failed to issue certificate" });
     }
   },
 );
@@ -294,9 +383,17 @@ certsRouter.post(
     try {
       const db: Database = req.app.locals.db;
       const { serial, kid, reason } = req.body || {};
+      const revocationReason = parseRevocationReason(reason);
 
       if (!serial && !kid) {
         res.status(400).json({ error: "Missing required input: serial or kid" });
+        return;
+      }
+      if (revocationReason === undefined) {
+        res.status(400).json({
+          error:
+            "Invalid revocation reason. Use RFC 5280 reason names (e.g. key_compromise, cessation_of_operation).",
+        });
         return;
       }
 
@@ -311,6 +408,31 @@ certsRouter.post(
         condition = "c.kid = $2";
       }
 
+      const matchResult = await db.getPool().query(
+        `SELECT COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE c.revoked_at IS NULL)::int AS revocable
+         FROM agent_certificates c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE a.user_id = $1
+           AND ${condition}`,
+        params,
+      );
+      const total = Number(matchResult.rows[0]?.total ?? 0);
+      const revocable = Number(matchResult.rows[0]?.revocable ?? 0);
+      if (total === 0) {
+        res.status(404).json({ error: "Certificate not found" });
+        return;
+      }
+      if (revocable === 0) {
+        res.setHeader("Cache-Control", "no-store");
+        res.json({
+          success: true,
+          revoked: 0,
+          already_revoked: true,
+        });
+        return;
+      }
+
       const result = await db.getPool().query(
         `UPDATE agent_certificates c
          SET revoked_at = now(), revoked_reason = $3
@@ -320,19 +442,14 @@ certsRouter.post(
            AND ${condition}
            AND c.revoked_at IS NULL
          RETURNING c.id`,
-        [...params, reason || null],
+        [...params, revocationReason],
       );
-
-      if (result.rows.length === 0) {
-        res.status(404).json({ error: "Certificate not found" });
-        return;
-      }
 
       res.setHeader("Cache-Control", "no-store");
       res.json({ success: true, revoked: result.rows.length });
     } catch (error: any) {
       console.error("Certificate revocation error:", error);
-      res.status(500).json({ error: error.message || "Failed to revoke certificate" });
+      res.status(500).json({ error: "Failed to revoke certificate" });
     }
   },
 );
@@ -424,7 +541,7 @@ certsRouter.get(
       res.json({ items, total, limit, offset });
     } catch (error: any) {
       console.error("Certificate list error:", error);
-      res.status(500).json({ error: error.message || "Failed to list certificates" });
+      res.status(500).json({ error: "Failed to list certificates" });
     }
   },
 );
@@ -499,7 +616,7 @@ certsRouter.get(
       });
     } catch (error: any) {
       console.error("Certificate status error:", error);
-      res.status(500).json({ error: error.message || "Failed to check certificate status" });
+      res.status(500).json({ error: "Failed to check certificate status" });
     }
   },
 );
@@ -568,7 +685,7 @@ certsRouter.get(
       });
     } catch (error: any) {
       console.error("Public certificate status error:", error);
-      res.status(500).json({ error: error.message || "Failed to check certificate status" });
+      res.status(500).json({ error: "Failed to check certificate status" });
     }
   },
 );
@@ -608,7 +725,7 @@ certsRouter.get(
       res.json(result.rows[0]);
     } catch (error: any) {
       console.error("Certificate get error:", error);
-      res.status(500).json({ error: error.message || "Failed to fetch certificate" });
+      res.status(500).json({ error: "Failed to fetch certificate" });
     }
   },
 );
@@ -620,6 +737,7 @@ certsRouter.get("/.well-known/ca.pem", async (_req, res: Response): Promise<void
     res.setHeader("Cache-Control", "public, max-age=86400");
     res.send(ca.certPem);
   } catch (error: any) {
-    res.status(501).json({ error: error.message || "CA not configured" });
+    console.error("CA fetch error:", error);
+    res.status(501).json({ error: "CA not configured" });
   }
 });

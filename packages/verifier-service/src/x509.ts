@@ -59,6 +59,27 @@ function validateCertificateTimes(certs: X509Certificate[]): string | null {
   return null;
 }
 
+function normalizeKeyUsage(value: string): string {
+  return value.toLowerCase().replace(/[^a-z]/g, "");
+}
+
+function certCanSignChildren(cert: X509Certificate): boolean {
+  if (!cert.ca) {
+    return false;
+  }
+
+  // Some runtimes return undefined for keyUsage even when extension exists.
+  // Enforce keyCertSign when keyUsage is available, otherwise fall back to CA bit.
+  const usages = cert.keyUsage;
+  if (!Array.isArray(usages) || usages.length === 0) {
+    return true;
+  }
+
+  return usages
+    .map((usage) => normalizeKeyUsage(usage))
+    .some((usage) => usage === "keycertsign" || usage === "certificatesign");
+}
+
 function validateChain(
   certs: X509Certificate[],
   trustAnchors: X509Certificate[],
@@ -80,17 +101,26 @@ function validateChain(
     if (!cert.checkIssued(issuer)) {
       return "X.509 validation failed: issuer certificate is not authorized to sign child certificates";
     }
+    if (!certCanSignChildren(issuer)) {
+      return "X.509 validation failed: intermediate certificate is not a valid CA";
+    }
   }
 
   // Verify last cert against trust anchors
   const last = certs[certs.length - 1];
   for (const anchor of trustAnchors) {
     if (anchor.fingerprint256 === last.fingerprint256) {
+      if (!certCanSignChildren(anchor)) {
+        return "X.509 validation failed: trust anchor is not a valid CA";
+      }
       return null;
     }
     if (last.verify(anchor.publicKey)) {
       if (!last.checkIssued(anchor)) {
         return "X.509 validation failed: trust anchor is not authorized to sign child certificates";
+      }
+      if (!certCanSignChildren(anchor)) {
+        return "X.509 validation failed: trust anchor is not a valid CA";
       }
       return null;
     }

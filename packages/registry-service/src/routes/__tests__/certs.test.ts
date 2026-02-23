@@ -398,6 +398,10 @@ describe("POST /v1/certs/issue - PoP validation", () => {
       })
       // Mock the nonce check (new nonce, not a replay)
       .mockResolvedValueOnce({ rows: [{ is_new: true }] })
+      // Daily issuance count
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] })
+      // Active cert count for this kid
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] })
       // Mock the INSERT query for certificate
       .mockResolvedValueOnce({ rows: [] });
 
@@ -471,11 +475,179 @@ describe("POST /v1/certs/issue - PoP validation", () => {
     expect(res.statusCode).toBe(403);
     expect(res.body.error).toContain("replay");
   });
+
+  it("fails closed when replay-protection function is unavailable", async () => {
+    const keyPair = await webcrypto.subtle.generateKey(
+      { name: "Ed25519" },
+      true,
+      ["sign", "verify"],
+    );
+    const publicJwk = await webcrypto.subtle.exportKey("jwk", keyPair.publicKey);
+
+    const agentId = "agent-migration-missing";
+    const ts = Math.floor(Date.now() / 1000);
+    const message = `cert-issue:${agentId}:${ts}`;
+    const signatureBuffer = await webcrypto.subtle.sign(
+      { name: "Ed25519" },
+      keyPair.privateKey,
+      new TextEncoder().encode(message),
+    );
+
+    const err = new Error("function check_pop_nonce(text, integer) does not exist") as Error & {
+      code?: string;
+    };
+    err.code = "42883";
+
+    const agentQuery = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: agentId,
+            user_id: "u-1",
+            name: "Test Agent",
+            public_key: {
+              kty: "OKP",
+              crv: "Ed25519",
+              x: publicJwk.x,
+            },
+          },
+        ],
+      })
+      .mockRejectedValueOnce(err);
+
+    const req = mockReq({
+      body: {
+        agent_id: agentId,
+        proof: {
+          message,
+          signature: Buffer.from(signatureBuffer).toString("base64"),
+        },
+      },
+      app: { locals: { db: mockDb(agentQuery) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain("replay protection unavailable");
+  });
+
+  it("enforces per-agent daily issuance limit", async () => {
+    const keyPair = await webcrypto.subtle.generateKey(
+      { name: "Ed25519" },
+      true,
+      ["sign", "verify"],
+    );
+    const publicJwk = await webcrypto.subtle.exportKey("jwk", keyPair.publicKey);
+
+    const agentId = "agent-rate-limit";
+    const ts = Math.floor(Date.now() / 1000);
+    const message = `cert-issue:${agentId}:${ts}`;
+    const signature = Buffer.from(
+      await webcrypto.subtle.sign(
+        { name: "Ed25519" },
+        keyPair.privateKey,
+        new TextEncoder().encode(message),
+      ),
+    ).toString("base64");
+
+    const agentQuery = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: agentId,
+            user_id: "u-1",
+            name: "Test Agent",
+            public_key: {
+              kty: "OKP",
+              crv: "Ed25519",
+              x: publicJwk.x,
+            },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ is_new: true }] })
+      .mockResolvedValueOnce({ rows: [{ count: 10 }] });
+
+    const req = mockReq({
+      body: {
+        agent_id: agentId,
+        proof: { message, signature },
+      },
+      app: { locals: { db: mockDb(agentQuery) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(429);
+    expect(res.body.error).toContain("Daily certificate issuance limit exceeded");
+  });
+
+  it("enforces active certificate cap per key", async () => {
+    const keyPair = await webcrypto.subtle.generateKey(
+      { name: "Ed25519" },
+      true,
+      ["sign", "verify"],
+    );
+    const publicJwk = await webcrypto.subtle.exportKey("jwk", keyPair.publicKey);
+
+    const agentId = "agent-active-cap";
+    const ts = Math.floor(Date.now() / 1000);
+    const message = `cert-issue:${agentId}:${ts}`;
+    const signature = Buffer.from(
+      await webcrypto.subtle.sign(
+        { name: "Ed25519" },
+        keyPair.privateKey,
+        new TextEncoder().encode(message),
+      ),
+    ).toString("base64");
+
+    const agentQuery = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: agentId,
+            user_id: "u-1",
+            name: "Test Agent",
+            public_key: {
+              kty: "OKP",
+              crv: "Ed25519",
+              x: publicJwk.x,
+            },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ is_new: true }] })
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] })
+      .mockResolvedValueOnce({ rows: [{ count: 1 }] });
+
+    const req = mockReq({
+      body: {
+        agent_id: agentId,
+        proof: { message, signature },
+      },
+      app: { locals: { db: mockDb(agentQuery) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
+
+    expect(res.statusCode).toBe(409);
+    expect(res.body.error).toContain("Active certificate limit reached");
+  });
 });
 
 describe("POST /v1/certs/revoke", () => {
   it("only updates certs that are not already revoked", async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [{ id: "c-1" }] });
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ total: 1, revocable: 1 }] })
+      .mockResolvedValueOnce({ rows: [{ id: "c-1" }] });
     const req = mockReq({
       body: { serial: "serial-1", reason: "key-compromise" },
       app: { locals: { db: mockDb(query) } },
@@ -485,8 +657,42 @@ describe("POST /v1/certs/revoke", () => {
     await callRoute(certsRouter, "POST", "/v1/certs/revoke", req, res);
 
     expect(res.statusCode).toBe(200);
-    const [sql] = query.mock.calls[0];
+    expect(query).toHaveBeenCalledTimes(2);
+    const [sql] = query.mock.calls[1];
     expect(sql).toContain("AND c.revoked_at IS NULL");
+    const [, params] = query.mock.calls[1];
+    expect(params[2]).toBe("key_compromise");
+  });
+
+  it("returns already_revoked=true when matching certs are already revoked", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ total: 2, revocable: 0 }] });
+    const req = mockReq({
+      body: { kid: "kid-1" },
+      app: { locals: { db: mockDb(query) } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/revoke", req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.already_revoked).toBe(true);
+    expect(res.body.revoked).toBe(0);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects unsupported revocation reason values", async () => {
+    const req = mockReq({
+      body: { serial: "serial-1", reason: "because-i-feel-like-it" },
+      app: { locals: { db: mockDb() } },
+    });
+    const res = mockRes();
+
+    await callRoute(certsRouter, "POST", "/v1/certs/revoke", req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain("Invalid revocation reason");
   });
 });
 

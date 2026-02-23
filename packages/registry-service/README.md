@@ -33,6 +33,8 @@ OBA_CA_CERT_PATH=./.local/ca/ca.pem
 OBA_CA_SUBJECT="CN=OpenBotAuth Dev CA"
 OBA_CA_VALID_DAYS=3650
 OBA_LEAF_CERT_VALID_DAYS=90
+OBA_CERT_MAX_ISSUES_PER_AGENT_PER_DAY=10
+OBA_CERT_MAX_ACTIVE_PER_KID=1
 ```
 
 ## Development
@@ -112,6 +114,10 @@ The timestamp must be within 5 minutes in the past (up to 30 seconds future drif
 
 **Replay Protection:** Each proof message can only be used once. The server tracks used proofs for 5 minutes to prevent replay attacks. Clients must generate a fresh timestamp for each issuance request.
 
+**Issuance Limits:**
+- Per-agent issuance rate limit (default: `10` certs / 24h, configurable via `OBA_CERT_MAX_ISSUES_PER_AGENT_PER_DAY`).
+- Active cert cap per key `kid` (default: `1`, configurable via `OBA_CERT_MAX_ACTIVE_PER_KID`).
+
 Note: if the agent has `oba_agent_id`, it is included as a SAN URI in the leaf
 certificate as an informational hint. This value is user-supplied unless you
 enforce registry-side issuance rules.
@@ -144,6 +150,10 @@ OPENBOTAUTH_TOKEN=<pat> oba-bot cert issue --agent-id <uuid> --private-key-path 
 
 The CLI auto-detects the key format (JWK JSON or PEM) and generates the proof-of-possession signature.
 
+CA topology note: current MVP uses a single self-signed online CA for signing
+leaf certificates. Offline root + online intermediate separation is planned for
+later phases.
+
 #### POST `/v1/certs/revoke`
 
 Revoke an issued certificate.
@@ -156,9 +166,13 @@ Auth:
 ```json
 {
   "serial": "hex-serial",
-  "reason": "key-rotation"
+  "reason": "key_compromise"
 }
 ```
+
+`reason` is optional; when provided it must be one of the RFC 5280 reason
+identifiers (for example `key_compromise`, `cessation_of_operation`,
+`superseded`).
 
 #### GET `/v1/certs`
 
