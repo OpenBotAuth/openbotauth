@@ -10,6 +10,16 @@ import type { BotConfig, SignedRequest, SignatureParams } from './types.js';
 export class RequestSigner {
   constructor(private config: BotConfig) {}
 
+  private formatCoveredComponent(component: string): string {
+    const separatorIndex = component.indexOf(";");
+    if (separatorIndex === -1) {
+      return `"${component}"`;
+    }
+    const componentName = component.slice(0, separatorIndex);
+    const componentParams = component.slice(separatorIndex + 1);
+    return `"${componentName}";${componentParams}`;
+  }
+
   /**
    * Sign an HTTP request
    */
@@ -127,7 +137,8 @@ export class RequestSigner {
           // Extract the value for the specific dictionary member key
           // The signature base uses the raw URI value, not the dict format
           const dictKey = sigAgentMatch[1];
-          const dictMatch = request.signatureAgent.match(new RegExp(`${dictKey}="([^"]+)"`));
+          const escapedDictKey = dictKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const dictMatch = request.signatureAgent.match(new RegExp(`${escapedDictKey}="([^"]+)"`));
           const uriValue = dictMatch ? dictMatch[1] : request.signatureAgent;
           lines.push(`"signature-agent";key="${dictKey}": ${uriValue}`);
           continue;
@@ -143,7 +154,7 @@ export class RequestSigner {
 
     // Add signature parameters
     const paramParts: string[] = [];
-    paramParts.push(`(${params.headers.map(h => `"${h}"`).join(' ')})`);
+    paramParts.push(`(${params.headers.map((h) => this.formatCoveredComponent(h)).join(' ')})`);
     paramParts.push(`created=${params.created}`);
     paramParts.push(`expires=${params.expires}`);
     paramParts.push(`nonce="${params.nonce}"`);
@@ -162,7 +173,9 @@ export class RequestSigner {
     params: SignatureParams,
     label: string,
   ): string {
-    const components = params.headers.map(h => `"${h}"`).join(' ');
+    const components = params.headers
+      .map((h) => this.formatCoveredComponent(h))
+      .join(" ");
     let input = `${label}=(${components});created=${params.created};expires=${params.expires};nonce="${params.nonce}";keyid="${params.keyId}";alg="${params.algorithm}"`;
     if (params.tag) {
       input += `;tag="${params.tag}"`;

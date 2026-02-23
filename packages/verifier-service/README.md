@@ -71,6 +71,10 @@ Main verification endpoint for NGINX `auth_request`.
 - `Signature` - RFC 9421 signature
 - `Signature-Agent` - Structured Dictionary entry pointing to JWKS (legacy URL also accepted)
 
+**WBA requirements enforced:**
+- `Signature-Input` must include `tag="web-bot-auth"`
+- `Signature-Agent` must be a covered component in `Signature-Input` (prefer `signature-agent;key="sigX"`)
+
 **X.509 delegation notes:**
 - `x5c` chains are validated to configured trust anchors when `OBA_X509_ENABLED=true`
 - `x5u` currently fetches only the leaf certificate; without AIA chain building, validation succeeds only if the leaf chains directly to a trust anchor (or the anchor is an intermediate)

@@ -48,7 +48,7 @@ const rawPub = spki.subarray(12, 44);
 const x = rawPub.toString('base64url');
 const thumbprint = JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x });
 const hash = crypto.createHash('sha256').update(thumbprint).digest();
-const kid = hash.toString('base64url').slice(0, 16);
+const kid = hash.toString('base64url');
 
 // Save securely
 const dir = path.join(os.homedir(), '.config', 'openbotauth');

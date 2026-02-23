@@ -258,6 +258,15 @@ describe("parseSignatureInput", () => {
     expect(parsed?.label).toBe("sig1");
     expect(parsed?.keyId).toBe("k1");
   });
+
+  it("should parse tag and signature-agent key parameter", () => {
+    const parsed = parseSignatureInput(
+      'sig2=("@method" "signature-agent";key="sig1");created=1700000000;expires=1700000300;nonce="n";keyid="k2";alg="ed25519";tag="web-bot-auth"',
+    );
+    expect(parsed?.label).toBe("sig2");
+    expect(parsed?.tag).toBe("web-bot-auth");
+    expect(parsed?.headers).toContain('signature-agent;key="sig1"');
+  });
 });
 
 describe("parseSignature", () => {

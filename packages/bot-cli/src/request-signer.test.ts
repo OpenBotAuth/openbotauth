@@ -21,7 +21,7 @@ describe("RequestSigner", () => {
       'sig1="https://example.com/jwks/test.json"',
     );
     // RFC 9421: covered component uses ;key= parameter for dictionary member selection
-    expect(signed.headers["Signature-Input"]).toContain('signature-agent;key="sig1"');
+    expect(signed.headers["Signature-Input"]).toContain('"signature-agent";key="sig1"');
     // IETF draft: tag="web-bot-auth" is mandatory
     expect(signed.headers["Signature-Input"]).toContain('tag="web-bot-auth"');
   });
@@ -35,7 +35,7 @@ describe("RequestSigner", () => {
       "https://example.com/jwks/test.json",
     );
     // Even with legacy format, the covered component uses ;key= for consistency
-    expect(signed.headers["Signature-Input"]).toContain('signature-agent;key="sig1"');
+    expect(signed.headers["Signature-Input"]).toContain('"signature-agent";key="sig1"');
     // IETF draft: tag="web-bot-auth" is mandatory
     expect(signed.headers["Signature-Input"]).toContain('tag="web-bot-auth"');
   });

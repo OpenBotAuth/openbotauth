@@ -52,16 +52,36 @@ const Setup = () => {
     checkAuth();
   }, [navigate]);
 
-  // Generate KID from public key (SHA-256 hash, first 16 chars)
+  // Generate KID from JWK thumbprint (RFC 7638 for OKP/Ed25519)
   const generateKid = async (publicKeyBase64: string): Promise<string> => {
+    const toBase64Url = (base64: string): string =>
+      base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+
+    const base64ToBytes = (base64: string): Uint8Array => {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    };
+
+    // Extract raw Ed25519 public key bytes from SPKI DER when possible.
+    const spkiBytes = base64ToBytes(publicKeyBase64);
+    let rawKeyBase64 = publicKeyBase64;
+    if (spkiBytes.length === 44) {
+      const raw = spkiBytes.slice(12);
+      rawKeyBase64 = btoa(String.fromCharCode(...raw));
+    }
+
+    const x = toBase64Url(rawKeyBase64);
+    const canonical = JSON.stringify({ crv: "Ed25519", kty: "OKP", x });
     const encoder = new TextEncoder();
-    const data = encoder.encode(publicKeyBase64);
+    const data = encoder.encode(canonical);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashBase64 = btoa(String.fromCharCode(...hashArray));
-    // Convert to base64url and take first 16 chars
-    const base64url = hashBase64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-    return base64url.substring(0, 16);
+    return toBase64Url(hashBase64);
   };
 
   const generateKeyPair = async () => {

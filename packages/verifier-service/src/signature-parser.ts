@@ -121,7 +121,7 @@ function parseSingleSignatureInputMember(
     }
   }
 
-  return {
+  const parsed: SignatureComponents = {
     label,
     keyId: params.keyid as string,
     algorithm: (params.alg as string) || "ed25519",
@@ -132,6 +132,12 @@ function parseSingleSignatureInputMember(
     signature: "", // Will be filled from Signature header
     rawSignatureParams,
   };
+
+  if (typeof params.tag === "string" && params.tag.length > 0) {
+    parsed.tag = params.tag;
+  }
+
+  return parsed;
 }
 
 /**
@@ -290,6 +296,18 @@ function parseComponentWithKeyParam(component: string): {
     return { headerName: keyMatch[1], dictKey: keyMatch[2] };
   }
   return { headerName: component, dictKey: null };
+}
+
+export function extractSignatureAgentDictionaryKey(
+  coveredComponents: string[],
+): string | null {
+  for (const component of coveredComponents) {
+    const { headerName, dictKey } = parseComponentWithKeyParam(component);
+    if (headerName.toLowerCase() === "signature-agent" && dictKey) {
+      return dictKey;
+    }
+  }
+  return null;
 }
 
 /**

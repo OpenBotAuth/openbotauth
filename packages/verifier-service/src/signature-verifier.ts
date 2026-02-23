@@ -13,9 +13,17 @@ import {
   parseSignatureInput,
   parseSignature,
   parseSignatureAgent,
+  extractSignatureAgentDictionaryKey,
   resolveJwksUrl,
   buildSignatureBase,
 } from './signature-parser.js';
+
+function isSignatureAgentCovered(coveredComponents: string[]): boolean {
+  return coveredComponents.some((component) =>
+    component === "signature-agent" ||
+    component.startsWith("signature-agent;"),
+  );
+}
 
 export class SignatureVerifier {
   private discoveryPaths: string[] | undefined;
@@ -62,8 +70,27 @@ export class SignatureVerifier {
         };
       }
 
+      // 2.1 Enforce WBA tag semantics.
+      if (components.tag !== "web-bot-auth") {
+        return {
+          verified: false,
+          error:
+            'Invalid Signature-Input tag (expected tag="web-bot-auth")',
+        };
+      }
+
+      if (!isSignatureAgentCovered(components.headers)) {
+        return {
+          verified: false,
+          error:
+            'Invalid Signature-Input: "signature-agent" must be a covered component',
+        };
+      }
+
       // 3. Parse Signature-Agent (Structured Dictionary or legacy URL)
-      const parsedAgent = parseSignatureAgent(signatureAgent, components.label);
+      const signatureAgentKey =
+        extractSignatureAgentDictionaryKey(components.headers) || components.label;
+      const parsedAgent = parseSignatureAgent(signatureAgent, signatureAgentKey);
       if (!parsedAgent) {
         return {
           verified: false,

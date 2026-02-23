@@ -27,6 +27,8 @@ export interface SignatureComponents {
   keyId: string;
   signature: string;
   algorithm: string;
+  /** RFC 9421/WBA tag parameter from Signature-Input (e.g., web-bot-auth) */
+  tag?: string;
   created?: number;
   expires?: number;
   nonce?: string;
