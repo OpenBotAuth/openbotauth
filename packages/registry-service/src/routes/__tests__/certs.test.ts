@@ -606,6 +606,75 @@ describe("GET /v1/certs/public-status", () => {
     expect(res.body.valid).toBe(false);
     expect(res.body.revoked).toBe(false);
   });
+
+  it("returns valid=false for revoked certs", async () => {
+    const now = Date.now();
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          not_before: new Date(now - 60_000).toISOString(),
+          not_after: new Date(now + 60_000).toISOString(),
+          revoked_at: new Date(now - 30_000).toISOString(),
+          revoked_reason: "key-compromise",
+        },
+      ],
+    });
+    const req = {
+      headers: {},
+      query: { fingerprint_sha256: "c".repeat(64) },
+      app: { locals: { db: mockDb(query) } },
+    } as any;
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs/public-status", req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.valid).toBe(false);
+    expect(res.body.revoked).toBe(true);
+    expect(res.body.revoked_at).toBeDefined();
+    expect(res.body.revoked_reason).toBe("key-compromise");
+  });
+
+  it("returns valid=false for expired certs", async () => {
+    const now = Date.now();
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          not_before: new Date(now - 7_200_000).toISOString(),
+          not_after: new Date(now - 3_600_000).toISOString(), // expired 1 hour ago
+          revoked_at: null,
+          revoked_reason: null,
+        },
+      ],
+    });
+    const req = {
+      headers: {},
+      query: { fingerprint_sha256: "d".repeat(64) },
+      app: { locals: { db: mockDb(query) } },
+    } as any;
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs/public-status", req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.valid).toBe(false);
+    expect(res.body.revoked).toBe(false);
+  });
+
+  it("returns 404 when cert not found", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const req = {
+      headers: {},
+      query: { fingerprint_sha256: "e".repeat(64) },
+      app: { locals: { db: mockDb(query) } },
+    } as any;
+    const res = mockRes();
+
+    await callRoute(certsRouter, "GET", "/v1/certs/public-status", req, res);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.body.error).toContain("not found");
+  });
 });
 
 describe("GET /v1/certs/:serial", () => {
