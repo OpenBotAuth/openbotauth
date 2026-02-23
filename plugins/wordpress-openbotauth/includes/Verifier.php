@@ -268,11 +268,14 @@ class Verifier {
 	/**
 	 * Parse Signature-Input header to extract covered components.
 	 *
-	 * Example: sig1=("@method" "@path" "content-type" "accept");created=...
-	 * Returns: ["@method", "@path", "content-type", "accept"]
+	 * Example: sig1=("@method" "@path" "content-type" "signature-agent;key=\"sig1\"");created=...
+	 * Returns: ["@method", "@path", "content-type", "signature-agent"]
+	 *
+	 * Note: Components may have parameters like ;key="sig1" for dictionary member selection.
+	 * We extract only the base header name for lookup purposes.
 	 *
 	 * @param string $signature_input The Signature-Input header value.
-	 * @return array Array of covered header names.
+	 * @return array Array of covered header names (base names without parameters).
 	 */
 	private function parse_covered_headers( $signature_input ) {
 		// Extract the parenthesized list of headers.
@@ -283,7 +286,15 @@ class Verifier {
 			$headers = preg_split( '/\s+/', $headers_str );
 			$headers = array_map(
 				function ( $h ) {
-					return trim( $h, '"' );
+					// Remove surrounding quotes.
+					$h = trim( $h, '"' );
+					// Extract base header name before any ;key= parameter.
+					// e.g., 'signature-agent;key="sig1"' -> 'signature-agent'
+					$semicolon_pos = strpos( $h, ';' );
+					if ( false !== $semicolon_pos ) {
+						$h = substr( $h, 0, $semicolon_pos );
+					}
+					return $h;
 				},
 				$headers
 			);

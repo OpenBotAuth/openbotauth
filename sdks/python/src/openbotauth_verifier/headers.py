@@ -29,19 +29,23 @@ def parse_covered_headers(signature_input: str) -> list[str]:
     Parse the covered headers from a Signature-Input header value.
 
     RFC 9421 Signature-Input format:
-      sig1=("@method" "@target-uri" "host" "content-type");created=...;keyid=...
+      sig1=("@method" "@target-uri" "host" "signature-agent;key=\\"sig1\\"");created=...;keyid=...
 
-    This extracts the identifiers inside the parentheses.
+    This extracts the identifiers inside the parentheses. Components may have
+    parameters like ;key="sig1" for dictionary member selection; we extract
+    only the base header name for lookup purposes.
 
     Args:
         signature_input: The Signature-Input header value
 
     Returns:
-        List of covered header/component names (lowercase, without quotes)
+        List of covered header/component names (lowercase, base names without parameters)
 
     Examples:
         >>> parse_covered_headers('sig1=("@method" "@target-uri" "host");created=123')
         ['@method', '@target-uri', 'host']
+        >>> parse_covered_headers('sig=("signature-agent;key=\\"sig1\\"");created=123')
+        ['signature-agent']
         >>> parse_covered_headers('sig=();created=123')
         []
     """
@@ -61,6 +65,11 @@ def parse_covered_headers(signature_input: str) -> list[str]:
         # Remove surrounding quotes
         item = item.strip('"')
         if item:
+            # Extract base header name before any ;key= parameter
+            # e.g., 'signature-agent;key="sig1"' -> 'signature-agent'
+            semicolon_pos = item.find(';')
+            if semicolon_pos != -1:
+                item = item[:semicolon_pos]
             headers.append(item.lower())
 
     return headers
