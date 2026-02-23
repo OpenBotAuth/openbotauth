@@ -2,7 +2,7 @@
  * Local Certificate Authority helper (dev/MVP)
  */
 
-import { webcrypto, randomBytes, createHash } from "node:crypto";
+import { webcrypto, randomBytes, createHash, X509Certificate } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as x509 from "@peculiar/x509";
@@ -35,6 +35,11 @@ export interface IssuedCertificate {
 }
 
 let cachedCa: CertificateAuthority | null = null;
+
+// Test helper: allows deterministic reloading from disk across scenarios.
+export function resetCertificateAuthorityCacheForTests(): void {
+  cachedCa = null;
+}
 
 function ensureCryptoProvider(): void {
   if (!(globalThis as any).crypto) {
@@ -130,6 +135,17 @@ async function createSelfSignedCa(
   return { certPem: pem, certDer: der };
 }
 
+async function certMatchesPublicKey(certPem: string, publicKey: any): Promise<boolean> {
+  try {
+    const cert = new X509Certificate(certPem);
+    const certSpki = cert.publicKey.export({ type: "spki", format: "der" }) as Buffer;
+    const keySpki = Buffer.from(await webcrypto.subtle.exportKey("spki", publicKey));
+    return certSpki.equals(keySpki);
+  } catch {
+    return false;
+  }
+}
+
 async function loadOrCreateCa(): Promise<CertificateAuthority> {
   const mode = process.env.OBA_CA_MODE || "local";
   if (mode !== "local") {
@@ -185,13 +201,25 @@ async function loadOrCreateCa(): Promise<CertificateAuthority> {
   let certDer: Buffer;
   if (existsSync(certPath)) {
     certPem = readFileSync(certPath, "utf-8");
-    certDer = Buffer.from(
-      certPem
-        .replace(/-----BEGIN CERTIFICATE-----/g, "")
-        .replace(/-----END CERTIFICATE-----/g, "")
-        .replace(/\s+/g, ""),
-      "base64",
-    );
+    const certIsMatching = await certMatchesPublicKey(certPem, publicKey);
+    if (!certIsMatching) {
+      const regenerated = await createSelfSignedCa(
+        { publicKey, privateKey },
+        subject,
+        validDays,
+      );
+      certPem = regenerated.certPem;
+      certDer = regenerated.certDer;
+      writeFileSync(certPath, certPem, { mode: 0o644 });
+    } else {
+      certDer = Buffer.from(
+        certPem
+          .replace(/-----BEGIN CERTIFICATE-----/g, "")
+          .replace(/-----END CERTIFICATE-----/g, "")
+          .replace(/\s+/g, ""),
+        "base64",
+      );
+    }
   } else {
     const cert = await createSelfSignedCa(
       { publicKey, privateKey },

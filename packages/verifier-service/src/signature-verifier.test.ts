@@ -2,7 +2,7 @@
  * Tests for SignatureVerifier - specifically trusted directory validation
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { SignatureVerifier } from "./signature-verifier.js";
 
 // Mock dependencies
@@ -155,6 +155,24 @@ describe("SignatureVerifier - Trusted Directory Validation", () => {
       ).toBe(true);
     });
 
+    it("should enforce scheme when trusted directory includes scheme", () => {
+      expect(
+        isTrustedDirectory(
+          ["https://openbotregistry.example.com"],
+          "http://openbotregistry.example.com/jwks.json"
+        )
+      ).toBe(false);
+    });
+
+    it("should enforce default port when scheme is pinned", () => {
+      expect(
+        isTrustedDirectory(
+          ["https://openbotregistry.example.com"],
+          "https://openbotregistry.example.com:8443/jwks.json"
+        )
+      ).toBe(false);
+    });
+
     it("should handle trusted directory with http:// prefix", () => {
       expect(
         isTrustedDirectory(
@@ -191,6 +209,10 @@ describe("SignatureVerifier - Trusted Directory Validation", () => {
       expect(
         isTrustedDirectory(trustedDirs, "https://localhost:8080/jwks.json")
       ).toBe(true);
+
+      expect(
+        isTrustedDirectory(trustedDirs, "https://localhost:9999/jwks.json")
+      ).toBe(false);
 
       expect(
         isTrustedDirectory(trustedDirs, "https://attacker.com/jwks.json")

@@ -210,20 +210,47 @@ export class SignatureVerifier {
     try {
       const jwksUrlParsed = new URL(jwksUrl);
       const jwksHostname = jwksUrlParsed.hostname.toLowerCase();
+      const jwksPort = this.getEffectivePort(jwksUrlParsed);
 
       return this.trustedDirectories.some(dir => {
+        const rawDir = dir.trim();
+        if (!rawDir) return false;
+
         try {
-          // Normalize the trusted directory - add scheme if missing
-          const normalizedDir = dir.includes('://') ? dir : `https://${dir}`;
+          const hasScheme = rawDir.includes('://');
+          // Normalize trusted directory for URL parsing.
+          const normalizedDir = hasScheme ? rawDir : `https://${rawDir}`;
           const trustedUrl = new URL(normalizedDir);
           const trustedHostname = trustedUrl.hostname.toLowerCase();
+          const trustedPort = this.getEffectivePort(trustedUrl);
+          const hasExplicitPort = trustedUrl.port.length > 0;
 
           // Exact match or subdomain match (e.g., api.example.com matches example.com)
-          return jwksHostname === trustedHostname ||
-                 jwksHostname.endsWith('.' + trustedHostname);
+          const hostnameMatches =
+            jwksHostname === trustedHostname ||
+            jwksHostname.endsWith('.' + trustedHostname);
+          if (!hostnameMatches) return false;
+
+          // If scheme is configured, enforce exact scheme match.
+          if (hasScheme && jwksUrlParsed.protocol !== trustedUrl.protocol) {
+            return false;
+          }
+
+          // If a trusted entry specifies a port, enforce exact port match.
+          if (hasExplicitPort && jwksPort !== trustedPort) {
+            return false;
+          }
+
+          // If scheme is configured without explicit port, treat it as origin pinning
+          // and enforce default/effective port for that scheme as well.
+          if (hasScheme && !hasExplicitPort && jwksPort !== trustedPort) {
+            return false;
+          }
+
+          return true;
         } catch {
           // Treat as hostname pattern if URL parsing fails
-          const trustedHostname = dir.toLowerCase();
+          const trustedHostname = rawDir.toLowerCase();
           return jwksHostname === trustedHostname ||
                  jwksHostname.endsWith('.' + trustedHostname);
         }
@@ -232,6 +259,13 @@ export class SignatureVerifier {
       // Invalid JWKS URL
       return false;
     }
+  }
+
+  private getEffectivePort(url: URL): string {
+    if (url.port) return url.port;
+    if (url.protocol === 'https:') return '443';
+    if (url.protocol === 'http:') return '80';
+    return '';
   }
 
   /**
