@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'crypto';
 import {
   // Key generation
   generateKeyPair,
@@ -182,20 +183,26 @@ describe('JWK Functions', () => {
   describe('legacy kid helpers', () => {
     it('should derive 16-char legacy kid from public key', () => {
       const keyPair = generateKeyPair();
-      const fullKid = generateKid(keyPair.publicKey);
       const legacyKid = generateLegacyKid(keyPair.publicKey);
+      const expectedLegacyKid = base64ToBase64Url(
+        createHash('sha256').update(pemToBase64(keyPair.publicKey)).digest('base64')
+      ).slice(0, 16);
 
-      expect(legacyKid).toBe(fullKid.slice(0, 16));
+      expect(legacyKid).toBe(expectedLegacyKid);
       expect(legacyKid.length).toBe(16);
     });
 
     it('should derive 16-char legacy kid from JWK', () => {
       const keyPair = generateKeyPair();
       const jwk = publicKeyToJWK(keyPair.publicKey);
-      const fullKid = generateKidFromJWK(jwk);
       const legacyKid = generateLegacyKidFromJWK(jwk);
+      const expectedLegacyKid = base64ToBase64Url(
+        createHash('sha256')
+          .update(JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x }))
+          .digest('base64')
+      ).slice(0, 16);
 
-      expect(legacyKid).toBe(fullKid.slice(0, 16));
+      expect(legacyKid).toBe(expectedLegacyKid);
       expect(legacyKid.length).toBe(16);
     });
   });

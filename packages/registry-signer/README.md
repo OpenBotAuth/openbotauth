@@ -162,11 +162,11 @@ Generate a kid from JWK properties using RFC 7638.
 
 #### `generateLegacyKid(publicKeyPem: string): string`
 
-Generate the legacy 16-character kid (first 16 chars of the RFC 7638 thumbprint).
+Generate the legacy 16-character kid using pre-RFC7638 PEM-based hashing (kept for compatibility).
 
 #### `generateLegacyKidFromJWK(jwk: Partial<JWK>): string`
 
-Generate the legacy 16-character kid from JWK properties.
+Generate the legacy 16-character kid using pre-RFC7638 JWK-field hashing (kept for compatibility).
 
 #### `validateJWK(jwk: unknown): jwk is JWK`
 

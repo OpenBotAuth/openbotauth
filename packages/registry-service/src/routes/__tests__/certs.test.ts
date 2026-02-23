@@ -570,6 +570,10 @@ describe("POST /v1/certs/issue - PoP validation", () => {
         String(sql).includes("SELECT check_pop_nonce"),
       ),
     ).toBe(true);
+    const nonceCall = poolQuery.mock.calls.find(([sql]) =>
+      String(sql).includes("SELECT check_pop_nonce"),
+    );
+    expect(nonceCall?.[1]?.[1]).toBe(330);
     expect(
       clientQuery.mock.calls.some(([sql]) =>
         String(sql).includes("SELECT check_pop_nonce"),

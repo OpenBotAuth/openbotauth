@@ -9,6 +9,10 @@ import { issueCertificateForJwk, getCertificateAuthority } from "../utils/ca.js"
 import { requireScope } from "../middleware/scopes.js";
 import { jwkThumbprint } from "../utils/jwk.js";
 
+const POP_PROOF_MAX_AGE_SEC = 300;
+const POP_PROOF_MAX_FUTURE_DRIFT_SEC = 30;
+const POP_NONCE_TTL_SEC = POP_PROOF_MAX_AGE_SEC + POP_PROOF_MAX_FUTURE_DRIFT_SEC;
+
 /**
  * Check if a PoP nonce has been used and mark it as used.
  * Returns true if the nonce is new (not a replay), false if already used.
@@ -25,8 +29,8 @@ async function checkPopNonce(
   const hash = createHash("sha256").update(message).digest("hex");
   try {
     const result = await queryExecutor.query(
-      `SELECT check_pop_nonce($1, 300) AS is_new`,
-      [hash],
+      `SELECT check_pop_nonce($1, $2) AS is_new`,
+      [hash, POP_NONCE_TTL_SEC],
     );
     return result.rows[0]?.is_new === true;
   } catch (err: any) {
@@ -77,13 +81,10 @@ async function verifyProofOfPossession(
     // Validate timestamp: must be in the past, within 5 minutes
     const timestamp = parseInt(timestampStr, 10);
     const now = Math.floor(Date.now() / 1000);
-    const maxAge = 300; // 5 minutes
-    const maxDrift = 30; // 30 seconds future tolerance for clock skew
-
-    if (timestamp > now + maxDrift) {
+    if (timestamp > now + POP_PROOF_MAX_FUTURE_DRIFT_SEC) {
       return { valid: false, error: "Proof timestamp is in the future" };
     }
-    if (now - timestamp > maxAge) {
+    if (now - timestamp > POP_PROOF_MAX_AGE_SEC) {
       return { valid: false, error: "Proof timestamp expired (older than 5 minutes)" };
     }
 

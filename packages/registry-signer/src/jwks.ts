@@ -54,19 +54,27 @@ export function generateKidFromJWK(jwk: Partial<JWK>): string {
 }
 
 /**
- * Legacy OpenBotAuth kid (first 16 chars of the RFC 7638 thumbprint).
+ * Legacy OpenBotAuth kid derived from PEM key material.
  * Kept only for backwards compatibility with older clients.
  */
 export function generateLegacyKid(publicKeyPem: string): string {
-  return generateKid(publicKeyPem).slice(0, LEGACY_KID_LENGTH);
+  // Historical behavior (pre-RFC7638 migration):
+  // SHA-256 over PEM body base64, then base64url-truncate to 16 chars.
+  const base64 = pemToBase64(publicKeyPem);
+  const hash = createHash("sha256").update(base64).digest("base64");
+  return base64ToBase64Url(hash).slice(0, LEGACY_KID_LENGTH);
 }
 
 /**
- * Legacy OpenBotAuth kid (first 16 chars of the RFC 7638 thumbprint).
+ * Legacy OpenBotAuth kid derived from JWK fields.
  * Kept only for backwards compatibility with older clients.
  */
 export function generateLegacyKidFromJWK(jwk: Partial<JWK>): string {
-  return generateKidFromJWK(jwk).slice(0, LEGACY_KID_LENGTH);
+  // Historical behavior (pre-RFC7638 migration):
+  // SHA-256 over JSON stringified {kty,crv,x}, then base64url-truncate to 16 chars.
+  const legacyInput = JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x });
+  const hash = createHash("sha256").update(legacyInput).digest("base64");
+  return base64ToBase64Url(hash).slice(0, LEGACY_KID_LENGTH);
 }
 
 /**
