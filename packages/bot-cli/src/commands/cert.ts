@@ -11,11 +11,25 @@ import { KeyStorage } from "../key-storage.js";
 const DEFAULT_REGISTRY_URL =
   process.env.OPENBOTAUTH_REGISTRY_URL || "https://registry.openbotauth.com";
 
+type NodeCryptoKey = webcrypto.CryptoKey;
+
+interface CertIssueErrorResponse {
+  error?: string;
+}
+
+interface CertIssueResponse {
+  serial?: string;
+  fingerprint_sha256?: string;
+  not_before?: string;
+  not_after?: string;
+  cert_pem?: string;
+}
+
 /**
  * Import a private key from either JWK JSON or PEM format.
  * Detects format automatically based on content.
  */
-async function importPrivateKey(content: string): Promise<CryptoKey> {
+async function importPrivateKey(content: string): Promise<NodeCryptoKey> {
   const trimmed = content.trim();
 
   // Check if it's JSON (JWK format from AddAgentModal)
@@ -92,7 +106,7 @@ export async function certIssueCommand(options: {
 
   try {
     // Load private key - either from explicit path or from KeyStorage
-    let privateKey: CryptoKey;
+    let privateKey: NodeCryptoKey;
 
     if (options.privateKeyPath) {
       console.log(`Loading private key from: ${options.privateKeyPath}`);
@@ -167,12 +181,14 @@ export async function certIssueCommand(options: {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: response.statusText }));
+      const error = (await response
+        .json()
+        .catch(() => ({ error: response.statusText }))) as CertIssueErrorResponse;
       console.error(`❌ Certificate issuance failed: ${error.error || response.statusText}`);
       process.exit(1);
     }
 
-    const result = await response.json();
+    const result = (await response.json()) as CertIssueResponse;
 
     console.log("✅ Certificate issued successfully!\n");
     console.log("Certificate details:");
