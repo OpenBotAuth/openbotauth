@@ -9,6 +9,7 @@ import {
   buildSignatureBase,
   parseSignatureInput,
   parseSignature,
+  parseSignatureLabels,
   validateSafeUrl,
 } from "./signature-parser.js";
 
@@ -259,6 +260,16 @@ describe("parseSignatureInput", () => {
     expect(parsed?.keyId).toBe("k1");
   });
 
+  it("should parse the matching member when expected label is provided", () => {
+    const parsed = parseSignatureInput(
+      'sig1=("@method");created=1;keyid="k1";alg="ed25519", sig2=("@path");created=2;keyid="k2";alg="ed25519";tag="web-bot-auth"',
+      "sig2",
+    );
+    expect(parsed?.label).toBe("sig2");
+    expect(parsed?.keyId).toBe("k2");
+    expect(parsed?.tag).toBe("web-bot-auth");
+  });
+
   it("should parse tag and signature-agent key parameter", () => {
     const parsed = parseSignatureInput(
       'sig2=("@method" "signature-agent";key="sig1");created=1700000000;expires=1700000300;nonce="n";keyid="k2";alg="ed25519";tag="web-bot-auth"',
@@ -281,6 +292,13 @@ describe("parseSignature", () => {
       "sig2",
     );
     expect(parsed).toBe("c2Vjb25k");
+  });
+});
+
+describe("parseSignatureLabels", () => {
+  it("returns signature labels in order", () => {
+    const labels = parseSignatureLabels("sig2=:Zm9vOg==:, sig1=:YmFyOg==:");
+    expect(labels).toEqual(["sig2", "sig1"]);
   });
 });
 
@@ -537,6 +555,31 @@ describe("buildSignatureBase", () => {
 
     expect(result).toContain('"content-type": application/json');
     expect(result).toContain('"accept": application/json');
+  });
+
+  it("serializes selected dictionary member as quoted sf-string", () => {
+    const components = {
+      label: "sig1",
+      keyId: "test-key",
+      signature: "",
+      algorithm: "ed25519",
+      headers: ['signature-agent;key="sig1"'],
+      rawSignatureParams:
+        '("signature-agent";key="sig1");keyid="test-key";alg="ed25519"',
+    };
+
+    const request = {
+      method: "GET",
+      url: "https://example.com/test",
+      headers: {
+        "signature-agent": 'sig1="https://example.com/jwks.json"',
+      },
+    };
+
+    const result = buildSignatureBase(components, request);
+    expect(result).toContain(
+      '"signature-agent";key="sig1": "https://example.com/jwks.json"',
+    );
   });
 
   it("should throw error when covered header is missing", () => {

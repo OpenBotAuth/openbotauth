@@ -230,13 +230,16 @@ export function validateSafeUrl(urlString: string): void {
  */
 export function parseSignatureInput(
   signatureInput: string,
+  expectedLabel?: string,
 ): SignatureComponents | null {
   try {
-    // MVP behavior: when multiple labels are present, verify the first parsable member.
     const members = splitTopLevelMembers(signatureInput);
     for (const member of members) {
       const parsed = parseSingleSignatureInputMember(member);
-      if (parsed) {
+      if (!parsed) {
+        continue;
+      }
+      if (!expectedLabel || parsed.label === expectedLabel) {
         return parsed;
       }
     }
@@ -280,6 +283,28 @@ export function parseSignature(
   } catch (error) {
     console.error("Error parsing Signature:", error);
     return null;
+  }
+}
+
+/**
+ * Parse signature labels from Signature header members in-order.
+ *
+ * Example:
+ *   Signature: sig1=:abc:, sig2=:def:
+ * Returns: ["sig1", "sig2"]
+ */
+export function parseSignatureLabels(signature: string): string[] {
+  try {
+    const labels: string[] = [];
+    for (const member of splitTopLevelMembers(signature)) {
+      const match = member.match(SIGNATURE_RE);
+      if (match) {
+        labels.push(match[1]);
+      }
+    }
+    return labels;
+  } catch {
+    return [];
   }
 }
 
@@ -372,8 +397,10 @@ export function buildSignatureBase(
           );
         }
 
-        // RFC 9421: component identifier includes the ;key= parameter
-        lines.push(`"${headerName}";key="${dictKey}": ${memberValue}`);
+        // RFC 9421 + RFC 8941: dictionary string item must be serialized as sf-string.
+        lines.push(
+          `"${headerName}";key="${dictKey}": ${serializeSfString(memberValue)}`,
+        );
       } else {
         // Regular headers - use raw value as-is per RFC 9421
         lines.push(`"${headerName}": ${headerValue}`);
@@ -481,6 +508,11 @@ function parseStructuredDictionaryStringItems(
   }
 
   return result;
+}
+
+function serializeSfString(value: string): string {
+  // RFC 8941 sf-string serialization for signature-base construction.
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
 /**

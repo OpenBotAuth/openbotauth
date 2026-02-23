@@ -10,6 +10,10 @@ import type { BotConfig, SignedRequest, SignatureParams } from './types.js';
 export class RequestSigner {
   constructor(private config: BotConfig) {}
 
+  private serializeSfString(value: string): string {
+    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  }
+
   private formatCoveredComponent(component: string): string {
     const separatorIndex = component.indexOf(";");
     if (separatorIndex === -1) {
@@ -142,12 +146,14 @@ export class RequestSigner {
             throw new Error('Missing covered header: signature-agent');
           }
           // Extract the value for the specific dictionary member key
-          // The signature base uses the raw URI value, not the dict format
+          // Serialize selected dictionary member as RFC 8941 sf-string.
           const dictKey = sigAgentMatch[1];
           const escapedDictKey = dictKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const dictMatch = request.signatureAgent.match(new RegExp(`${escapedDictKey}="([^"]+)"`));
           const uriValue = dictMatch ? dictMatch[1] : request.signatureAgent;
-          lines.push(`"signature-agent";key="${dictKey}": ${uriValue}`);
+          lines.push(
+            `"signature-agent";key="${dictKey}": ${this.serializeSfString(uriValue)}`,
+          );
           continue;
         }
         if (component === 'signature-agent') {

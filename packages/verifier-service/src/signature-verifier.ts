@@ -12,6 +12,7 @@ import { validateJwkX509 } from './x509.js';
 import {
   parseSignatureInput,
   parseSignature,
+  parseSignatureLabels,
   parseSignatureAgent,
   extractSignatureAgentDictionaryKey,
   resolveJwksUrl,
@@ -61,29 +62,31 @@ export class SignatureVerifier {
         };
       }
 
-      // 2. Parse signature components (needed for label selection)
-      const components = parseSignatureInput(signatureInput);
+      // 2. Select Signature-Input member matching a Signature label.
+      const signatureLabels = parseSignatureLabels(signature);
+      const candidateLabels = signatureLabels.length > 0 ? signatureLabels : [undefined];
+      let components: ReturnType<typeof parseSignatureInput> = null;
+
+      for (const label of candidateLabels) {
+        const parsed = parseSignatureInput(signatureInput, label);
+        if (!parsed) {
+          continue;
+        }
+        if (parsed.tag !== "web-bot-auth") {
+          continue;
+        }
+        if (!isSignatureAgentCovered(parsed.headers)) {
+          continue;
+        }
+        components = parsed;
+        break;
+      }
+
       if (!components) {
         return {
           verified: false,
-          error: 'Failed to parse Signature-Input header',
-        };
-      }
-
-      // 2.1 Enforce WBA tag semantics.
-      if (components.tag !== "web-bot-auth") {
-        return {
-          verified: false,
           error:
-            'Invalid Signature-Input tag (expected tag="web-bot-auth")',
-        };
-      }
-
-      if (!isSignatureAgentCovered(components.headers)) {
-        return {
-          verified: false,
-          error:
-            'Invalid Signature-Input: "signature-agent" must be a covered component',
+            "No matching Signature-Input member with tag=\"web-bot-auth\" and covered signature-agent",
         };
       }
 
