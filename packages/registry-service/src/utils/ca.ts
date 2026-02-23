@@ -258,9 +258,19 @@ export async function issueCertificateForJwk(
   ensureCryptoProvider();
   const ca = await getCertificateAuthority();
 
+  const importableJwk = {
+    kty: typeof jwk.kty === "string" ? jwk.kty : "OKP",
+    crv: typeof jwk.crv === "string" ? jwk.crv : "Ed25519",
+    x: typeof jwk.x === "string" ? jwk.x : "",
+  } as any;
+
+  if (!importableJwk.x) {
+    throw new Error("Missing JWK x parameter for certificate issuance");
+  }
+
   const publicKey = await webcrypto.subtle.importKey(
     "jwk",
-    jwk,
+    importableJwk,
     { name: "Ed25519" } as any,
     true,
     ["verify"],

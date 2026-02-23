@@ -242,6 +242,17 @@ describe("parseSignatureAgent", () => {
     const result = parseSignatureAgent("not-a-url");
     expect(result).toBeNull();
   });
+
+  it("should parse dictionary string item with parameters", () => {
+    const result = parseSignatureAgent(
+      'sig1="https://example.com/.well-known/http-message-signatures-directory";v=1',
+      "sig1",
+    );
+    expect(result).toEqual({
+      url: "https://example.com/.well-known/http-message-signatures-directory",
+      isJwks: true,
+    });
+  });
 });
 
 describe("parseSignatureInput", () => {
