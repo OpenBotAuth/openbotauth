@@ -11,6 +11,7 @@ import { keygenCommand } from './commands/keygen.js';
 import { fetchCommand } from './commands/fetch.js';
 import { configCommand } from './commands/config.js';
 import { certIssueCommand } from './commands/cert.js';
+import { testSignCommand, testCertCommand } from './commands/test.js';
 
 const program = new Command();
 
@@ -86,6 +87,43 @@ certCmd
   });
 
 /**
+ * test command - Test authentication flows
+ */
+const testCmd = program.command('test').description('Test authentication flows');
+
+testCmd
+  .command('sign')
+  .description('Test signature verification against verifier service (both legacy and dict formats)')
+  .option('--verifier-url <url>', 'Verifier service URL')
+  .option('--target-url <url>', 'Target URL to sign for testing')
+  .option('-v, --verbose', 'Verbose output')
+  .action(async (options) => {
+    await testSignCommand({
+      verifierUrl: options.verifierUrl,
+      targetUrl: options.targetUrl,
+      verbose: options.verbose,
+    });
+  });
+
+testCmd
+  .command('cert')
+  .description('Test certificate issuance flow')
+  .requiredOption('--agent-id <id>', 'Agent ID to test certificate issuance')
+  .option('--private-key-path <path>', 'Path to private key file (JWK or PEM)')
+  .option('--registry-url <url>', 'Registry URL')
+  .option('--token <token>', 'Auth token (or set OPENBOTAUTH_TOKEN env var)')
+  .option('-v, --verbose', 'Verbose output')
+  .action(async (options) => {
+    await testCertCommand({
+      agentId: options.agentId,
+      privateKeyPath: options.privateKeyPath,
+      registryUrl: options.registryUrl,
+      token: options.token,
+      verbose: options.verbose,
+    });
+  });
+
+/**
  * Examples
  */
 program.addHelpText(
@@ -106,6 +144,15 @@ Examples:
 
   # Issue an X.509 certificate for an agent
   $ oba-bot cert issue --agent-id <uuid> --token <pat>
+
+  # Test signature verification (both legacy and dict formats)
+  $ oba-bot test sign --verifier-url http://localhost:8081
+
+  # Test against production verifier with verbose output
+  $ oba-bot test sign --verifier-url https://verifier.openbotauth.org -v
+
+  # Test certificate issuance flow
+  $ oba-bot test cert --agent-id <uuid> --token <pat>
 
   # Verbose mode
   $ oba-bot fetch https://example.com/api/data -v
