@@ -134,7 +134,7 @@ describe("validateJwkX509", () => {
 });
 
 describe("validateJwkX509 EKU and SAN validation", () => {
-  let testCaKeyPair: CryptoKeyPair;
+  let testCaKeyPair: webcrypto.CryptoKeyPair;
   let testCaCert: any;
   let testCaPem: string;
 
@@ -149,7 +149,7 @@ describe("validateJwkX509 EKU and SAN validation", () => {
       { name: "Ed25519" } as any,
       true,
       ["sign", "verify"],
-    ) as CryptoKeyPair;
+    ) as webcrypto.CryptoKeyPair;
 
     const notBefore = new Date();
     const notAfter = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
@@ -180,12 +180,12 @@ describe("validateJwkX509 EKU and SAN validation", () => {
     includeClientAuthEku?: boolean;
     includeServerAuthEku?: boolean;
     sanUri?: string;
-  }): Promise<{ cert: any; keyPair: CryptoKeyPair; jwk: any }> {
+  }): Promise<{ cert: any; keyPair: webcrypto.CryptoKeyPair; jwk: any }> {
     const keyPair = await webcrypto.subtle.generateKey(
       { name: "Ed25519" } as any,
       true,
       ["sign", "verify"],
-    ) as CryptoKeyPair;
+    ) as webcrypto.CryptoKeyPair;
 
     const extensions: any[] = [
       new (x509Lib as any).BasicConstraintsExtension(false, undefined, true),
