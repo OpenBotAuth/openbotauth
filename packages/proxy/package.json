@@ -1,6 +1,6 @@
 {
   "name": "@openbotauth/proxy",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Web Bot Auth / OpenBotAuth reverse proxy for verifying RFC 9421 HTTP signatures",
   "type": "module",
   "main": "./dist/server.js",

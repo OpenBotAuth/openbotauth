@@ -83,6 +83,21 @@ describe('parseCoveredHeaders', () => {
     const input = 'sig1=(  "@method"   "@path"  );created=1618884473';
     expect(parseCoveredHeaders(input)).toEqual(['@method', '@path']);
   });
+
+  it('handles signature-agent with ;key= parameter (new IETF format)', () => {
+    const input = 'sig1=("@method" "@path" "signature-agent";key="sig1");created=1618884473;tag="web-bot-auth"';
+    expect(parseCoveredHeaders(input)).toEqual(['@method', '@path', 'signature-agent']);
+  });
+
+  it('handles multiple headers with ;key= parameters', () => {
+    const input = 'sig1=("@method" "@authority" "content-type";req "signature-agent";key="sig1");created=1618884473';
+    expect(parseCoveredHeaders(input)).toEqual(['@method', '@authority', 'content-type', 'signature-agent']);
+  });
+
+  it('handles plain signature-agent without parameters (legacy format)', () => {
+    const input = 'sig1=("@method" "@path" "signature-agent");created=1618884473';
+    expect(parseCoveredHeaders(input)).toEqual(['@method', '@path', 'signature-agent']);
+  });
 });
 
 describe('getSensitiveCoveredHeader', () => {

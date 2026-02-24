@@ -61,6 +61,10 @@ export function hasSignatureHeaders(headers: IncomingHttpHeaders): boolean {
  * Example input: sig1=("@method" "@path" "@authority" "content-type");created=1618884473;...
  * Returns: ['@method', '@path', '@authority', 'content-type']
  *
+ * Also handles RFC 9421 component parameters like:
+ * sig1=("@method" "@path" "signature-agent";key="sig1");created=...
+ * Returns: ['@method', '@path', 'signature-agent']
+ *
  * Handles both quoted and unquoted tokens, extra whitespace, and invalid input.
  */
 export function parseCoveredHeaders(signatureInput: string): string[] {
@@ -77,16 +81,22 @@ export function parseCoveredHeaders(signatureInput: string): string[] {
 
   const result: string[] = [];
 
-  // Match both quoted ("header") and unquoted (header) tokens
-  // Quoted: "header-name"
-  // Unquoted: header-name (letters, digits, hyphens, @)
-  const tokenRegex = /"([^"]+)"|([a-zA-Z@][a-zA-Z0-9-]*)/g;
+  // Match quoted components with optional parameter tails: "header-name";key="value"
+  // Or unquoted tokens (less common but valid)
+  // Group 1: quoted content (may include params after closing quote)
+  // Group 2: unquoted token
+  const tokenRegex = /"([^"\\]*(?:\\.[^"\\]*)*)"(?:;[^\s]+)?|([a-zA-Z@][a-zA-Z0-9-]*)/g;
   let tokenMatch;
 
   while ((tokenMatch = tokenRegex.exec(content)) !== null) {
-    // Group 1 is quoted content, group 2 is unquoted
-    const token = tokenMatch[1] || tokenMatch[2];
+    // Group 1 is quoted content (without params), group 2 is unquoted
+    let token = tokenMatch[1] || tokenMatch[2];
     if (token) {
+      // Strip any params that might have been captured (defensive)
+      const semiPos = token.indexOf(';');
+      if (semiPos !== -1) {
+        token = token.slice(0, semiPos);
+      }
       result.push(token.toLowerCase());
     }
   }
