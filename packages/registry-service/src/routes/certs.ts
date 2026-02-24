@@ -336,6 +336,7 @@ certsRouter.post(
            AND a.user_id = $2
            AND c.kid = $3
            AND c.revoked_at IS NULL
+           AND c.not_before <= now()
            AND c.not_after > now()`,
         [agent.id, req.session!.user.id, resolvedKid],
       );

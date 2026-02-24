@@ -836,6 +836,10 @@ describe("POST /v1/certs/issue - PoP validation", () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.body.error).toContain("Active certificate limit reached");
+    const activeCapQueryCall = agentQuery.mock.calls.find(([sql]) =>
+      String(sql).includes("AND c.kid = $3"),
+    );
+    expect(activeCapQueryCall?.[0]).toContain("c.not_before <= now()");
   });
 });
 
