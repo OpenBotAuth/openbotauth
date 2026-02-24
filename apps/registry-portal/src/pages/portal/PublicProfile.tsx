@@ -479,9 +479,21 @@ const PublicProfile = () => {
                     <p className="text-sm text-muted-foreground mb-4">
                       {agent.description || "No description provided"}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mb-3">
                       Created: {format(new Date(agent.created_at), "MMM d, yyyy")}
                     </p>
+                    {isOwnProfile && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/agents/${agent.id}`);
+                        }}
+                      >
+                        View Details & Certificates
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               ))}
