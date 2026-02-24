@@ -241,6 +241,24 @@ router.get('/top/agents', async (req: Request, res: Response) => {
       LEFT JOIN users u ON u.id = p.id
       WHERE s.timestamp > NOW() - $1 * INTERVAL '1 day'
       GROUP BY 1
+      HAVING NOT (
+        -- Exclude entries with no resolved username that resolve to our own domain
+        CASE
+          WHEN MAX(s.username) IS NULL THEN
+            COALESCE(
+              (regexp_match(
+                CASE
+                  WHEN MAX(s.signature_agent) LIKE 'sig%=%"%' THEN
+                    substring(MAX(s.signature_agent) FROM '"([^"]+)"')
+                  ELSE MAX(s.signature_agent)
+                END,
+                '^https?://([^/]+)'
+              ))[1],
+              ''
+            ) = 'api.openbotauth.org'
+          ELSE false
+        END
+      )
       ORDER BY verified_count DESC
       LIMIT $2`,
       [days, limit]
