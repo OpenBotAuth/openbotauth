@@ -79,6 +79,17 @@ Serve JWKS for a user's public keys.
 }
 ```
 
+#### GET `/.well-known/http-message-signatures-directory`
+
+Multi-tenant convenience discovery endpoint.
+
+Query parameters:
+- `username` (required)
+
+Behavior:
+- Redirects to `/jwks/{username}.json`.
+- Returns `400` if `username` is missing.
+
 ### Signature Agent Card
 
 #### GET `/.well-known/signature-agent-card`

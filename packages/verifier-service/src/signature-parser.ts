@@ -2,17 +2,53 @@
  * RFC 9421 HTTP Message Signatures Parser
  *
  * Parses Signature-Input and Signature headers according to RFC 9421
+ * with extensions for the IETF Web Bot Auth draft specification.
+ *
+ * References:
+ * - RFC 9421: HTTP Message Signatures
+ *   https://www.rfc-editor.org/rfc/rfc9421.html
+ * - RFC 8941: Structured Field Values for HTTP
+ *   https://www.rfc-editor.org/rfc/rfc8941.html
+ * - IETF Web Bot Auth (draft-meunier-web-bot-auth)
+ *   https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth/
+ * - HTTP Message Signatures Directory (draft-meunier-http-message-signatures-directory)
+ *   https://datatracker.ietf.org/doc/draft-meunier-http-message-signatures-directory/
  */
 
 import type { SignatureComponents } from "./types.js";
 
-const LABEL_PATTERN = "[A-Za-z][A-Za-z0-9._-]*";
+const LABEL_PATTERN = "[A-Za-z0-9*][A-Za-z0-9._*-]*";
 const LABEL_CAPTURE_RE = new RegExp(`^(${LABEL_PATTERN})`);
 const SIGNATURE_INPUT_LABEL_RE = new RegExp(`^(${LABEL_PATTERN})=(.+)$`);
 const SIGNATURE_INPUT_RE = new RegExp(`^(${LABEL_PATTERN})=\\(([^)]+)\\);(.+)$`);
 const SIGNATURE_RE = new RegExp(`^(${LABEL_PATTERN})=:([^:]+):$`);
 const DIRECTORY_ACCEPT_HEADER =
   "application/http-message-signatures-directory+json, application/http-message-signatures-directory, application/jwk-set+json, application/json";
+
+/**
+ * Valid Content-Type values for JWKS/directory responses per IETF specs.
+ * We accept these media types (with optional parameters like charset).
+ */
+const VALID_JWKS_CONTENT_TYPES = [
+  "application/http-message-signatures-directory+json",
+  "application/http-message-signatures-directory",
+  "application/jwk-set+json",
+  "application/json",
+];
+
+/**
+ * Check if a Content-Type header value is valid for JWKS/directory responses.
+ * Handles media type parameters (e.g., "application/json; charset=utf-8").
+ */
+function isValidJwksContentType(contentType: string | null): boolean {
+  if (!contentType) {
+    // Allow missing Content-Type for compatibility with some servers
+    return true;
+  }
+  // Extract media type (before any semicolon for parameters)
+  const mediaType = contentType.split(";")[0].trim().toLowerCase();
+  return VALID_JWKS_CONTENT_TYPES.includes(mediaType);
+}
 
 function splitTopLevelMembers(input: string): string[] {
   const members: string[] = [];
@@ -111,14 +147,26 @@ function parseSingleSignatureInputMember(
   const paramPairs = paramsStr.split(";");
 
   for (const pair of paramPairs) {
-    const [key, value] = pair.split("=").map((s) => s.trim());
-    if (key && value) {
-      // Remove quotes and parse numbers
-      const cleanValue = value.replace(/"/g, "");
-      params[key] = isNaN(Number(cleanValue))
-        ? cleanValue
-        : Number(cleanValue);
+    const trimmed = pair.trim();
+    if (!trimmed) continue;
+
+    // Split only on the first '=' so quoted values like nonce="abc=="
+    // retain all trailing '=' characters.
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) continue;
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const rawValue = trimmed.slice(separatorIndex + 1).trim();
+    if (!key || !rawValue) continue;
+
+    if (rawValue.startsWith('"') && rawValue.endsWith('"') && rawValue.length >= 2) {
+      const inner = rawValue.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      params[key] = inner;
+      continue;
     }
+
+    const numeric = Number(rawValue);
+    params[key] = Number.isNaN(numeric) ? rawValue : numeric;
   }
 
   const parsed: SignatureComponents = {
@@ -397,9 +445,10 @@ export function buildSignatureBase(
           );
         }
 
-        // RFC 9421 + RFC 8941: dictionary string item must be serialized as sf-string.
+        // RFC 9421 + RFC 8941: serialize selected dictionary member as key=sf-string.
+        // Example: "signature-agent": sig2="https://signature-agent.test"
         lines.push(
-          `"${headerName}";key="${dictKey}": ${serializeSfString(memberValue)}`,
+          `"${headerName}": ${dictKey}=${serializeSfString(memberValue)}`,
         );
       } else {
         // Regular headers - use raw value as-is per RFC 9421
@@ -637,6 +686,15 @@ export async function resolveJwksUrl(
 
       if (!response.ok) {
         continue; // Try next path
+      }
+
+      // Validate Content-Type is appropriate for JWKS/directory response
+      const contentType = response.headers.get("content-type");
+      if (!isValidJwksContentType(contentType)) {
+        console.warn(
+          `JWKS discovery: ${candidateUrl} has invalid Content-Type: ${contentType}`,
+        );
+        continue;
       }
 
       // Limit response size to prevent huge payloads

@@ -18,6 +18,7 @@ export interface VerifierRequest {
   url: string;
   headers: Record<string, string>;
   body?: string;
+  jwksUrl?: string;
 }
 
 /**

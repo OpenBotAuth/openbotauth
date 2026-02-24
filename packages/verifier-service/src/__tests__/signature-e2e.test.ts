@@ -67,7 +67,7 @@ describe("E2E Signature Verification", () => {
 
     // 2. Build Signature-Input header
     const coveredHeaders = ["@method", "@path", "@authority", 'signature-agent;key="sig1"'];
-    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
+    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
     const signatureInput = `sig1=${signatureParams}`;
 
     // 3. Parse signature input to get components
@@ -122,6 +122,156 @@ describe("E2E Signature Verification", () => {
     expect(result.agent?.client_name).toBe("test-agent");
   });
 
+  it("verifies when Signature-Agent is omitted but jwksUrl is provided out-of-band", async () => {
+    const method = "GET";
+    const url = "https://example.com/api/out-of-band";
+    const created = Math.floor(Date.now() / 1000);
+    const nonce = Buffer.from(
+      webcrypto.getRandomValues(new Uint8Array(16)),
+    ).toString("base64url");
+
+    const coveredHeaders = ["@method", "@path", "@authority"];
+    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
+    const signatureInput = `sig1=${signatureParams}`;
+
+    const components = parseSignatureInput(signatureInput);
+    expect(components).not.toBeNull();
+
+    const signatureBase = buildSignatureBase(components!, {
+      method,
+      url,
+      headers: {},
+    });
+
+    const signatureBytes = await webcrypto.subtle.sign(
+      "Ed25519",
+      keyPair.privateKey,
+      new TextEncoder().encode(signatureBase),
+    );
+    const signatureHeader = `sig1=:${Buffer.from(signatureBytes).toString("base64")}:`;
+
+    const mockJwksCache = createMockJwksCache(publicJwk);
+    const mockNonceManager = createMockNonceManager();
+    const verifier = new SignatureVerifier(
+      mockJwksCache as any,
+      mockNonceManager as any,
+      ["trusted.example.com"],
+    );
+
+    const result = await verifier.verify({
+      method,
+      url,
+      headers: {
+        "signature-input": signatureInput,
+        signature: signatureHeader,
+      },
+      jwksUrl: "https://trusted.example.com/jwks.json",
+    });
+
+    expect(result.verified).toBe(true);
+    expect(result.error).toBeUndefined();
+    expect(mockJwksCache.getKey).toHaveBeenCalledWith(
+      "https://trusted.example.com/jwks.json",
+      publicJwk.kid,
+    );
+  });
+
+  it("rejects signatures missing required expires parameter", async () => {
+    const method = "GET";
+    const url = "https://example.com/api/missing-expires";
+    const created = Math.floor(Date.now() / 1000);
+    const nonce = Buffer.from(
+      webcrypto.getRandomValues(new Uint8Array(16)),
+    ).toString("base64url");
+    const signatureAgentHeader = 'sig1="https://trusted.example.com/jwks.json"';
+    const coveredHeaders = ["@method", "@path", "@authority", 'signature-agent;key="sig1"'];
+    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
+    const signatureInput = `sig1=${signatureParams}`;
+
+    const components = parseSignatureInput(signatureInput)!;
+    const signatureBase = buildSignatureBase(components, {
+      method,
+      url,
+      headers: {
+        "signature-agent": signatureAgentHeader,
+      },
+    });
+
+    const signatureBytes = await webcrypto.subtle.sign(
+      "Ed25519",
+      keyPair.privateKey,
+      new TextEncoder().encode(signatureBase),
+    );
+    const signatureHeader = `sig1=:${Buffer.from(signatureBytes).toString("base64")}:`;
+
+    const verifier = new SignatureVerifier(
+      createMockJwksCache(publicJwk) as any,
+      createMockNonceManager() as any,
+      ["trusted.example.com"],
+    );
+
+    const result = await verifier.verify({
+      method,
+      url,
+      headers: {
+        "signature-input": signatureInput,
+        signature: signatureHeader,
+        "signature-agent": signatureAgentHeader,
+      },
+    });
+
+    expect(result.verified).toBe(false);
+    expect(result.error).toContain("created and expires");
+  });
+
+  it("rejects signatures missing both @authority and @target-uri coverage", async () => {
+    const method = "GET";
+    const url = "https://example.com/api/missing-authority-binding";
+    const created = Math.floor(Date.now() / 1000);
+    const nonce = Buffer.from(
+      webcrypto.getRandomValues(new Uint8Array(16)),
+    ).toString("base64url");
+    const signatureAgentHeader = 'sig1="https://trusted.example.com/jwks.json"';
+    const coveredHeaders = ["@method", "@path", 'signature-agent;key="sig1"'];
+    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
+    const signatureInput = `sig1=${signatureParams}`;
+
+    const components = parseSignatureInput(signatureInput)!;
+    const signatureBase = buildSignatureBase(components, {
+      method,
+      url,
+      headers: {
+        "signature-agent": signatureAgentHeader,
+      },
+    });
+
+    const signatureBytes = await webcrypto.subtle.sign(
+      "Ed25519",
+      keyPair.privateKey,
+      new TextEncoder().encode(signatureBase),
+    );
+    const signatureHeader = `sig1=:${Buffer.from(signatureBytes).toString("base64")}:`;
+
+    const verifier = new SignatureVerifier(
+      createMockJwksCache(publicJwk) as any,
+      createMockNonceManager() as any,
+      ["trusted.example.com"],
+    );
+
+    const result = await verifier.verify({
+      method,
+      url,
+      headers: {
+        "signature-input": signatureInput,
+        signature: signatureHeader,
+        "signature-agent": signatureAgentHeader,
+      },
+    });
+
+    expect(result.verified).toBe(false);
+    expect(result.error).toContain("@authority/@target-uri");
+  });
+
   it("rejects signature with wrong key", async () => {
     // Generate a different keypair for signing (simulates attacker)
     const attackerKeyPair = (await webcrypto.subtle.generateKey(
@@ -136,8 +286,8 @@ describe("E2E Signature Verification", () => {
     const nonce = Buffer.from(webcrypto.getRandomValues(new Uint8Array(16))).toString("base64url");
     const signatureAgentHeader = 'sig1="https://trusted.example.com/jwks.json"';
 
-    const coveredHeaders = ["@method", "@path", 'signature-agent;key="sig1"'];
-    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
+    const coveredHeaders = ["@method", "@path", "@authority", 'signature-agent;key="sig1"'];
+    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
     const signatureInput = `sig1=${signatureParams}`;
 
     const components = parseSignatureInput(signatureInput)!;
@@ -188,8 +338,8 @@ describe("E2E Signature Verification", () => {
     const created = Math.floor(Date.now() / 1000);
     const nonce = Buffer.from(webcrypto.getRandomValues(new Uint8Array(16))).toString("base64url");
     const signatureAgentHeader = 'sig1="https://trusted.example.com/jwks.json"';
-    const coveredHeaders = ["@method", "@path", 'signature-agent;key="sig1"'];
-    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519"`;
+    const coveredHeaders = ["@method", "@path", "@authority", 'signature-agent;key="sig1"'];
+    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519"`;
     const signatureInput = `sig1=${signatureParams}`;
 
     const components = parseSignatureInput(signatureInput)!;
@@ -234,10 +384,10 @@ describe("E2E Signature Verification", () => {
     const signatureAgentHeader = 'sig1="https://trusted.example.com/jwks.json"';
 
     const badCovered = ["@method", "@path"];
-    const badParams = `(${badCovered.map(formatCoveredComponent).join(" ")});created=${created};keyid="other-kid";nonce="${nonce}";alg="ed25519"`;
+    const badParams = `(${badCovered.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="other-kid";nonce="${nonce}";alg="ed25519"`;
 
-    const goodCovered = ["@method", "@path", 'signature-agent;key="sig1"'];
-    const goodParams = `(${goodCovered.map(formatCoveredComponent).join(" ")});created=${created};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
+    const goodCovered = ["@method", "@path", "@authority", 'signature-agent;key="sig1"'];
+    const goodParams = `(${goodCovered.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
 
     const signatureInput = `sig0=${badParams}, sig1=${goodParams}`;
 
@@ -282,8 +432,8 @@ describe("E2E Signature Verification", () => {
     const created = Math.floor(Date.now() / 1000);
     const nonce = Buffer.from(webcrypto.getRandomValues(new Uint8Array(16))).toString("base64url");
     const signatureAgentHeader = 'sig1="https://trusted.example.com/jwks.json"';
-    const coveredHeaders = ["@method", "@path"];
-    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
+    const coveredHeaders = ["@method", "@path", "@authority"];
+    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
     const signatureInput = `sig1=${signatureParams}`;
 
     const components = parseSignatureInput(signatureInput)!;
@@ -325,8 +475,8 @@ describe("E2E Signature Verification", () => {
     const nonce = Buffer.from(webcrypto.getRandomValues(new Uint8Array(16))).toString("base64url");
     const signatureAgentHeader = 'sig1="https://trusted.example.com/jwks.json"';
 
-    const coveredHeaders = ["@method", "@path", 'signature-agent;key="sig1"'];
-    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
+    const coveredHeaders = ["@method", "@path", "@authority", 'signature-agent;key="sig1"'];
+    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
     const signatureInput = `sig1=${signatureParams}`;
 
     const components = parseSignatureInput(signatureInput)!;
@@ -381,7 +531,7 @@ describe("E2E Signature Verification", () => {
 
     // Include content-type in covered headers
     const coveredHeaders = ["@method", "@path", "@authority", "content-type", 'signature-agent;key="sig1"'];
-    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
+    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
     const signatureInput = `sig1=${signatureParams}`;
 
     const requestHeaders: Record<string, string> = {
@@ -436,8 +586,8 @@ describe("E2E Signature Verification", () => {
     const signatureLabel = "sig2";
     const signatureAgentHeader =
       'sig1="https://trusted.example.com/jwks.json", sig2="https://attacker.example/jwks.json"';
-    const coveredHeaders = ["@method", "@path", 'signature-agent;key="sig1"'];
-    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
+    const coveredHeaders = ["@method", "@path", "@authority", 'signature-agent;key="sig1"'];
+    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
     const signatureInput = `${signatureLabel}=${signatureParams}`;
 
     const components = parseSignatureInput(signatureInput)!;
@@ -490,8 +640,8 @@ describe("E2E Signature Verification", () => {
     const nonce = "replayed-nonce";
     const signatureAgentHeader = 'sig1="https://trusted.example.com/jwks.json"';
 
-    const coveredHeaders = ["@method", "@path", 'signature-agent;key="sig1"'];
-    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
+    const coveredHeaders = ["@method", "@path", "@authority", 'signature-agent;key="sig1"'];
+    const signatureParams = `(${coveredHeaders.map(formatCoveredComponent).join(" ")});created=${created};expires=${created + 300};keyid="${publicJwk.kid}";nonce="${nonce}";alg="ed25519";tag="web-bot-auth"`;
     const signatureInput = `sig1=${signatureParams}`;
 
     const components = parseSignatureInput(signatureInput)!;

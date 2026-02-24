@@ -105,6 +105,7 @@ export class VerifierClient {
       url: input.url,
       headers: extractResult.headers,
       ...(input.body !== undefined && { body: input.body }),
+      ...(input.jwksUrl !== undefined && { jwksUrl: input.jwksUrl }),
     };
 
     const controller = new AbortController();

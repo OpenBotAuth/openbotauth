@@ -76,7 +76,7 @@ curl http://localhost:3000/protected
 **Expected:**
 ```json
 {
-  "error": "Missing required signature headers (Signature-Input, Signature, Signature-Agent)",
+  "error": "Missing required signature headers (Signature-Input, Signature)",
   "message": "Signature verification failed"
 }
 ```

@@ -242,3 +242,162 @@ describe("SignatureVerifier - Trusted Directory Validation", () => {
     });
   });
 });
+
+describe("SignatureVerifier - Algorithm Validation", () => {
+  it("should reject unsupported signature algorithm in Signature-Input", async () => {
+    const mockJwksCacheForAlg = {
+      getKey: vi.fn().mockResolvedValue({ kty: "OKP", crv: "Ed25519", x: "abc" }),
+      getJWKS: vi.fn().mockResolvedValue({ keys: [] }),
+    };
+    const mockNonceManagerForAlg = {
+      checkTimestamp: vi.fn().mockReturnValue({ valid: true }),
+      checkNonce: vi.fn().mockResolvedValue(true),
+    };
+
+    const verifier = new SignatureVerifier(
+      mockJwksCacheForAlg as any,
+      mockNonceManagerForAlg as any,
+      []
+    );
+
+    // This test checks that verify() rejects non-ed25519 algorithms
+    // We need to construct a request that would get past header parsing
+    const result = await verifier.verify({
+      method: "GET",
+      url: "https://example.com/test",
+      headers: {
+        "signature-input": 'sig1=("@method" "@authority");created=1700000000;expires=1700000300;keyid="k1";alg="rsa-sha256";tag="web-bot-auth"',
+        "signature": "sig1=:dGVzdA==:",
+      },
+      jwksUrl: "https://example.com/jwks.json",
+    });
+
+    expect(result.verified).toBe(false);
+    expect(result.error).toContain("Unsupported signature algorithm");
+    expect(result.error).toContain("rsa-sha256");
+  });
+
+  it("should accept ed25519 algorithm (case insensitive)", async () => {
+    const mockJwksCacheForAlg = {
+      getKey: vi.fn().mockResolvedValue({ kty: "OKP", crv: "Ed25519", x: "abc" }),
+      getJWKS: vi.fn().mockResolvedValue({ keys: [] }),
+    };
+    const mockNonceManagerForAlg = {
+      checkTimestamp: vi.fn().mockReturnValue({ valid: true }),
+      checkNonce: vi.fn().mockResolvedValue(true),
+    };
+
+    const verifier = new SignatureVerifier(
+      mockJwksCacheForAlg as any,
+      mockNonceManagerForAlg as any,
+      []
+    );
+
+    // This should pass algorithm validation (Ed25519 uppercase)
+    const result = await verifier.verify({
+      method: "GET",
+      url: "https://example.com/test",
+      headers: {
+        "signature-input": 'sig1=("@method" "@authority");created=1700000000;expires=1700000300;keyid="k1";alg="Ed25519";tag="web-bot-auth"',
+        "signature": "sig1=:dGVzdA==:",
+      },
+      jwksUrl: "https://example.com/jwks.json",
+    });
+
+    // It should fail later (signature verification) but not on algorithm check
+    expect(result.error).not.toContain("Unsupported signature algorithm");
+  });
+
+  it("should reject JWK with non-Ed25519 key type", async () => {
+    const mockJwksCacheForAlg = {
+      getKey: vi.fn().mockResolvedValue({ kty: "RSA", n: "abc", e: "AQAB" }),
+      getJWKS: vi.fn().mockResolvedValue({ keys: [] }),
+    };
+    const mockNonceManagerForAlg = {
+      checkTimestamp: vi.fn().mockReturnValue({ valid: true }),
+      checkNonce: vi.fn().mockResolvedValue(true),
+    };
+
+    const verifier = new SignatureVerifier(
+      mockJwksCacheForAlg as any,
+      mockNonceManagerForAlg as any,
+      []
+    );
+
+    const result = await verifier.verify({
+      method: "GET",
+      url: "https://example.com/test",
+      headers: {
+        "signature-input": 'sig1=("@method" "@authority");created=1700000000;expires=1700000300;keyid="k1";alg="ed25519";tag="web-bot-auth"',
+        "signature": "sig1=:dGVzdA==:",
+      },
+      jwksUrl: "https://example.com/jwks.json",
+    });
+
+    expect(result.verified).toBe(false);
+    expect(result.error).toContain("JWK must be Ed25519");
+    expect(result.error).toContain("kty=RSA");
+  });
+
+  it("should reject JWK with wrong curve", async () => {
+    const mockJwksCacheForAlg = {
+      getKey: vi.fn().mockResolvedValue({ kty: "OKP", crv: "Ed448", x: "abc" }),
+      getJWKS: vi.fn().mockResolvedValue({ keys: [] }),
+    };
+    const mockNonceManagerForAlg = {
+      checkTimestamp: vi.fn().mockReturnValue({ valid: true }),
+      checkNonce: vi.fn().mockResolvedValue(true),
+    };
+
+    const verifier = new SignatureVerifier(
+      mockJwksCacheForAlg as any,
+      mockNonceManagerForAlg as any,
+      []
+    );
+
+    const result = await verifier.verify({
+      method: "GET",
+      url: "https://example.com/test",
+      headers: {
+        "signature-input": 'sig1=("@method" "@authority");created=1700000000;expires=1700000300;keyid="k1";alg="ed25519";tag="web-bot-auth"',
+        "signature": "sig1=:dGVzdA==:",
+      },
+      jwksUrl: "https://example.com/jwks.json",
+    });
+
+    expect(result.verified).toBe(false);
+    expect(result.error).toContain("JWK must be Ed25519");
+    expect(result.error).toContain("crv=Ed448");
+  });
+
+  it("should return error when key not found in JWKS", async () => {
+    const mockJwksCacheForAlg = {
+      getKey: vi.fn().mockResolvedValue(null),
+      getJWKS: vi.fn().mockResolvedValue({ keys: [] }),
+    };
+    const mockNonceManagerForAlg = {
+      checkTimestamp: vi.fn().mockReturnValue({ valid: true }),
+      checkNonce: vi.fn().mockResolvedValue(true),
+    };
+
+    const verifier = new SignatureVerifier(
+      mockJwksCacheForAlg as any,
+      mockNonceManagerForAlg as any,
+      []
+    );
+
+    const result = await verifier.verify({
+      method: "GET",
+      url: "https://example.com/test",
+      headers: {
+        "signature-input": 'sig1=("@method" "@authority");created=1700000000;expires=1700000300;keyid="unknown-key";alg="ed25519";tag="web-bot-auth"',
+        "signature": "sig1=:dGVzdA==:",
+      },
+      jwksUrl: "https://example.com/jwks.json",
+    });
+
+    expect(result.verified).toBe(false);
+    expect(result.error).toContain("Key not found in JWKS");
+    expect(result.error).toContain("unknown-key");
+  });
+});

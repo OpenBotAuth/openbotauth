@@ -40,4 +40,25 @@ describe("RequestSigner", () => {
     // IETF draft: tag="web-bot-auth" is mandatory
     expect(signed.headers["Signature-Input"]).toContain('tag="web-bot-auth"');
   });
+
+  it("includes tag in signed @signature-params base", () => {
+    const signer = new RequestSigner(makeConfig());
+    const params = {
+      created: 1700000000,
+      expires: 1700000300,
+      nonce: "nonce123",
+      keyId: "test-kid",
+      algorithm: "ed25519",
+      tag: "web-bot-auth",
+      headers: ["@method", "@path", "@authority"],
+    };
+
+    const signatureBase = (signer as any).buildSignatureBase(params, {
+      method: "GET",
+      path: "/v1/test",
+      authority: "example.com",
+    });
+
+    expect(signatureBase).toContain(';tag="web-bot-auth"');
+  });
 });

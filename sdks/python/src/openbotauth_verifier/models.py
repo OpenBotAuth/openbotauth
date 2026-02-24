@@ -18,11 +18,13 @@ class VerificationRequest:
         url: Full request URL
         headers: Request headers as a dict
         body: Optional request body (for POST/PUT)
+        jwks_url: Optional out-of-band JWKS URL when Signature-Agent is omitted
     """
     method: str
     url: str
     headers: dict[str, str]
     body: str | None = None
+    jwks_url: str | None = None
 
 
 @dataclass

@@ -17,7 +17,12 @@ export class NonceManager {
    * Check if a nonce has been used
    * Returns true if nonce is fresh (not used)
    */
-  async checkNonce(nonce: string, jwksUrl: string, kid: string): Promise<boolean> {
+  async checkNonce(
+    nonce: string,
+    jwksUrl: string,
+    kid: string,
+    ttlSec?: number,
+  ): Promise<boolean> {
     const key = this.buildNonceKey(nonce, jwksUrl, kid);
     
     // Check if nonce exists
@@ -29,7 +34,8 @@ export class NonceManager {
     }
 
     // Mark nonce as used
-    await this.redis.setEx(key, this.ttl, '1');
+    const effectiveTtl = Math.max(1, Math.ceil(ttlSec ?? this.ttl));
+    await this.redis.setEx(key, effectiveTtl, '1');
     return true;
   }
 
@@ -100,4 +106,3 @@ export class NonceManager {
     }
   }
 }
-

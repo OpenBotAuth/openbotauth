@@ -152,7 +152,7 @@ export class RequestSigner {
           const dictMatch = request.signatureAgent.match(new RegExp(`${escapedDictKey}="([^"]+)"`));
           const uriValue = dictMatch ? dictMatch[1] : request.signatureAgent;
           lines.push(
-            `"signature-agent";key="${dictKey}": ${this.serializeSfString(uriValue)}`,
+            `"signature-agent": ${dictKey}=${this.serializeSfString(uriValue)}`,
           );
           continue;
         }
@@ -173,6 +173,9 @@ export class RequestSigner {
     paramParts.push(`nonce="${params.nonce}"`);
     paramParts.push(`keyid="${params.keyId}"`);
     paramParts.push(`alg="${params.algorithm}"`);
+    if (params.tag) {
+      paramParts.push(`tag="${params.tag}"`);
+    }
 
     lines.push(`"@signature-params": ${paramParts.join(';')}`);
 

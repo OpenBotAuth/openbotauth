@@ -94,6 +94,25 @@ app.get('/health', (_req: express.Request, res: express.Response) => {
 });
 
 // Routes
+app.get('/.well-known/http-message-signatures-directory', (req, res) => {
+  // Multi-tenant registry convenience endpoint:
+  // map well-known discovery to a user's JWKS directory via query parameter.
+  const username =
+    typeof req.query.username === 'string' ? req.query.username.trim() : '';
+
+  if (!username) {
+    res.status(400).json({
+      error: 'Missing username query parameter',
+      hint:
+        'Use /.well-known/http-message-signatures-directory?username=<username> or /jwks/<username>.json',
+    });
+    return;
+  }
+
+  const encodedUsername = encodeURIComponent(username);
+  res.redirect(302, `/jwks/${encodedUsername}.json`);
+});
+
 app.use('/jwks', jwksRouter);
 app.use(signatureAgentCardRouter);
 

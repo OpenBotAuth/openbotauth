@@ -1,7 +1,14 @@
 /**
  * RFC 9421 Signature Verifier
- * 
- * Verifies HTTP message signatures using Ed25519
+ *
+ * Verifies HTTP message signatures using Ed25519 per the IETF Web Bot Auth
+ * draft specification.
+ *
+ * References:
+ * - RFC 9421: HTTP Message Signatures
+ *   https://www.rfc-editor.org/rfc/rfc9421.html
+ * - IETF Web Bot Auth (draft-meunier-web-bot-auth)
+ *   https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth/
  */
 
 import { webcrypto } from 'node:crypto';
@@ -24,6 +31,10 @@ function isSignatureAgentCovered(coveredComponents: string[]): boolean {
     component === "signature-agent" ||
     component.startsWith("signature-agent;"),
   );
+}
+
+function hasRequiredAuthorityBinding(coveredComponents: string[]): boolean {
+  return coveredComponents.includes("@authority") || coveredComponents.includes("@target-uri");
 }
 
 export class SignatureVerifier {
@@ -54,11 +65,12 @@ export class SignatureVerifier {
       const signatureInput = request.headers['signature-input'];
       const signature = request.headers['signature'];
       const signatureAgent = request.headers['signature-agent'];
+      const outOfBandJwksUrl = request.jwksUrl;
 
-      if (!signatureInput || !signature || !signatureAgent) {
+      if (!signatureInput || !signature) {
         return {
           verified: false,
-          error: 'Missing required signature headers (Signature-Input, Signature, Signature-Agent)',
+          error: 'Missing required signature headers (Signature-Input, Signature)',
         };
       }
 
@@ -75,7 +87,14 @@ export class SignatureVerifier {
         if (parsed.tag !== "web-bot-auth") {
           continue;
         }
-        if (!isSignatureAgentCovered(parsed.headers)) {
+        if (!hasRequiredAuthorityBinding(parsed.headers)) {
+          continue;
+        }
+        const signatureAgentCovered = isSignatureAgentCovered(parsed.headers);
+        if (signatureAgent && !signatureAgentCovered) {
+          continue;
+        }
+        if (!signatureAgent && signatureAgentCovered) {
           continue;
         }
         components = parsed;
@@ -86,36 +105,92 @@ export class SignatureVerifier {
         return {
           verified: false,
           error:
-            "No matching Signature-Input member with tag=\"web-bot-auth\" and covered signature-agent",
+            signatureAgent
+              ? "No matching Signature-Input member with tag=\"web-bot-auth\", required @authority/@target-uri coverage, and covered signature-agent"
+              : "No matching Signature-Input member with tag=\"web-bot-auth\" and required @authority/@target-uri coverage (or Signature-Agent was covered without a matching header)",
         };
       }
 
-      // 3. Parse Signature-Agent (Structured Dictionary or legacy URL)
-      const signatureAgentKey =
-        extractSignatureAgentDictionaryKey(components.headers) || components.label;
-      const parsedAgent = parseSignatureAgent(signatureAgent, signatureAgentKey);
-      if (!parsedAgent) {
+      if (
+        !Number.isInteger(components.created) ||
+        !Number.isInteger(components.expires)
+      ) {
         return {
           verified: false,
-          error: 'Invalid Signature-Agent header',
+          error:
+            'Signature-Input must include integer created and expires parameters',
         };
       }
 
-      // 4. Resolve JWKS URL (with discovery if needed)
+      // Validate algorithm is Ed25519 (the only supported algorithm per Web Bot Auth spec)
+      const algorithm = components.algorithm?.toLowerCase();
+      if (algorithm && algorithm !== "ed25519") {
+        return {
+          verified: false,
+          error: `Unsupported signature algorithm: ${components.algorithm}. Only ed25519 is supported.`,
+        };
+      }
+
       let jwksUrl: string;
-      if (parsedAgent.isJwks) {
-        // Already a JWKS URL
-        jwksUrl = parsedAgent.url;
-      } else {
-        // Attempt JWKS discovery
-        const discoveredUrl = await resolveJwksUrl(parsedAgent.url, this.discoveryPaths);
-        if (!discoveredUrl) {
+      if (signatureAgent) {
+        // 3. Parse Signature-Agent (Structured Dictionary or legacy URL)
+        const signatureAgentKey =
+          extractSignatureAgentDictionaryKey(components.headers) || components.label;
+        const parsedAgent = parseSignatureAgent(signatureAgent, signatureAgentKey);
+        if (!parsedAgent) {
           return {
             verified: false,
-            error: `JWKS discovery failed for agent: ${parsedAgent.url}`,
+            error: 'Invalid Signature-Agent header',
           };
         }
-        jwksUrl = discoveredUrl;
+
+        // 4. Resolve JWKS URL (with discovery if needed)
+        if (parsedAgent.isJwks) {
+          // Already a JWKS URL
+          jwksUrl = parsedAgent.url;
+        } else {
+          // Attempt JWKS discovery
+          const discoveredUrl = await resolveJwksUrl(parsedAgent.url, this.discoveryPaths);
+          if (!discoveredUrl) {
+            return {
+              verified: false,
+              error: `JWKS discovery failed for agent: ${parsedAgent.url}`,
+            };
+          }
+          jwksUrl = discoveredUrl;
+        }
+      } else {
+        if (!outOfBandJwksUrl) {
+          return {
+            verified: false,
+            error:
+              "Missing Signature-Agent header; provide an out-of-band jwksUrl for key discovery",
+          };
+        }
+
+        const parsedOutOfBand = parseSignatureAgent(outOfBandJwksUrl);
+        if (!parsedOutOfBand) {
+          return {
+            verified: false,
+            error: "Invalid out-of-band jwksUrl",
+          };
+        }
+
+        if (parsedOutOfBand.isJwks) {
+          jwksUrl = parsedOutOfBand.url;
+        } else {
+          const discoveredUrl = await resolveJwksUrl(
+            parsedOutOfBand.url,
+            this.discoveryPaths,
+          );
+          if (!discoveredUrl) {
+            return {
+              verified: false,
+              error: `JWKS discovery failed for out-of-band jwksUrl: ${parsedOutOfBand.url}`,
+            };
+          }
+          jwksUrl = discoveredUrl;
+        }
       }
 
       // 5. Check if JWKS URL is from a trusted directory
@@ -140,27 +215,31 @@ export class SignatureVerifier {
       components.signature = signatureValue;
 
       // 6. Validate timestamp
-      if (components.created) {
-        const timestampCheck = this.nonceManager.checkTimestamp(
-          components.created,
-          components.expires,
-          this.maxSkewSec
-        );
+      const timestampCheck = this.nonceManager.checkTimestamp(
+        components.created as number,
+        components.expires as number,
+        this.maxSkewSec
+      );
 
-        if (!timestampCheck.valid) {
-          return {
-            verified: false,
-            error: timestampCheck.error,
-          };
-        }
+      if (!timestampCheck.valid) {
+        return {
+          verified: false,
+          error: timestampCheck.error,
+        };
       }
 
       // 7. Check nonce for replay protection
       if (components.nonce) {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const replayRetentionSec = Math.max(
+          1,
+          Math.ceil((components.expires as number) - nowSec + this.maxSkewSec),
+        );
         const nonceValid = await this.nonceManager.checkNonce(
           components.nonce,
           jwksUrl,
-          components.keyId
+          components.keyId,
+          replayRetentionSec,
         );
 
         if (!nonceValid) {
@@ -173,6 +252,21 @@ export class SignatureVerifier {
 
       // 8. Fetch JWKS and get the specific key
       const jwk = await this.jwksCache.getKey(jwksUrl, components.keyId);
+
+      if (!jwk) {
+        return {
+          verified: false,
+          error: `Key not found in JWKS: kid=${components.keyId}`,
+        };
+      }
+
+      // 8b. Validate JWK is Ed25519 (OKP with crv=Ed25519)
+      if (jwk.kty !== "OKP" || jwk.crv !== "Ed25519") {
+        return {
+          verified: false,
+          error: `JWK must be Ed25519 (OKP with crv=Ed25519), got kty=${jwk.kty} crv=${jwk.crv}`,
+        };
+      }
 
       // 9. Optional X.509 delegation validation (x5c/x5u)
       if (this.x509Enabled && (jwk?.x5c || jwk?.x5u)) {

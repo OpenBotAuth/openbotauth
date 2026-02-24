@@ -4,6 +4,7 @@
 
 import { webcrypto, createHash } from "node:crypto";
 import { Router, type Request, type Response } from "express";
+import type { PoolClient } from "pg";
 import type { Database } from "@openbotauth/github-connector";
 import { issueCertificateForJwk, getCertificateAuthority } from "../utils/ca.js";
 import { requireScope } from "../middleware/scopes.js";
@@ -220,11 +221,11 @@ certsRouter.post(
   requireScope("agents:write"),
   async (req: Request, res: Response): Promise<void> => {
     const db: Database = req.app.locals.db;
-    const client = await db.getPool().connect();
+    let client: PoolClient | null = null;
     let transactionOpen = false;
 
     const rollbackIfNeeded = async () => {
-      if (!transactionOpen) return;
+      if (!transactionOpen || !client) return;
       try {
         await client.query("ROLLBACK");
       } catch (rollbackError) {
@@ -235,7 +236,7 @@ certsRouter.post(
     };
 
     try {
-      const { agent_id } = req.body || {};
+      const { agent_id, proof } = req.body || {};
 
       if (!agent_id) {
         res.status(400).json({
@@ -244,6 +245,60 @@ certsRouter.post(
         return;
       }
 
+      if (!proof) {
+        res.status(400).json({
+          error: "Missing proof-of-possession. Provide proof: { message: 'cert-issue:{agent_id}:{timestamp}', signature: '<base64>' }",
+        });
+        return;
+      }
+
+      // Preflight fetch/verification before opening a transaction so replay-check
+      // can run without requiring a second pool checkout while a txn client is held.
+      const preflightResult = await db.getPool().query(
+        `SELECT * FROM agents WHERE id = $1 AND user_id = $2`,
+        [agent_id, req.session!.user.id],
+      );
+      const preflightAgent = preflightResult.rows[0] || null;
+
+      if (!preflightAgent) {
+        res.status(404).json({ error: "Agent not found" });
+        return;
+      }
+
+      const preflightPk = preflightAgent.public_key;
+      if (
+        !preflightPk ||
+        typeof preflightPk !== "object" ||
+        typeof preflightPk.x !== "string"
+      ) {
+        res.status(400).json({ error: "Agent public key is invalid" });
+        return;
+      }
+
+      const popResult = await verifyProofOfPossession(
+        proof,
+        preflightAgent.id,
+        preflightPk,
+      );
+      if (!popResult.valid) {
+        res.status(403).json({
+          error: `Proof-of-possession failed: ${popResult.error}`,
+        });
+        return;
+      }
+
+      // Check for replay attack using an independent query executor so nonce
+      // persistence is not rolled back with the issuance transaction.
+      const isNewNonce = await checkPopNonce(db.getPool(), proof.message);
+      if (!isNewNonce) {
+        res.status(403).json({
+          error:
+            "Proof-of-possession replay detected or replay protection unavailable",
+        });
+        return;
+      }
+
+      client = await db.getPool().connect();
       await client.query("BEGIN");
       transactionOpen = true;
 
@@ -266,33 +321,13 @@ certsRouter.post(
         return;
       }
 
-      // Verify proof-of-possession: caller must prove they have the private key
-      const { proof } = req.body || {};
-      if (!proof) {
-        await rollbackIfNeeded();
-        res.status(400).json({
-          error: "Missing proof-of-possession. Provide proof: { message: 'cert-issue:{agent_id}:{timestamp}', signature: '<base64>' }",
-        });
-        return;
-      }
-
-      const popResult = await verifyProofOfPossession(proof, agent.id, pk);
-      if (!popResult.valid) {
+      // Re-check proof against locked key material to prevent key-update races
+      // between preflight verification and transaction start.
+      const lockedPopResult = await verifyProofOfPossession(proof, agent.id, pk);
+      if (!lockedPopResult.valid) {
         await rollbackIfNeeded();
         res.status(403).json({
-          error: `Proof-of-possession failed: ${popResult.error}`,
-        });
-        return;
-      }
-
-      // Check for replay attack using an independent query executor so nonce
-      // persistence is not rolled back with the issuance transaction.
-      const isNewNonce = await checkPopNonce(db.getPool(), proof.message);
-      if (!isNewNonce) {
-        await rollbackIfNeeded();
-        res.status(403).json({
-          error:
-            "Proof-of-possession replay detected or replay protection unavailable",
+          error: `Proof-of-possession failed: ${lockedPopResult.error}`,
         });
         return;
       }
@@ -409,7 +444,7 @@ certsRouter.post(
       console.error("Certificate issuance error:", error);
       res.status(500).json({ error: "Failed to issue certificate" });
     } finally {
-      client.release();
+      client?.release();
     }
   },
 );

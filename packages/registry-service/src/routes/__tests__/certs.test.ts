@@ -268,14 +268,14 @@ describe("POST /v1/certs/issue - PoP validation", () => {
     expect(res.body.error).toContain("proof-of-possession");
   });
 
-  it("rolls back transaction when validation fails after BEGIN", async () => {
+  it("returns early before opening transaction when proof is missing", async () => {
     const query = vi.fn().mockImplementation(async (sql: string) => {
       if (sql === "BEGIN" || sql === "ROLLBACK") {
         return { rows: [] };
       }
       if (
         sql.includes(
-          "SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE",
+          "SELECT * FROM agents WHERE id = $1 AND user_id = $2",
         )
       ) {
         return {
@@ -305,8 +305,8 @@ describe("POST /v1/certs/issue - PoP validation", () => {
     await callRoute(certsRouter, "POST", "/v1/certs/issue", req, res);
 
     expect(res.statusCode).toBe(400);
-    expect(query).toHaveBeenCalledWith("BEGIN");
-    expect(query).toHaveBeenCalledWith("ROLLBACK");
+    expect(query).not.toHaveBeenCalledWith("BEGIN");
+    expect(query).not.toHaveBeenCalledWith("ROLLBACK");
     expect(query).not.toHaveBeenCalledWith("COMMIT");
   });
 
@@ -433,7 +433,7 @@ describe("POST /v1/certs/issue - PoP validation", () => {
       if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
         return { rows: [] };
       }
-      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2")) {
         return {
           rows: [
             {
@@ -500,6 +500,22 @@ describe("POST /v1/certs/issue - PoP validation", () => {
     ).toString("base64");
 
     const poolQuery = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2")) {
+        return {
+          rows: [
+            {
+              id: agentId,
+              user_id: "u-1",
+              name: "Test Agent",
+              public_key: {
+                kty: "OKP",
+                crv: "Ed25519",
+                x: publicJwk.x,
+              },
+            },
+          ],
+        };
+      }
       if (sql.includes("SELECT check_pop_nonce")) {
         return { rows: [{ is_new: true }] };
       }
@@ -513,7 +529,7 @@ describe("POST /v1/certs/issue - PoP validation", () => {
       if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
         return { rows: [] };
       }
-      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2")) {
         return {
           rows: [
             {
@@ -606,7 +622,7 @@ describe("POST /v1/certs/issue - PoP validation", () => {
       if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
         return { rows: [] };
       }
-      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2")) {
         return {
           rows: [
             {
@@ -669,7 +685,7 @@ describe("POST /v1/certs/issue - PoP validation", () => {
       if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
         return { rows: [] };
       }
-      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2")) {
         return {
           rows: [
             {
@@ -732,7 +748,7 @@ describe("POST /v1/certs/issue - PoP validation", () => {
       if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
         return { rows: [] };
       }
-      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2")) {
         return {
           rows: [
             {
@@ -795,7 +811,7 @@ describe("POST /v1/certs/issue - PoP validation", () => {
       if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
         return { rows: [] };
       }
-      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2 FOR UPDATE")) {
+      if (sql.includes("SELECT * FROM agents WHERE id = $1 AND user_id = $2")) {
         return {
           rows: [
             {
