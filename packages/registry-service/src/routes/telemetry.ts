@@ -99,7 +99,19 @@ router.get('/overview', async (req: Request, res: Response) => {
             `SELECT COUNT(DISTINCT
               CASE
                 WHEN s.username IS NOT NULL THEN 'github.com/' || COALESCE(u.github_username, p.github_username, s.username)
-                ELSE s.signature_agent
+                ELSE
+                  -- Extract hostname from signature_agent URL (handles dict and legacy formats)
+                  COALESCE(
+                    (regexp_match(
+                      CASE
+                        WHEN s.signature_agent LIKE 'sig%=%"%' THEN
+                          substring(s.signature_agent FROM '"([^"]+)"')
+                        ELSE s.signature_agent
+                      END,
+                      '^https?://([^/]+)'
+                    ))[1],
+                    s.signature_agent
+                  )
               END
             ) as count
              FROM signed_attempt_logs s
@@ -199,11 +211,27 @@ router.get('/top/agents', async (req: Request, res: Response) => {
 
     const days = window === 'today' ? 1 : 7;
 
+    // Parse signature_agent to extract clean identifier:
+    // - Dict format: sig1="https://example.com/jwks.json" -> extract URL, then hostname
+    // - Legacy format: https://example.com/jwks.json -> extract hostname
     const result = await dbPool.query(
       `SELECT
         CASE
           WHEN s.username IS NOT NULL THEN 'github.com/' || COALESCE(u.github_username, p.github_username, s.username)
-          ELSE s.signature_agent
+          ELSE
+            -- Extract hostname from signature_agent URL
+            -- Handle dict format: sig1="url" or legacy format: url
+            COALESCE(
+              (regexp_match(
+                CASE
+                  WHEN s.signature_agent LIKE 'sig%=%"%' THEN
+                    substring(s.signature_agent FROM '"([^"]+)"')
+                  ELSE s.signature_agent
+                END,
+                '^https?://([^/]+)'
+              ))[1],
+              s.signature_agent
+            )
         END AS agent_id,
         MAX(s.client_name) AS client_name,
         COUNT(*) FILTER (WHERE s.verified) AS verified_count,
