@@ -268,27 +268,55 @@ class Verifier {
 	/**
 	 * Parse Signature-Input header to extract covered components.
 	 *
-	 * Example: sig1=("@method" "@path" "content-type" "accept");created=...
-	 * Returns: ["@method", "@path", "content-type", "accept"]
+	 * Example: sig1=("@method" "@path" "content-type" "signature-agent;key=\"sig1\"");created=...
+	 * Returns: ["@method", "@path", "content-type", "signature-agent"]
+	 *
+	 * Note: Components may have parameters like ;key="sig1" for dictionary member selection.
+	 * We extract only the base header name for lookup purposes.
 	 *
 	 * @param string $signature_input The Signature-Input header value.
-	 * @return array Array of covered header names.
+	 * @return array Array of covered header names (base names without parameters).
 	 */
 	private function parse_covered_headers( $signature_input ) {
 		// Extract the parenthesized list of headers.
 		if ( preg_match( '/\(([^)]+)\)/', $signature_input, $matches ) ) {
-			$headers_str = $matches[1];
+			$headers_str = trim( $matches[1] );
+			if ( '' === $headers_str ) {
+				return array();
+			}
 
-			// Split by whitespace and remove quotes.
-			$headers = preg_split( '/\s+/', $headers_str );
+			// Keep quoted components with optional parameter tails intact, e.g.:
+			// "signature-agent";key="sig1"
+			preg_match_all( '/"[^"]+"(?:;[^\s]+)?|[^\s]+/', $headers_str, $token_matches );
+			$tokens  = $token_matches[0];
 			$headers = array_map(
-				function ( $h ) {
-					return trim( $h, '"' );
+				function ( $token ) {
+					$token = trim( $token );
+					if ( '' === $token ) {
+						return '';
+					}
+
+					$header_name = $token;
+					if ( '"' === $token[0] ) {
+						$quote_end = strpos( $token, '"', 1 );
+						if ( false !== $quote_end ) {
+							$header_name = substr( $token, 1, $quote_end - 1 );
+						} else {
+							$header_name = trim( $token, '"' );
+						}
+					}
+
+					$semicolon_pos = strpos( $header_name, ';' );
+					if ( false !== $semicolon_pos ) {
+						$header_name = substr( $header_name, 0, $semicolon_pos );
+					}
+
+					return strtolower( $header_name );
 				},
-				$headers
+				$tokens
 			);
 
-			return array_filter( $headers );
+			return array_values( array_filter( $headers ) );
 		}
 
 		return array();

@@ -6,6 +6,7 @@
 
 import 'dotenv/config';
 import express from 'express';
+import { readFileSync } from 'node:fs';
 import { createClient } from 'redis';
 import { Pool } from 'pg';
 import { JWKSCacheManager } from './jwks-cache.js';
@@ -25,7 +26,10 @@ app.use(express.raw({ type: 'application/octet-stream', limit: '10mb' }));
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Signature-Input, Signature, Signature-Agent');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, Signature-Input, Signature, Signature-Agent, X-OBAuth-JWKS-URL',
+  );
   
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
@@ -81,12 +85,39 @@ const discoveryPaths = process.env.OB_JWKS_DISCOVERY_PATHS
   ? process.env.OB_JWKS_DISCOVERY_PATHS.split(',').map(p => p.trim())
   : undefined;
 
+const x509Enabled = process.env.OBA_X509_ENABLED === 'true';
+
+const parsePemBundle = (pem: string): string[] => {
+  const matches = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+  return matches ? matches.map((m) => m.trim()) : [];
+};
+
+const trustAnchorRefs = process.env.OBA_X509_TRUST_ANCHORS
+  ? process.env.OBA_X509_TRUST_ANCHORS.split(',').map((p) => p.trim()).filter(Boolean)
+  : [];
+
+const trustAnchors: string[] = [];
+for (const ref of trustAnchorRefs) {
+  if (ref.includes('BEGIN CERTIFICATE')) {
+    trustAnchors.push(...parsePemBundle(ref));
+    continue;
+  }
+  try {
+    const pem = readFileSync(ref, 'utf-8');
+    trustAnchors.push(...parsePemBundle(pem));
+  } catch (error) {
+    console.warn(`Failed to read trust anchor file: ${ref}`);
+  }
+}
+
 const verifier = new SignatureVerifier(
   jwksCache,
   nonceManager,
   trustedDirectories,
   maxSkewSec,
-  discoveryPaths
+  discoveryPaths,
+  x509Enabled,
+  trustAnchors
 );
 
 // Initialize telemetry logger (only if DB is configured)
@@ -181,6 +212,7 @@ app.post('/authorize', async (req, res) => {
     
     const url = `${protocol}://${host}${uri}`;
     const signatureAgent = req.headers['signature-agent'] as string | undefined;
+    const outOfBandJwksUrl = req.headers['x-obauth-jwks-url'] as string | undefined;
 
     // Check if this is a signed request (for Radar telemetry)
     const isSigned = hasSignatureHeaders({
@@ -208,6 +240,7 @@ app.post('/authorize', async (req, res) => {
       url,
       headers,
       body: req.body ? JSON.stringify(req.body) : undefined,
+      jwksUrl: outOfBandJwksUrl,
     };
 
     // Verify signature
@@ -283,7 +316,7 @@ app.post('/authorize', async (req, res) => {
  */
 app.post('/verify', async (req, res) => {
   try {
-    const { method, url, headers, body } = req.body;
+    const { method, url, headers, body, jwksUrl, jwks_url } = req.body;
 
     if (!method || !url || !headers) {
       res.status(400).json({
@@ -293,6 +326,10 @@ app.post('/verify', async (req, res) => {
     }
 
     const signatureAgent = headers['signature-agent'] as string | undefined;
+    const outOfBandJwksUrl =
+      (typeof jwksUrl === 'string' && jwksUrl.length > 0 ? jwksUrl : undefined) ||
+      (typeof jwks_url === 'string' && jwks_url.length > 0 ? jwks_url : undefined) ||
+      (headers['x-obauth-jwks-url'] as string | undefined);
 
     // Check if this is a signed request (for Radar telemetry)
     const isSigned = hasSignatureHeaders({
@@ -306,14 +343,15 @@ app.post('/verify', async (req, res) => {
       url,
       headers,
       body,
+      jwksUrl: outOfBandJwksUrl,
     };
 
     const result = await verifier.verify(verificationRequest);
 
     // Compute values for telemetry
     const targetOrigin = new URL(url).origin;
-    const jwksUrl = result.agent?.jwks_url || signatureAgent || null;
-    const username = extractUsernameFromJwksUrl(jwksUrl);
+    const resolvedJwksUrl = result.agent?.jwks_url || signatureAgent || outOfBandJwksUrl || null;
+    const username = extractUsernameFromJwksUrl(resolvedJwksUrl);
 
     // Log signed attempt for Radar (both success and failure)
     if (isSigned && app.locals.telemetryLogger) {
@@ -324,7 +362,7 @@ app.post('/verify', async (req, res) => {
         verified: result.verified,
         failureReason: result.verified ? null : mapErrorToFailureReason(result.error),
         username,
-        jwksUrl,
+        jwksUrl: resolvedJwksUrl,
         clientName: result.agent?.client_name || null,
       }).catch((err: Error) => {
         console.error('Signed attempt logging failed:', err);
@@ -416,4 +454,3 @@ process.on('SIGTERM', async () => {
   }
   process.exit(0);
 });
-

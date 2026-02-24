@@ -6,23 +6,75 @@ import { createHash } from 'crypto';
 import { pemToBase64, base64ToBase64Url } from './keygen.js';
 import type { JWK, JWKS, WebBotAuthJWKS } from './types.js';
 
-/**
- * Generate a key ID (kid) from a public key
- * Uses SHA-256 hash of the key material
- */
-export function generateKid(publicKeyPem: string): string {
-  const base64 = pemToBase64(publicKeyPem);
-  const hash = createHash('sha256').update(base64).digest('base64');
-  return base64ToBase64Url(hash).substring(0, 16);
+const LEGACY_KID_LENGTH = 16;
+
+function canonicalOkpThumbprint(crv: string, kty: string, x: string): string {
+  // RFC 7638 canonical members in lexicographic order for OKP.
+  return JSON.stringify({ crv, kty, x });
 }
 
 /**
- * Generate a kid from JWK
+ * Generate a key ID (kid) from a public key using RFC 7638 JWK Thumbprint.
+ * Returns the full base64url-encoded SHA-256 hash (no truncation).
+ */
+export function generateKid(publicKeyPem: string): string {
+  // Extract raw Ed25519 public key from SPKI PEM
+  const base64 = pemToBase64(publicKeyPem);
+  const buffer = Buffer.from(base64, 'base64');
+
+  // Ed25519 SPKI format: 12 bytes header + 32 bytes raw key
+  let x: string;
+  if (buffer.length === 44) {
+    x = base64ToBase64Url(buffer.slice(12).toString('base64'));
+  } else if (buffer.length === 32) {
+    x = base64ToBase64Url(base64);
+  } else {
+    x = base64ToBase64Url(base64);
+  }
+
+  // RFC 7638: canonical JSON with members in lexicographic order
+  const canonical = canonicalOkpThumbprint('Ed25519', 'OKP', x);
+  const hash = createHash('sha256').update(canonical).digest('base64');
+  return base64ToBase64Url(hash);
+}
+
+/**
+ * Generate a kid from JWK using RFC 7638 JWK Thumbprint.
+ * Returns the full base64url-encoded SHA-256 hash (no truncation).
  */
 export function generateKidFromJWK(jwk: Partial<JWK>): string {
-  const data = JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x });
-  const hash = createHash('sha256').update(data).digest('base64');
-  return base64ToBase64Url(hash).substring(0, 16);
+  // RFC 7638: canonical JSON with members in lexicographic order (crv, kty, x for OKP)
+  const canonical = canonicalOkpThumbprint(
+    String(jwk.crv),
+    String(jwk.kty),
+    String(jwk.x),
+  );
+  const hash = createHash('sha256').update(canonical).digest('base64');
+  return base64ToBase64Url(hash);
+}
+
+/**
+ * Legacy OpenBotAuth kid derived from PEM key material.
+ * Kept only for backwards compatibility with older clients.
+ */
+export function generateLegacyKid(publicKeyPem: string): string {
+  // Historical behavior (pre-RFC7638 migration):
+  // SHA-256 over PEM body base64, then base64url-truncate to 16 chars.
+  const base64 = pemToBase64(publicKeyPem);
+  const hash = createHash("sha256").update(base64).digest("base64");
+  return base64ToBase64Url(hash).slice(0, LEGACY_KID_LENGTH);
+}
+
+/**
+ * Legacy OpenBotAuth kid derived from JWK fields.
+ * Kept only for backwards compatibility with older clients.
+ */
+export function generateLegacyKidFromJWK(jwk: Partial<JWK>): string {
+  // Historical behavior (pre-RFC7638 migration):
+  // SHA-256 over JSON stringified {kty,crv,x}, then base64url-truncate to 16 chars.
+  const legacyInput = JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x });
+  const hash = createHash("sha256").update(legacyInput).digest("base64");
+  return base64ToBase64Url(hash).slice(0, LEGACY_KID_LENGTH);
 }
 
 /**
@@ -189,4 +241,3 @@ export function validateJWK(jwk: unknown): jwk is JWK {
     key.use === 'sig'
   );
 }
-

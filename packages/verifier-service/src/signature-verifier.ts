@@ -1,32 +1,59 @@
 /**
  * RFC 9421 Signature Verifier
- * 
- * Verifies HTTP message signatures using Ed25519
+ *
+ * Verifies HTTP message signatures using Ed25519 per the IETF Web Bot Auth
+ * draft specification.
+ *
+ * References:
+ * - RFC 9421: HTTP Message Signatures
+ *   https://www.rfc-editor.org/rfc/rfc9421.html
+ * - IETF Web Bot Auth (draft-meunier-web-bot-auth)
+ *   https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth/
  */
 
 import { webcrypto } from 'node:crypto';
 import type { JWKSCacheManager } from './jwks-cache.js';
 import type { NonceManager } from './nonce-manager.js';
 import type { VerificationRequest, VerificationResult } from './types.js';
+import { validateJwkX509 } from './x509.js';
 import {
   parseSignatureInput,
   parseSignature,
+  parseSignatureLabels,
   parseSignatureAgent,
+  extractSignatureAgentDictionaryKey,
   resolveJwksUrl,
   buildSignatureBase,
 } from './signature-parser.js';
 
+function isSignatureAgentCovered(coveredComponents: string[]): boolean {
+  return coveredComponents.some((component) =>
+    component === "signature-agent" ||
+    component.startsWith("signature-agent;"),
+  );
+}
+
+function hasRequiredAuthorityBinding(coveredComponents: string[]): boolean {
+  return coveredComponents.includes("@authority") || coveredComponents.includes("@target-uri");
+}
+
 export class SignatureVerifier {
   private discoveryPaths: string[] | undefined;
+  private x509Enabled: boolean;
+  private x509TrustAnchors: string[];
 
   constructor(
     private jwksCache: JWKSCacheManager,
     private nonceManager: NonceManager,
     private trustedDirectories: string[] = [],
     private maxSkewSec: number = 300,
-    discoveryPaths?: string[]
+    discoveryPaths?: string[],
+    x509Enabled: boolean = false,
+    x509TrustAnchors: string[] = []
   ) {
     this.discoveryPaths = discoveryPaths;
+    this.x509Enabled = x509Enabled;
+    this.x509TrustAnchors = x509TrustAnchors;
   }
 
   /**
@@ -38,43 +65,137 @@ export class SignatureVerifier {
       const signatureInput = request.headers['signature-input'];
       const signature = request.headers['signature'];
       const signatureAgent = request.headers['signature-agent'];
+      const outOfBandJwksUrl = request.jwksUrl;
 
-      if (!signatureInput || !signature || !signatureAgent) {
+      if (!signatureInput || !signature) {
         return {
           verified: false,
-          error: 'Missing required signature headers (Signature-Input, Signature, Signature-Agent)',
+          error: 'Missing required signature headers (Signature-Input, Signature)',
         };
       }
 
-      // 2. Parse Signature-Agent (JWKS URL or identity URL)
-      const parsedAgent = parseSignatureAgent(signatureAgent);
-      if (!parsedAgent) {
+      // 2. Select Signature-Input member matching a Signature label.
+      const signatureLabels = parseSignatureLabels(signature);
+      const candidateLabels = signatureLabels.length > 0 ? signatureLabels : [undefined];
+      let components: ReturnType<typeof parseSignatureInput> = null;
+
+      for (const label of candidateLabels) {
+        const parsed = parseSignatureInput(signatureInput, label);
+        if (!parsed) {
+          continue;
+        }
+        if (parsed.tag !== "web-bot-auth") {
+          continue;
+        }
+        if (!hasRequiredAuthorityBinding(parsed.headers)) {
+          continue;
+        }
+        const signatureAgentCovered = isSignatureAgentCovered(parsed.headers);
+        if (signatureAgent && !signatureAgentCovered) {
+          continue;
+        }
+        if (!signatureAgent && signatureAgentCovered) {
+          continue;
+        }
+        components = parsed;
+        break;
+      }
+
+      if (!components) {
         return {
           verified: false,
-          error: 'Invalid Signature-Agent header',
+          error:
+            signatureAgent
+              ? "No matching Signature-Input member with tag=\"web-bot-auth\", required @authority/@target-uri coverage, and covered signature-agent"
+              : "No matching Signature-Input member with tag=\"web-bot-auth\" and required @authority/@target-uri coverage (or Signature-Agent was covered without a matching header)",
         };
       }
 
-      // 3. Resolve JWKS URL (with discovery if needed)
+      if (
+        !Number.isInteger(components.created) ||
+        !Number.isInteger(components.expires)
+      ) {
+        return {
+          verified: false,
+          error:
+            'Signature-Input must include integer created and expires parameters',
+        };
+      }
+
+      // Validate algorithm is Ed25519 (the only supported algorithm per Web Bot Auth spec)
+      const algorithm = components.algorithm?.toLowerCase();
+      if (algorithm && algorithm !== "ed25519") {
+        return {
+          verified: false,
+          error: `Unsupported signature algorithm: ${components.algorithm}. Only ed25519 is supported.`,
+        };
+      }
+
       let jwksUrl: string;
-      if (parsedAgent.isJwks) {
-        // Already a JWKS URL
-        jwksUrl = parsedAgent.url;
-      } else {
-        // Attempt JWKS discovery
-        const discoveredUrl = await resolveJwksUrl(parsedAgent.url, this.discoveryPaths);
-        if (!discoveredUrl) {
+      if (signatureAgent) {
+        // 3. Parse Signature-Agent (Structured Dictionary or legacy URL)
+        const signatureAgentKey =
+          extractSignatureAgentDictionaryKey(components.headers) || components.label;
+        const parsedAgent = parseSignatureAgent(signatureAgent, signatureAgentKey);
+        if (!parsedAgent) {
           return {
             verified: false,
-            error: `JWKS discovery failed for agent: ${parsedAgent.url}`,
+            error: 'Invalid Signature-Agent header',
           };
         }
-        jwksUrl = discoveredUrl;
+
+        // 4. Resolve JWKS URL (with discovery if needed)
+        if (parsedAgent.isJwks) {
+          // Already a JWKS URL
+          jwksUrl = parsedAgent.url;
+        } else {
+          // Attempt JWKS discovery
+          const discoveredUrl = await resolveJwksUrl(parsedAgent.url, this.discoveryPaths);
+          if (!discoveredUrl) {
+            return {
+              verified: false,
+              error: `JWKS discovery failed for agent: ${parsedAgent.url}`,
+            };
+          }
+          jwksUrl = discoveredUrl;
+        }
+      } else {
+        if (!outOfBandJwksUrl) {
+          return {
+            verified: false,
+            error:
+              "Missing Signature-Agent header; provide an out-of-band jwksUrl for key discovery",
+          };
+        }
+
+        const parsedOutOfBand = parseSignatureAgent(outOfBandJwksUrl);
+        if (!parsedOutOfBand) {
+          return {
+            verified: false,
+            error: "Invalid out-of-band jwksUrl",
+          };
+        }
+
+        if (parsedOutOfBand.isJwks) {
+          jwksUrl = parsedOutOfBand.url;
+        } else {
+          const discoveredUrl = await resolveJwksUrl(
+            parsedOutOfBand.url,
+            this.discoveryPaths,
+          );
+          if (!discoveredUrl) {
+            return {
+              verified: false,
+              error: `JWKS discovery failed for out-of-band jwksUrl: ${parsedOutOfBand.url}`,
+            };
+          }
+          jwksUrl = discoveredUrl;
+        }
       }
 
-      // 4. Check if JWKS URL is from a trusted directory
+      // 5. Check if JWKS URL is from a trusted directory
       if (this.trustedDirectories.length > 0) {
-        const trusted = this.trustedDirectories.some(dir => jwksUrl.includes(dir));
+        const trusted = this.isTrustedDirectory(jwksUrl);
         if (!trusted) {
           return {
             verified: false,
@@ -83,16 +204,7 @@ export class SignatureVerifier {
         }
       }
 
-      // 5. Parse signature components
-      const components = parseSignatureInput(signatureInput);
-      if (!components) {
-        return {
-          verified: false,
-          error: 'Failed to parse Signature-Input header',
-        };
-      }
-
-      const signatureValue = parseSignature(signature);
+      const signatureValue = parseSignature(signature, components.label);
       if (!signatureValue) {
         return {
           verified: false,
@@ -103,27 +215,31 @@ export class SignatureVerifier {
       components.signature = signatureValue;
 
       // 6. Validate timestamp
-      if (components.created) {
-        const timestampCheck = this.nonceManager.checkTimestamp(
-          components.created,
-          components.expires,
-          this.maxSkewSec
-        );
+      const timestampCheck = this.nonceManager.checkTimestamp(
+        components.created as number,
+        components.expires as number,
+        this.maxSkewSec
+      );
 
-        if (!timestampCheck.valid) {
-          return {
-            verified: false,
-            error: timestampCheck.error,
-          };
-        }
+      if (!timestampCheck.valid) {
+        return {
+          verified: false,
+          error: timestampCheck.error,
+        };
       }
 
       // 7. Check nonce for replay protection
       if (components.nonce) {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const replayRetentionSec = Math.max(
+          1,
+          Math.ceil((components.expires as number) - nowSec + this.maxSkewSec),
+        );
         const nonceValid = await this.nonceManager.checkNonce(
           components.nonce,
           jwksUrl,
-          components.keyId
+          components.keyId,
+          replayRetentionSec,
         );
 
         if (!nonceValid) {
@@ -137,14 +253,42 @@ export class SignatureVerifier {
       // 8. Fetch JWKS and get the specific key
       const jwk = await this.jwksCache.getKey(jwksUrl, components.keyId);
 
-      // 9. Build signature base
+      if (!jwk) {
+        return {
+          verified: false,
+          error: `Key not found in JWKS: kid=${components.keyId}`,
+        };
+      }
+
+      // 8b. Validate JWK is Ed25519 (OKP with crv=Ed25519)
+      if (jwk.kty !== "OKP" || jwk.crv !== "Ed25519") {
+        return {
+          verified: false,
+          error: `JWK must be Ed25519 (OKP with crv=Ed25519), got kty=${jwk.kty} crv=${jwk.crv}`,
+        };
+      }
+
+      // 9. Optional X.509 delegation validation (x5c/x5u)
+      if (this.x509Enabled && (jwk?.x5c || jwk?.x5u)) {
+        const x509Result = await validateJwkX509(jwk, {
+          trustAnchors: this.x509TrustAnchors,
+        });
+        if (!x509Result.valid) {
+          return {
+            verified: false,
+            error: x509Result.error || 'X.509 validation failed',
+          };
+        }
+      }
+
+      // 10. Build signature base
       const signatureBase = buildSignatureBase(components, {
         method: request.method,
         url: request.url,
         headers: request.headers,
       });
 
-      // 10. Verify signature
+      // 11. Verify signature
       const isValid = await this.verifyEd25519Signature(
         signatureBase,
         components.signature,
@@ -158,7 +302,7 @@ export class SignatureVerifier {
         };
       }
 
-      // 11. Success! Return verification result
+      // 12. Success! Return verification result
       const jwks = await this.jwksCache.getJWKS(jwksUrl);
 
       return {
@@ -178,6 +322,74 @@ export class SignatureVerifier {
         error: error.message || 'Internal verification error',
       };
     }
+  }
+
+  /**
+   * Check if a JWKS URL is from a trusted directory using proper hostname validation.
+   *
+   * This validates the URL's hostname against configured trusted directories,
+   * preventing substring-based bypasses (e.g., evil-trusted.com.attacker.com).
+   */
+  private isTrustedDirectory(jwksUrl: string): boolean {
+    try {
+      const jwksUrlParsed = new URL(jwksUrl);
+      const jwksHostname = jwksUrlParsed.hostname.toLowerCase();
+      const jwksPort = this.getEffectivePort(jwksUrlParsed);
+
+      return this.trustedDirectories.some(dir => {
+        const rawDir = dir.trim();
+        if (!rawDir) return false;
+
+        try {
+          const hasScheme = rawDir.includes('://');
+          // Normalize trusted directory for URL parsing.
+          const normalizedDir = hasScheme ? rawDir : `https://${rawDir}`;
+          const trustedUrl = new URL(normalizedDir);
+          const trustedHostname = trustedUrl.hostname.toLowerCase();
+          const trustedPort = this.getEffectivePort(trustedUrl);
+          const hasExplicitPort = trustedUrl.port.length > 0;
+
+          // Exact match or subdomain match (e.g., api.example.com matches example.com)
+          const hostnameMatches =
+            jwksHostname === trustedHostname ||
+            jwksHostname.endsWith('.' + trustedHostname);
+          if (!hostnameMatches) return false;
+
+          // If scheme is configured, enforce exact scheme match.
+          if (hasScheme && jwksUrlParsed.protocol !== trustedUrl.protocol) {
+            return false;
+          }
+
+          // If a trusted entry specifies a port, enforce exact port match.
+          if (hasExplicitPort && jwksPort !== trustedPort) {
+            return false;
+          }
+
+          // If scheme is configured without explicit port, treat it as origin pinning
+          // and enforce default/effective port for that scheme as well.
+          if (hasScheme && !hasExplicitPort && jwksPort !== trustedPort) {
+            return false;
+          }
+
+          return true;
+        } catch {
+          // Treat as hostname pattern if URL parsing fails
+          const trustedHostname = rawDir.toLowerCase();
+          return jwksHostname === trustedHostname ||
+                 jwksHostname.endsWith('.' + trustedHostname);
+        }
+      });
+    } catch {
+      // Invalid JWKS URL
+      return false;
+    }
+  }
+
+  private getEffectivePort(url: URL): string {
+    if (url.port) return url.port;
+    if (url.protocol === 'https:') return '443';
+    if (url.protocol === 'http:') return '80';
+    return '';
   }
 
   /**
@@ -221,4 +433,3 @@ export class SignatureVerifier {
     }
   }
 }
-

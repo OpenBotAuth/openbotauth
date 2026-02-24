@@ -36,6 +36,10 @@ OB_MAX_SKEW_SEC=300
 
 # Nonce TTL (seconds)
 OB_NONCE_TTL_SEC=600
+
+# X.509 delegation validation (optional)
+OBA_X509_ENABLED=false
+OBA_X509_TRUST_ANCHORS=/path/to/ca.pem
 ```
 
 ## Usage
@@ -65,7 +69,23 @@ Main verification endpoint for NGINX `auth_request`.
 - `X-Original-Uri` - Request URI
 - `Signature-Input` - RFC 9421 signature input
 - `Signature` - RFC 9421 signature
-- `Signature-Agent` - JWKS URL
+- `Signature-Agent` - Optional Structured Dictionary entry pointing to JWKS (legacy URL also accepted)
+- `X-OBAuth-JWKS-URL` - Optional out-of-band JWKS/directory URL when `Signature-Agent` is omitted
+
+**WBA requirements enforced:**
+- `Signature-Input` must include `tag="web-bot-auth"`
+- `Signature-Input` must include integer `created` and `expires`
+- Covered components must include at least one of `@authority` or `@target-uri`
+- If `Signature-Agent` is present, it must be a covered component in `Signature-Input` (prefer `signature-agent;key="sigX"`)
+
+**X.509 delegation notes:**
+- `x5c` chains are validated to configured trust anchors when `OBA_X509_ENABLED=true`
+- `x5u` currently fetches only the leaf certificate; without AIA chain building, validation succeeds only if the leaf chains directly to a trust anchor (or the anchor is an intermediate)
+- Verifier enforces issuer CA constraints for chain signers and leaf EKU (`clientAuth`) by default
+- Verifier can optionally enforce SAN URI identity binding when `expectedSanUri` is configured by the caller
+
+**Signature parsing scope (MVP):**
+- If multiple labels are present in `Signature-Input`/`Signature`, verifier selects the matching labeled member that satisfies WBA constraints.
 
 **Response:**
 
@@ -187,7 +207,7 @@ server {
 ## How It Works
 
 1. **Request arrives** with RFC 9421 signature headers
-2. **Parse headers** - Extract `Signature-Input`, `Signature`, `Signature-Agent`
+2. **Parse headers** - Extract `Signature-Input`, `Signature`, and optional `Signature-Agent`
 3. **Validate JWKS URL** - Check against trusted directories (if configured)
 4. **Fetch public key** - Get JWKS from cache or fetch from URL
 5. **Check timestamp** - Validate `created` and `expires` within clock skew
@@ -238,4 +258,3 @@ curl -X POST http://localhost:8081/cache/nonces/clear
 ## License
 
 MIT
-

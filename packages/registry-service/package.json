@@ -5,6 +5,9 @@
   "type": "module",
   "main": "./dist/server.js",
   "types": "./dist/server.d.ts",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch --env-file=../../.env src/server.ts",
@@ -32,6 +35,7 @@
     "@openbotauth/a2a-card": "workspace:*",
     "@openbotauth/github-connector": "workspace:*",
     "@openbotauth/registry-signer": "workspace:*",
+    "@peculiar/x509": "^1.12.4",
     "dotenv": "^17.2.3",
     "express": "^4.19.2",
     "pg": "^8.12.0",

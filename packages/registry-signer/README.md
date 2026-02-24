@@ -92,7 +92,7 @@ const backToBase64 = base64UrlToBase64(base64url);
 import { generateKid } from '@openbotauth/registry-signer';
 
 const kid = generateKid(publicKey);
-console.log(kid); // 16-character base64url string
+console.log(kid); // 43-char RFC 7638 thumbprint (base64url)
 ```
 
 ## API Reference
@@ -154,11 +154,19 @@ Convert a base64-encoded public key to JWK format (used when reading from databa
 
 #### `generateKid(publicKeyPem: string): string`
 
-Generate a key ID (kid) from a public key using SHA-256.
+Generate a key ID (kid) from a public key using RFC 7638 JWK thumbprint (SHA-256, base64url).
 
 #### `generateKidFromJWK(jwk: Partial<JWK>): string`
 
-Generate a kid from JWK properties.
+Generate a kid from JWK properties using RFC 7638.
+
+#### `generateLegacyKid(publicKeyPem: string): string`
+
+Generate the legacy 16-character kid using pre-RFC7638 PEM-based hashing (kept for compatibility).
+
+#### `generateLegacyKidFromJWK(jwk: Partial<JWK>): string`
+
+Generate the legacy 16-character kid using pre-RFC7638 JWK-field hashing (kept for compatibility).
 
 #### `validateJWK(jwk: unknown): jwk is JWK`
 
@@ -223,4 +231,3 @@ interface WebBotAuthJWKS extends JWKS {
 ## License
 
 MIT
-

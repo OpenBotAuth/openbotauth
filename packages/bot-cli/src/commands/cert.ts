@@ -1,0 +1,222 @@
+/**
+ * Certificate Commands
+ *
+ * Issue and manage X.509 certificates for agents
+ */
+
+import { readFile } from "node:fs/promises";
+import { webcrypto } from "node:crypto";
+import { KeyStorage } from "../key-storage.js";
+
+const DEFAULT_REGISTRY_URL =
+  process.env.OPENBOTAUTH_REGISTRY_URL || "https://registry.openbotauth.com";
+
+type NodeCryptoKey = webcrypto.CryptoKey;
+
+interface CertIssueErrorResponse {
+  error?: string;
+}
+
+interface CertIssueResponse {
+  serial?: string;
+  fingerprint_sha256?: string;
+  not_before?: string;
+  not_after?: string;
+  cert_pem?: string;
+}
+
+/**
+ * Import a private key from either JWK JSON or PEM format.
+ * Detects format automatically based on content.
+ */
+async function importPrivateKey(content: string): Promise<NodeCryptoKey> {
+  const trimmed = content.trim();
+
+  // Check if it's JSON (JWK format from AddAgentModal)
+  if (trimmed.startsWith("{")) {
+    try {
+      const jwk = JSON.parse(trimmed);
+
+      // Validate it's an Ed25519 private key JWK with required fields
+      if (
+        jwk.kty !== "OKP" ||
+        jwk.crv !== "Ed25519" ||
+        typeof jwk.x !== "string" ||
+        typeof jwk.d !== "string"
+      ) {
+        throw new Error(
+          "Invalid JWK: must be an Ed25519 private key (kty=OKP, crv=Ed25519, x=..., d=...)"
+        );
+      }
+
+      // Import only the minimal required JWK fields (avoid passing extra fields)
+      const minimalJwk = {
+        kty: "OKP" as const,
+        crv: "Ed25519" as const,
+        x: jwk.x,
+        d: jwk.d,
+      };
+
+      return await webcrypto.subtle.importKey(
+        "jwk",
+        minimalJwk,
+        { name: "Ed25519" },
+        false,
+        ["sign"]
+      );
+    } catch (err: any) {
+      if (err.message.includes("Invalid JWK")) throw err;
+      throw new Error(`Failed to parse JWK JSON: ${err.message}`);
+    }
+  }
+
+  // Check if it's PEM format (from Setup.tsx or KeyStorage)
+  if (trimmed.includes("-----BEGIN PRIVATE KEY-----")) {
+    // Extract PEM from potentially larger file (like the .txt bundle from Setup.tsx)
+    const pemMatch = trimmed.match(
+      /-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/
+    );
+    if (!pemMatch) {
+      throw new Error("Could not find valid PEM private key block");
+    }
+
+    return await webcrypto.subtle.importKey(
+      "pkcs8",
+      pemToBuffer(pemMatch[0]),
+      { name: "Ed25519" },
+      false,
+      ["sign"]
+    );
+  }
+
+  throw new Error(
+    "Unrecognized private key format. Expected either:\n" +
+    "  - JWK JSON file (from portal agent creation), or\n" +
+    "  - PEM file with -----BEGIN PRIVATE KEY----- block"
+  );
+}
+
+export async function certIssueCommand(options: {
+  agentId: string;
+  registryUrl?: string;
+  token?: string;
+  privateKeyPath?: string;
+}): Promise<void> {
+  console.log("🔏 Issuing certificate with proof-of-possession...\n");
+
+  try {
+    // Load private key - either from explicit path or from KeyStorage
+    let privateKey: NodeCryptoKey;
+
+    if (options.privateKeyPath) {
+      console.log(`Loading private key from: ${options.privateKeyPath}`);
+      let fileContent: string;
+      try {
+        fileContent = await readFile(options.privateKeyPath, "utf-8");
+      } catch (err: any) {
+        console.error(`❌ Failed to read private key file: ${err.message}`);
+        process.exit(1);
+      }
+
+      try {
+        privateKey = await importPrivateKey(fileContent);
+      } catch (err: any) {
+        console.error(`❌ Failed to import private key: ${err.message}`);
+        process.exit(1);
+      }
+    } else {
+      const config = await KeyStorage.load();
+      if (!config) {
+        console.error(
+          "❌ No configuration found. Either:\n" +
+          "   - Use --private-key-path to specify the agent's private key, or\n" +
+          "   - Run 'oba-bot keygen' first to generate keys"
+        );
+        process.exit(1);
+      }
+      privateKey = await importPrivateKey(config.private_key);
+    }
+
+    const registryUrl = options.registryUrl || DEFAULT_REGISTRY_URL;
+    const token = options.token || process.env.OPENBOTAUTH_TOKEN;
+
+    if (!token) {
+      console.error(
+        "❌ No auth token provided. Set OPENBOTAUTH_TOKEN or use --token"
+      );
+      process.exit(1);
+    }
+
+    // Generate proof-of-possession
+    const timestamp = Math.floor(Date.now() / 1000);
+    const message = `cert-issue:${options.agentId}:${timestamp}`;
+
+    console.log(`Generating proof for agent: ${options.agentId}`);
+    console.log(`Proof message: ${message}\n`);
+
+    // Sign the message
+    const messageBuffer = new TextEncoder().encode(message);
+    const signatureBuffer = await webcrypto.subtle.sign(
+      { name: "Ed25519" },
+      privateKey,
+      messageBuffer
+    );
+
+    const signature = Buffer.from(signatureBuffer).toString("base64");
+
+    // Make API request
+    const response = await fetch(`${registryUrl}/v1/certs/issue`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        agent_id: options.agentId,
+        proof: {
+          message,
+          signature,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const error = (await response
+        .json()
+        .catch(() => ({ error: response.statusText }))) as CertIssueErrorResponse;
+      console.error(`❌ Certificate issuance failed: ${error.error || response.statusText}`);
+      process.exit(1);
+    }
+
+    const result = (await response.json()) as CertIssueResponse;
+
+    console.log("✅ Certificate issued successfully!\n");
+    console.log("Certificate details:");
+    console.log(`  Serial: ${result.serial}`);
+    console.log(`  Fingerprint: ${result.fingerprint_sha256}`);
+    console.log(`  Not Before: ${result.not_before}`);
+    console.log(`  Not After: ${result.not_after}`);
+    console.log("");
+
+    if (result.cert_pem) {
+      console.log("Certificate PEM:");
+      console.log(result.cert_pem);
+    }
+  } catch (error: any) {
+    console.error("❌ Error issuing certificate:", error.message);
+    process.exit(1);
+  }
+}
+
+function pemToBuffer(pem: string): ArrayBuffer {
+  const base64 = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\s/g, "");
+
+  const buffer = Buffer.from(base64, "base64");
+  return buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  );
+}

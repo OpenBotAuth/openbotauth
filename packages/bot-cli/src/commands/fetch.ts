@@ -14,6 +14,7 @@ export async function fetchCommand(
     method?: string;
     body?: string;
     verbose?: boolean;
+    signatureAgentFormat?: string;
   }
 ): Promise<void> {
   const method = options.method || 'GET';
@@ -39,7 +40,10 @@ export async function fetchCommand(
     const client = new HttpClient();
 
     // Sign request
-    const signedRequest = await signer.sign(method, url, options.body);
+    const signedRequest = await signer.sign(method, url, options.body, {
+      signatureAgentFormat:
+        options.signatureAgentFormat === "dict" ? "dict" : "legacy",
+    });
 
     if (options.verbose) {
       console.log('Signature Headers:');
@@ -73,4 +77,3 @@ export async function fetchCommand(
     process.exit(1);
   }
 }
-

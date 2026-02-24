@@ -76,7 +76,7 @@ curl http://localhost:3000/protected
 **Expected:**
 ```json
 {
-  "error": "Missing required signature headers (Signature-Input, Signature, Signature-Agent)",
+  "error": "Missing required signature headers (Signature-Input, Signature)",
   "message": "Signature verification failed"
 }
 ```
@@ -104,7 +104,7 @@ Configuration:
 Signature Headers:
   Signature-Input: sig1=("@method" "@path" "@authority");created=1763282275;expires=1763282575;nonce="abc123";keyid="test-key-123";alg="ed25519"
   Signature: sig1=:K2qGT5srn2OGbOIDzQ6kYT+ruaycnDAAUpKv+ePFfD0=:
-  Signature-Agent: http://localhost:8080/jwks/testbot.json
+  Signature-Agent: sig1="http://localhost:8080/jwks/testbot.json"
 
 📡 Sending request...
 
@@ -387,7 +387,7 @@ curl http://localhost:8081/health | jq
 hey -n 100 -c 10 \
   -H "Signature-Input: sig1=(\"@method\" \"@path\" \"@authority\");created=1763282275;expires=1763282575;nonce=\"test-123\";keyid=\"test-key-123\";alg=\"ed25519\"" \
   -H "Signature: sig1=:K2qGT5srn2OGbOIDzQ6kYT+ruaycnDAAUpKv+ePFfD0=:" \
-  -H "Signature-Agent: http://localhost:8080/jwks/testbot.json" \
+  -H "Signature-Agent: sig1=\"http://localhost:8080/jwks/testbot.json\"" \
   http://localhost:3000/protected
 ```
 
@@ -463,4 +463,3 @@ The OpenBotAuth system is now fully functional with:
 - ✅ Timestamp validation
 
 🎉 **Ready for production integration!**
-

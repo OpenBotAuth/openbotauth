@@ -39,6 +39,9 @@ export interface Agent {
   agent_type: string;
   status: string;
   public_key: Record<string, unknown>;
+  oba_agent_id: string | null;
+  oba_parent_agent_id: string | null;
+  oba_principal: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -60,6 +63,33 @@ export interface CreateTokenResponse extends ApiToken {
 export interface Session {
   user: User;
   profile: Profile;
+}
+
+export interface AgentCertificate {
+  id: string;
+  agent_id: string;
+  kid: string;
+  serial: string;
+  fingerprint_sha256: string;
+  not_before: string;
+  not_after: string;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+  created_at: string;
+  is_active?: boolean;
+}
+
+export interface AgentCertificateDetail extends AgentCertificate {
+  cert_pem: string;
+  chain_pem: string;
+  x5c: string[];
+}
+
+export interface ListCertsResponse {
+  items: AgentCertificate[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 // Radar types
@@ -226,6 +256,9 @@ class RegistryAPI {
     description?: string;
     agent_type: string;
     public_key: Record<string, unknown>;
+    oba_agent_id?: string | null;
+    oba_parent_agent_id?: string | null;
+    oba_principal?: string | null;
   }): Promise<Agent> {
     const response = await this.fetch('/agents', {
       method: 'POST',
@@ -302,6 +335,63 @@ class RegistryAPI {
       const error = await response.json().catch(() => ({ error: response.statusText }));
       throw new Error(error.error || 'Failed to delete agent');
     }
+  }
+
+  /**
+   * List issued certificates for the current user (optionally filtered)
+   */
+  async listAgentCerts(params: {
+    agent_id?: string;
+    kid?: string;
+    status?: 'active' | 'revoked' | 'all';
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<ListCertsResponse> {
+    const searchParams = new URLSearchParams();
+    if (params.agent_id) searchParams.set('agent_id', params.agent_id);
+    if (params.kid) searchParams.set('kid', params.kid);
+    if (params.status) searchParams.set('status', params.status);
+    if (typeof params.limit === 'number') searchParams.set('limit', String(params.limit));
+    if (typeof params.offset === 'number') searchParams.set('offset', String(params.offset));
+
+    const query = searchParams.toString();
+    const response = await this.fetch(query ? `/v1/certs?${query}` : '/v1/certs');
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || 'Failed to list certificates');
+    }
+    return await response.json();
+  }
+
+  /**
+   * Get one certificate (metadata + PEM chain + x5c) by serial.
+   */
+  async getCertBySerial(serial: string): Promise<AgentCertificateDetail> {
+    const response = await this.fetch(`/v1/certs/${encodeURIComponent(serial)}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || 'Failed to fetch certificate');
+    }
+    return await response.json();
+  }
+
+  /**
+   * Revoke one or more certificates by serial or kid.
+   */
+  async revokeCert(data: {
+    serial?: string;
+    kid?: string;
+    reason?: string;
+  }): Promise<{ success: boolean; revoked: number }> {
+    const response = await this.fetch('/v1/certs/revoke', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || 'Failed to revoke certificate');
+    }
+    return await response.json();
   }
 
   /**
@@ -499,4 +589,3 @@ class RegistryAPI {
 }
 
 export const api = new RegistryAPI();
-

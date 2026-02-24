@@ -53,6 +53,12 @@ class TestParseCoveredHeaders:
         result = parse_covered_headers(sig_input)
         assert result == ["@method", "@authority", "@path", "@query"]
 
+    def test_parameterized_component(self):
+        """Parameterized components parse to base header name."""
+        sig_input = 'sig=("signature-agent";key="sig1" "host");created=123'
+        result = parse_covered_headers(sig_input)
+        assert result == ["signature-agent", "host"]
+
 
 class TestExtractForwardedHeaders:
     """Tests for extract_forwarded_headers function."""

@@ -8,6 +8,8 @@ import {
   resolveJwksUrl,
   buildSignatureBase,
   parseSignatureInput,
+  parseSignature,
+  parseSignatureLabels,
   validateSafeUrl,
 } from "./signature-parser.js";
 
@@ -156,6 +158,28 @@ describe("validateSafeUrl", () => {
 });
 
 describe("parseSignatureAgent", () => {
+  it("should parse structured dictionary and select by label", () => {
+    const result = parseSignatureAgent(
+      'sig1="https://registry.example/agents/pete/.well-known/http-message-signatures-directory", sig2="https://example.com/jwks/alt.json"',
+      "sig1",
+    );
+    expect(result).toEqual({
+      url: "https://registry.example/agents/pete/.well-known/http-message-signatures-directory",
+      isJwks: true,
+    });
+  });
+
+  it("should fall back to first dictionary entry when label missing", () => {
+    const result = parseSignatureAgent(
+      'sig1="https://example.com/jwks/a.json", sig2="https://example.com/jwks/b.json"',
+      "sigX",
+    );
+    expect(result).toEqual({
+      url: "https://example.com/jwks/a.json",
+      isJwks: true,
+    });
+  });
+
   it("should parse direct JWKS URL with .json extension", () => {
     const result = parseSignatureAgent("https://example.com/jwks/user.json");
     expect(result).toEqual({
@@ -218,6 +242,99 @@ describe("parseSignatureAgent", () => {
     const result = parseSignatureAgent("not-a-url");
     expect(result).toBeNull();
   });
+
+  it("should parse dictionary string item with parameters", () => {
+    const result = parseSignatureAgent(
+      'sig1="https://example.com/.well-known/http-message-signatures-directory";v=1',
+      "sig1",
+    );
+    expect(result).toEqual({
+      url: "https://example.com/.well-known/http-message-signatures-directory",
+      isJwks: true,
+    });
+  });
+});
+
+describe("parseSignatureInput", () => {
+  it("should parse labels with dash and dot", () => {
+    const parsed = parseSignatureInput(
+      'sig-1.test=("@method" "@path");created=123;expires=124;nonce="n";keyid="k1";alg="ed25519"',
+    );
+    expect(parsed?.label).toBe("sig-1.test");
+  });
+
+  it("should parse labels that start with digit or asterisk", () => {
+    const digitLabel = parseSignatureInput(
+      '1sig=("@method");created=1;expires=2;keyid="k1";alg="ed25519"',
+    );
+    expect(digitLabel?.label).toBe("1sig");
+
+    const asteriskLabel = parseSignatureInput(
+      '*sig=("@method");created=1;expires=2;keyid="k1";alg="ed25519"',
+    );
+    expect(asteriskLabel?.label).toBe("*sig");
+  });
+
+  it("should parse first member when multiple signature-input members are present", () => {
+    const parsed = parseSignatureInput(
+      'sig1=("@method");created=1;keyid="k1";alg="ed25519", sig2=("@path");created=2;keyid="k2";alg="ed25519"',
+    );
+    expect(parsed?.label).toBe("sig1");
+    expect(parsed?.keyId).toBe("k1");
+  });
+
+  it("should parse the matching member when expected label is provided", () => {
+    const parsed = parseSignatureInput(
+      'sig1=("@method");created=1;keyid="k1";alg="ed25519", sig2=("@path");created=2;keyid="k2";alg="ed25519";tag="web-bot-auth"',
+      "sig2",
+    );
+    expect(parsed?.label).toBe("sig2");
+    expect(parsed?.keyId).toBe("k2");
+    expect(parsed?.tag).toBe("web-bot-auth");
+  });
+
+  it("should parse tag and signature-agent key parameter", () => {
+    const parsed = parseSignatureInput(
+      'sig2=("@method" "signature-agent";key="sig1");created=1700000000;expires=1700000300;nonce="n";keyid="k2";alg="ed25519";tag="web-bot-auth"',
+    );
+    expect(parsed?.label).toBe("sig2");
+    expect(parsed?.tag).toBe("web-bot-auth");
+    expect(parsed?.headers).toContain('signature-agent;key="sig1"');
+  });
+
+  it("should keep '=' characters inside quoted parameter values", () => {
+    const parsed = parseSignatureInput(
+      'sig1=("@authority");created=1;expires=2;nonce="abc==";keyid="k1";alg="ed25519";tag="web-bot-auth"',
+    );
+    expect(parsed?.nonce).toBe("abc==");
+  });
+});
+
+describe("parseSignature", () => {
+  it("should parse signature with dash/dot label", () => {
+    const parsed = parseSignature("sig-1.test=:Zm9vYmFyOg==:");
+    expect(parsed).toBe("Zm9vYmFyOg==");
+  });
+
+  it("should parse signature labels that start with digit or asterisk", () => {
+    expect(parseSignature("1sig=:Zm9vOg==:")).toBe("Zm9vOg==");
+    expect(parseSignature("*sig=:YmFyOg==:")).toBe("YmFyOg==");
+  });
+
+  it("should select matching signature by label when multiple members are present", () => {
+    const parsed = parseSignature(
+      "sig1=:Zmlyc3Q=:, sig2=:c2Vjb25k:",
+      "sig2",
+    );
+    expect(parsed).toBe("c2Vjb25k");
+  });
+});
+
+describe("parseSignatureLabels", () => {
+  it("returns signature labels in order", () => {
+    const labels = parseSignatureLabels("sig2=:Zm9vOg==:, sig1=:YmFyOg==:");
+    expect(labels).toEqual(["sig2", "sig1"]);
+  });
 });
 
 describe("resolveJwksUrl", () => {
@@ -233,7 +350,7 @@ describe("resolveJwksUrl", () => {
     vi.restoreAllMocks();
   });
 
-  it("should discover JWKS at /.well-known/jwks.json", async () => {
+  it("should discover JWKS at http-message-signatures-directory", async () => {
     const validJwks = { keys: [{ kid: "test", kty: "OKP" }] };
 
     fetchMock.mockResolvedValueOnce({
@@ -243,13 +360,15 @@ describe("resolveJwksUrl", () => {
     });
 
     const result = await resolveJwksUrl("https://chatgpt.com");
-    expect(result).toBe("https://chatgpt.com/.well-known/jwks.json");
+    expect(result).toBe(
+      "https://chatgpt.com/.well-known/http-message-signatures-directory",
+    );
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://chatgpt.com/.well-known/jwks.json",
+      "https://chatgpt.com/.well-known/http-message-signatures-directory",
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
-          Accept: "application/json",
+          Accept: expect.stringContaining("http-message-signatures-directory"),
         }),
       }),
     );
@@ -272,9 +391,7 @@ describe("resolveJwksUrl", () => {
     });
 
     const result = await resolveJwksUrl("https://example.com");
-    expect(result).toBe(
-      "https://example.com/.well-known/openbotauth/jwks.json",
-    );
+    expect(result).toBe("https://example.com/.well-known/jwks.json");
   });
 
   it("should return null if no valid JWKS found", async () => {
@@ -376,7 +493,7 @@ describe("resolveJwksUrl", () => {
 
     const result = await resolveJwksUrl("https://example.com");
     expect(result).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(3); // Tries all 3 default paths
+    expect(fetchMock).toHaveBeenCalledTimes(4); // Tries all 4 default paths
   });
 
   it("should block 301 redirects (SSRF protection)", async () => {
@@ -419,11 +536,91 @@ describe("resolveJwksUrl", () => {
       }),
     );
   });
+
+  it("should accept valid JWKS Content-Type: application/json", async () => {
+    const validJwks = { keys: [{ kid: "test", kty: "OKP" }] };
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      headers: new Map([
+        ["content-type", "application/json"],
+        ["content-length", "100"],
+      ]),
+      json: async () => validJwks,
+    });
+
+    const result = await resolveJwksUrl("https://example.com");
+    expect(result).toBe(
+      "https://example.com/.well-known/http-message-signatures-directory",
+    );
+  });
+
+  it("should accept valid JWKS Content-Type: application/jwk-set+json", async () => {
+    const validJwks = { keys: [{ kid: "test", kty: "OKP" }] };
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      headers: new Map([
+        ["content-type", "application/jwk-set+json"],
+        ["content-length", "100"],
+      ]),
+      json: async () => validJwks,
+    });
+
+    const result = await resolveJwksUrl("https://example.com");
+    expect(result).toBe(
+      "https://example.com/.well-known/http-message-signatures-directory",
+    );
+  });
+
+  it("should accept Content-Type with charset parameter", async () => {
+    const validJwks = { keys: [{ kid: "test", kty: "OKP" }] };
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      headers: new Map([
+        ["content-type", "application/json; charset=utf-8"],
+        ["content-length", "100"],
+      ]),
+      json: async () => validJwks,
+    });
+
+    const result = await resolveJwksUrl("https://example.com");
+    expect(result).toBe(
+      "https://example.com/.well-known/http-message-signatures-directory",
+    );
+  });
+
+  it("should reject invalid Content-Type: text/html", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      headers: new Map([
+        ["content-type", "text/html"],
+        ["content-length", "100"],
+      ]),
+      json: async () => ({ keys: [{ kid: "test" }] }),
+    });
+
+    const result = await resolveJwksUrl("https://example.com");
+    expect(result).toBeNull();
+  });
+
+  it("should accept missing Content-Type for compatibility", async () => {
+    const validJwks = { keys: [{ kid: "test", kty: "OKP" }] };
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      headers: new Map([["content-length", "100"]]),
+      json: async () => validJwks,
+    });
+
+    const result = await resolveJwksUrl("https://example.com");
+    expect(result).toBe(
+      "https://example.com/.well-known/http-message-signatures-directory",
+    );
+  });
 });
 
 describe("buildSignatureBase", () => {
   it("should build signature base with derived components", () => {
     const components = {
+      label: "sig1",
       keyId: "test-key",
       signature: "",
       algorithm: "ed25519",
@@ -449,6 +646,7 @@ describe("buildSignatureBase", () => {
 
   it("should include regular headers when present", () => {
     const components = {
+      label: "sig1",
       keyId: "test-key",
       signature: "",
       algorithm: "ed25519",
@@ -473,8 +671,34 @@ describe("buildSignatureBase", () => {
     expect(result).toContain('"accept": application/json');
   });
 
+  it("serializes selected dictionary member as key=sf-string", () => {
+    const components = {
+      label: "sig1",
+      keyId: "test-key",
+      signature: "",
+      algorithm: "ed25519",
+      headers: ['signature-agent;key="sig1"'],
+      rawSignatureParams:
+        '("signature-agent";key="sig1");keyid="test-key";alg="ed25519"',
+    };
+
+    const request = {
+      method: "GET",
+      url: "https://example.com/test",
+      headers: {
+        "signature-agent": 'sig1="https://example.com/jwks.json"',
+      },
+    };
+
+    const result = buildSignatureBase(components, request);
+    expect(result).toContain(
+      '"signature-agent": sig1="https://example.com/jwks.json"',
+    );
+  });
+
   it("should throw error when covered header is missing", () => {
     const components = {
+      label: "sig1",
       keyId: "test-key",
       signature: "",
       algorithm: "ed25519",
@@ -500,6 +724,7 @@ describe("buildSignatureBase", () => {
 
   it("should handle empty string header values", () => {
     const components = {
+      label: "sig1",
       keyId: "test-key",
       signature: "",
       algorithm: "ed25519",
@@ -527,6 +752,7 @@ describe("parseSignatureInput", () => {
     const result = parseSignatureInput(input);
 
     expect(result).toEqual({
+      label: "sig1",
       keyId: "test-key-ed25519",
       algorithm: "ed25519",
       created: 1618884473,

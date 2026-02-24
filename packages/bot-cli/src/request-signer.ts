@@ -10,11 +10,39 @@ import type { BotConfig, SignedRequest, SignatureParams } from './types.js';
 export class RequestSigner {
   constructor(private config: BotConfig) {}
 
+  private serializeSfString(value: string): string {
+    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  }
+
+  private formatCoveredComponent(component: string): string {
+    const separatorIndex = component.indexOf(";");
+    if (separatorIndex === -1) {
+      return `"${component}"`;
+    }
+    const componentName = component.slice(0, separatorIndex);
+    const componentParams = component.slice(separatorIndex + 1);
+    return `"${componentName}";${componentParams}`;
+  }
+
   /**
    * Sign an HTTP request
    */
-  async sign(method: string, url: string, body?: string): Promise<SignedRequest> {
+  async sign(
+    method: string,
+    url: string,
+    body?: string,
+    options?: { signatureAgentFormat?: "legacy" | "dict"; signatureLabel?: string },
+  ): Promise<SignedRequest> {
     const urlObj = new URL(url);
+    const signatureLabel = options?.signatureLabel || "sig1";
+    const signatureAgentFormat =
+      options?.signatureAgentFormat ||
+      this.config.signature_agent_format ||
+      "dict";
+    const signatureAgentValue =
+      signatureAgentFormat === "dict"
+        ? `${signatureLabel}="${this.config.jwks_url}"`
+        : this.config.jwks_url;
     
     // Generate signature parameters
     const params: SignatureParams = {
@@ -23,7 +51,15 @@ export class RequestSigner {
       nonce: this.generateNonce(),
       keyId: this.config.kid,
       algorithm: 'ed25519',
-      headers: ['@method', '@path', '@authority'],
+      tag: 'web-bot-auth',
+      headers: [
+        '@method',
+        '@path',
+        '@authority',
+        signatureAgentFormat === "legacy"
+          ? "signature-agent"
+          : `signature-agent;key="${signatureLabel}"`,
+      ],
     };
 
     // Add content-type if there's a body
@@ -38,6 +74,7 @@ export class RequestSigner {
       path: urlObj.pathname,
       authority: urlObj.host,
       contentType: body ? 'application/json' : undefined,
+      signatureAgent: signatureAgentValue,
     });
 
     // Sign the base string
@@ -45,9 +82,9 @@ export class RequestSigner {
 
     // Build headers
     const headers: Record<string, string> = {
-      'Signature-Input': this.buildSignatureInput(params),
-      'Signature': `sig1=:${signature}:`,
-      'Signature-Agent': this.config.jwks_url,
+      'Signature-Input': this.buildSignatureInput(params, signatureLabel),
+      'Signature': `${signatureLabel}=:${signature}:`,
+      'Signature-Agent': signatureAgentValue,
       'User-Agent': 'OpenBotAuth-CLI/0.1.0',
     };
 
@@ -74,6 +111,7 @@ export class RequestSigner {
       path: string;
       authority: string;
       contentType?: string;
+      signatureAgent?: string;
     }
   ): string {
     const lines: string[] = [];
@@ -94,20 +132,50 @@ export class RequestSigner {
         }
       } else {
         // Regular headers
-        if (component === 'content-type' && request.contentType) {
+        if (component === 'content-type') {
+          if (!request.contentType) {
+            throw new Error('Missing covered header: content-type');
+          }
           lines.push(`"content-type": ${request.contentType}`);
+          continue;
+        }
+        // Handle signature-agent with ;key= parameter (RFC 8941 dictionary member selection)
+        const sigAgentMatch = component.match(/^signature-agent;key="([^"]+)"$/);
+        if (sigAgentMatch) {
+          if (!request.signatureAgent) {
+            throw new Error('Missing covered header: signature-agent');
+          }
+          // Extract the value for the specific dictionary member key
+          // Serialize selected dictionary member as RFC 8941 sf-string.
+          const dictKey = sigAgentMatch[1];
+          const escapedDictKey = dictKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const dictMatch = request.signatureAgent.match(new RegExp(`${escapedDictKey}="([^"]+)"`));
+          const uriValue = dictMatch ? dictMatch[1] : request.signatureAgent;
+          lines.push(
+            `"signature-agent": ${dictKey}=${this.serializeSfString(uriValue)}`,
+          );
+          continue;
+        }
+        if (component === 'signature-agent') {
+          if (!request.signatureAgent) {
+            throw new Error('Missing covered header: signature-agent');
+          }
+          lines.push(`"signature-agent": ${request.signatureAgent}`);
         }
       }
     }
 
     // Add signature parameters
     const paramParts: string[] = [];
-    paramParts.push(`(${params.headers.map(h => `"${h}"`).join(' ')})`);
+    paramParts.push(`(${params.headers.map((h) => this.formatCoveredComponent(h)).join(' ')})`);
     paramParts.push(`created=${params.created}`);
     paramParts.push(`expires=${params.expires}`);
     paramParts.push(`nonce="${params.nonce}"`);
     paramParts.push(`keyid="${params.keyId}"`);
     paramParts.push(`alg="${params.algorithm}"`);
+    if (params.tag) {
+      paramParts.push(`tag="${params.tag}"`);
+    }
 
     lines.push(`"@signature-params": ${paramParts.join(';')}`);
 
@@ -117,9 +185,18 @@ export class RequestSigner {
   /**
    * Build Signature-Input header value
    */
-  private buildSignatureInput(params: SignatureParams): string {
-    const components = params.headers.map(h => `"${h}"`).join(' ');
-    return `sig1=(${components});created=${params.created};expires=${params.expires};nonce="${params.nonce}";keyid="${params.keyId}";alg="${params.algorithm}"`;
+  private buildSignatureInput(
+    params: SignatureParams,
+    label: string,
+  ): string {
+    const components = params.headers
+      .map((h) => this.formatCoveredComponent(h))
+      .join(" ");
+    let input = `${label}=(${components});created=${params.created};expires=${params.expires};nonce="${params.nonce}";keyid="${params.keyId}";alg="${params.algorithm}"`;
+    if (params.tag) {
+      input += `;tag="${params.tag}"`;
+    }
+    return input;
   }
 
   /**
@@ -168,11 +245,10 @@ export class RequestSigner {
   }
 
   /**
-   * Generate a random nonce
+   * Generate a random nonce (64 bytes per IETF draft recommendation)
    */
   private generateNonce(): string {
-    const bytes = webcrypto.getRandomValues(new Uint8Array(16));
+    const bytes = webcrypto.getRandomValues(new Uint8Array(64));
     return Buffer.from(bytes).toString('base64url');
   }
 }
-

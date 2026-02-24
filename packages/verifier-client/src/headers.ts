@@ -25,17 +25,18 @@ const SIGNATURE_AGENT_HEADER = 'signature-agent';
  * Parse covered headers from Signature-Input header value.
  *
  * The Signature-Input header format (RFC 9421) is:
- *   sig1=("@method" "@target-uri" "content-type");created=...
+ *   sig1=("@method" "@target-uri" "content-type" "signature-agent;key=\"sig1\"");created=...
  *
  * This extracts the list inside the first parentheses, splits by whitespace,
- * and trims quotes from each component.
+ * trims quotes from each component, and extracts the base header name
+ * (removing any parameters like ;key="sig1").
  *
  * @param signatureInput - The Signature-Input header value
- * @returns Array of covered component/header names (lowercase, without quotes)
+ * @returns Array of covered component/header names (lowercase, base names without parameters)
  *
  * @example
- * parseCoveredHeaders('sig1=("@method" "@target-uri" "content-type");created=1234')
- * // Returns: ["@method", "@target-uri", "content-type"]
+ * parseCoveredHeaders('sig1=("@method" "@target-uri" "signature-agent;key=\\"sig1\\"");created=1234')
+ * // Returns: ["@method", "@target-uri", "signature-agent"]
  */
 export function parseCoveredHeaders(signatureInput: string): string[] {
   // Find content between first ( and matching )
@@ -51,17 +52,35 @@ export function parseCoveredHeaders(signatureInput: string): string[] {
 
   const content = signatureInput.slice(openParen + 1, closeParen);
 
-  // Split by whitespace and trim quotes
-  return content
-    .split(/\s+/)
-    .filter((s) => s.length > 0)
-    .map((s) => {
-      // Remove surrounding quotes
-      if (s.startsWith('"') && s.endsWith('"')) {
-        return s.slice(1, -1).toLowerCase();
+  // Match tokens while keeping parameterized quoted components intact, e.g.:
+  // "signature-agent";key="sig1"
+  const tokens =
+    content.match(/"[^"\\]*(?:\\.[^"\\]*)*"(?:;[^\s]+)?|[^\s]+/g) ?? [];
+
+  return tokens.map((token) => {
+    let component = token;
+
+    if (token.startsWith('"')) {
+      // Extract the quoted component name before any ;param tail.
+      const quotedMatch = token.match(/^"((?:\\.|[^"\\])*)"/);
+      if (quotedMatch) {
+        component = quotedMatch[1].replace(/\\(["\\])/g, '$1');
       }
-      return s.toLowerCase();
-    });
+    } else {
+      const semicolonPos = token.indexOf(';');
+      if (semicolonPos !== -1) {
+        component = token.slice(0, semicolonPos);
+      }
+    }
+
+    // Be defensive for malformed inputs where ';' may survive.
+    const semicolonPos = component.indexOf(';');
+    if (semicolonPos !== -1) {
+      component = component.slice(0, semicolonPos);
+    }
+
+    return component.toLowerCase();
+  });
 }
 
 /**

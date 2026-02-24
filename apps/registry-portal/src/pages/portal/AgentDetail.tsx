@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Copy, Trash2 } from "lucide-react";
+import { ArrowLeft, Copy, Download, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import AuthenticatedNav from "@/components/AuthenticatedNav";
 import {
@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { api, Agent } from "@/lib/api";
+import { api, Agent, AgentCertificate, AgentCertificateDetail } from "@/lib/api";
 
 interface Activity {
   id: string;
@@ -36,7 +36,51 @@ const AgentDetail = () => {
   const navigate = useNavigate();
   const [agent, setAgent] = useState<Agent | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [certificates, setCertificates] = useState<AgentCertificate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [certLoading, setCertLoading] = useState(false);
+  const [revokingSerial, setRevokingSerial] = useState<string | null>(null);
+  const [revokeDialogCert, setRevokeDialogCert] = useState<AgentCertificate | null>(null);
+  const [advancedSerial, setAdvancedSerial] = useState<string | null>(null);
+  const [detailLoadingSerial, setDetailLoadingSerial] = useState<string | null>(null);
+  const [certDetails, setCertDetails] = useState<Record<string, AgentCertificateDetail>>({});
+
+  const shortText = (value: string, prefix = 10, suffix = 8) => {
+    if (!value || value.length <= prefix + suffix + 3) return value;
+    return `${value.slice(0, prefix)}...${value.slice(-suffix)}`;
+  };
+
+  const getCertificateStatus = (cert: AgentCertificate): "active" | "revoked" | "expired" | "pending" => {
+    if (cert.revoked_at) return "revoked";
+    const now = Date.now();
+    if (new Date(cert.not_before).getTime() > now) return "pending";
+    if (new Date(cert.not_after).getTime() <= now) return "expired";
+    return "active";
+  };
+
+  const fetchCertificates = async (targetAgentId: string) => {
+    setCertLoading(true);
+    try {
+      const response = await api.listAgentCerts({
+        agent_id: targetAgentId,
+        status: "all",
+        limit: 100,
+        offset: 0,
+      });
+      setCertificates(response.items || []);
+      setAdvancedSerial(null);
+      setCertDetails({});
+    } catch (error: any) {
+      console.error("Error fetching certificates:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load certificates",
+        variant: "destructive",
+      });
+    } finally {
+      setCertLoading(false);
+    }
+  };
 
   const fetchAgentData = async () => {
     try {
@@ -53,6 +97,7 @@ const AgentDetail = () => {
       // Fetch activities
       const activitiesData = await api.getAgentActivity(agentId!, 50, 0);
       setActivities(activitiesData || []);
+      await fetchCertificates(agentData.id);
     } catch (error: any) {
       console.error("Error fetching agent data:", error);
       toast({
@@ -93,6 +138,88 @@ const AgentDetail = () => {
       toast({
         title: "Error",
         description: "Failed to delete agent",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const revokeCertificate = async (serial: string) => {
+    if (!agent) return;
+
+    setRevokingSerial(serial);
+    try {
+      await api.revokeCert({ serial, reason: "unspecified" });
+      toast({
+        title: "Certificate Revoked",
+        description: `Serial ${shortText(serial)} was revoked`,
+      });
+      await fetchCertificates(agent.id);
+    } catch (error: any) {
+      console.error("Error revoking certificate:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to revoke certificate",
+        variant: "destructive",
+      });
+    } finally {
+      setRevokingSerial(null);
+      setRevokeDialogCert(null);
+    }
+  };
+
+  const ensureCertDetail = async (serial: string): Promise<AgentCertificateDetail> => {
+    const existing = certDetails[serial];
+    if (existing) return existing;
+
+    setDetailLoadingSerial(serial);
+    try {
+      const detail = await api.getCertBySerial(serial);
+      setCertDetails((prev) => ({ ...prev, [serial]: detail }));
+      return detail;
+    } finally {
+      setDetailLoadingSerial((current) => (current === serial ? null : current));
+    }
+  };
+
+  const toggleAdvanced = async (serial: string) => {
+    if (advancedSerial === serial) {
+      setAdvancedSerial(null);
+      return;
+    }
+    setAdvancedSerial(serial);
+    try {
+      await ensureCertDetail(serial);
+    } catch (error: any) {
+      console.error("Error loading certificate details:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load certificate details",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const downloadChainPem = async (serial: string) => {
+    try {
+      const detail = await ensureCertDetail(serial);
+      const blob = new Blob([detail.chain_pem], { type: "application/x-pem-file" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${agent?.name || "agent"}-${serial}.chain.pem`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Downloaded",
+        description: "Certificate chain PEM downloaded",
+      });
+    } catch (error: any) {
+      console.error("Error downloading chain PEM:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to download chain PEM",
         variant: "destructive",
       });
     }
@@ -173,6 +300,26 @@ const AgentDetail = () => {
                 <p className="mt-1">{new Date(agent.created_at).toLocaleString()}</p>
               </div>
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">OBA Agent ID</p>
+                <p className="mt-1 text-xs break-all">
+                  {agent.oba_agent_id || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">OBA Parent Agent ID</p>
+                <p className="mt-1 text-xs break-all">
+                  {agent.oba_parent_agent_id || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">OBA Principal</p>
+                <p className="mt-1 text-xs break-all">
+                  {agent.oba_principal || "—"}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -228,6 +375,199 @@ const AgentDetail = () => {
         </Card>
 
         <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Certificates</CardTitle>
+              <CardDescription>
+                Issued X.509 certificates for this agent key
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => agent && fetchCertificates(agent.id)}
+              disabled={certLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${certLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4 p-4 bg-muted rounded-lg space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Certificate issuance requires proof-of-possession and must be done via CLI.
+                Use the private key file you downloaded when creating this agent:
+              </p>
+              <code className="block p-2 bg-background rounded text-xs font-mono break-all">
+                oba-bot cert issue --agent-id {agent?.id ?? "<agent-id>"} --private-key-path ./agent-{agent?.id ?? "<agent-id>"}-private-key.json --token {"<pat>"}
+              </code>
+              <p className="text-xs text-muted-foreground">
+                Or set <code className="bg-background px-1 rounded">OPENBOTAUTH_TOKEN</code> env var instead of --token
+              </p>
+            </div>
+            {certLoading ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Loading certificates...</p>
+            ) : certificates.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No certificates issued yet. Use the CLI command above to issue one.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Serial</TableHead>
+                      <TableHead>Kid</TableHead>
+                      <TableHead>Fingerprint</TableHead>
+                      <TableHead>Expires</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Issued</TableHead>
+                      <TableHead>Revoked</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {certificates.map((cert) => {
+                      const status = getCertificateStatus(cert);
+                      const detail = certDetails[cert.serial];
+                      return (
+                        <Fragment key={cert.id}>
+                          <TableRow>
+                            <TableCell className="font-mono text-xs" title={cert.serial}>
+                              {shortText(cert.serial)}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs" title={cert.kid}>
+                              {shortText(cert.kid)}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs" title={cert.fingerprint_sha256}>
+                              {shortText(cert.fingerprint_sha256)}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {new Date(cert.not_after).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  status === "active"
+                                    ? "default"
+                                    : status === "revoked"
+                                      ? "destructive"
+                                      : status === "pending"
+                                        ? "outline"
+                                        : "secondary"
+                                }
+                                className="capitalize"
+                              >
+                                {status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {new Date(cert.created_at).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {cert.revoked_at ? new Date(cert.revoked_at).toLocaleString() : "—"}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(cert.serial, "Serial")}
+                                >
+                                  <Copy className="h-3.5 w-3.5 mr-1" />
+                                  Copy serial
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(cert.kid, "Kid")}
+                                >
+                                  <Copy className="h-3.5 w-3.5 mr-1" />
+                                  Copy kid
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    copyToClipboard(cert.fingerprint_sha256, "Fingerprint")
+                                  }
+                                >
+                                  <Copy className="h-3.5 w-3.5 mr-1" />
+                                  Copy fingerprint
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => downloadChainPem(cert.serial)}
+                                >
+                                  <Download className="h-3.5 w-3.5 mr-1" />
+                                  Download chain
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => toggleAdvanced(cert.serial)}
+                                >
+                                  {advancedSerial === cert.serial ? "Hide" : "Advanced"}
+                                </Button>
+                                {!cert.revoked_at && (
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => setRevokeDialogCert(cert)}
+                                    disabled={revokingSerial === cert.serial}
+                                  >
+                                    {revokingSerial === cert.serial ? "Revoking..." : "Revoke"}
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {advancedSerial === cert.serial && (
+                            <TableRow>
+                              <TableCell colSpan={8}>
+                                {detailLoadingSerial === cert.serial ? (
+                                  <p className="text-sm text-muted-foreground py-3">
+                                    Loading certificate details...
+                                  </p>
+                                ) : detail ? (
+                                  <div className="space-y-3 py-2">
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">
+                                        Certificate PEM
+                                      </p>
+                                      <pre className="max-h-48 overflow-auto rounded bg-muted p-3 text-[11px]">
+                                        {detail.cert_pem}
+                                      </pre>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">
+                                        Chain PEM
+                                      </p>
+                                      <pre className="max-h-48 overflow-auto rounded bg-muted p-3 text-[11px]">
+                                        {detail.chain_pem}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground py-3">
+                                    No details available.
+                                  </p>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader>
             <CardTitle>Activity Logging API</CardTitle>
             <CardDescription>Use this endpoint to log agent activities</CardDescription>
@@ -255,6 +595,42 @@ const AgentDetail = () => {
             </div>
           </CardContent>
         </Card>
+
+        <AlertDialog
+          open={Boolean(revokeDialogCert)}
+          onOpenChange={(open) => {
+            if (!open && !revokingSerial) {
+              setRevokeDialogCert(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revoke certificate?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will revoke certificate{" "}
+                <span className="font-mono">{revokeDialogCert ? shortText(revokeDialogCert.serial) : ""}</span>.
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={Boolean(revokingSerial)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={!revokeDialogCert || Boolean(revokingSerial)}
+                onClick={(event) => {
+                  event.preventDefault();
+                  if (revokeDialogCert) {
+                    void revokeCertificate(revokeDialogCert.serial);
+                  }
+                }}
+              >
+                {revokingSerial ? "Revoking..." : "Revoke"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );

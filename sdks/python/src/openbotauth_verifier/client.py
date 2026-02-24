@@ -87,6 +87,7 @@ class VerifierClient:
         url: str,
         headers: Mapping[str, str],
         body: str | None = None,
+        jwks_url: str | None = None,
     ) -> VerificationResult:
         """
         Verify a signed HTTP request asynchronously.
@@ -96,6 +97,7 @@ class VerifierClient:
             url: Full request URL
             headers: Request headers
             body: Optional request body
+            jwks_url: Optional out-of-band JWKS URL when Signature-Agent is omitted
 
         Returns:
             VerificationResult with verified status and agent info
@@ -119,6 +121,8 @@ class VerifierClient:
         }
         if body is not None:
             payload["body"] = body
+        if jwks_url is not None:
+            payload["jwksUrl"] = jwks_url
 
         async with httpx.AsyncClient(timeout=self.timeout_s) as client:
             response = await client.post(
@@ -134,6 +138,7 @@ class VerifierClient:
         url: str,
         headers: Mapping[str, str],
         body: str | None = None,
+        jwks_url: str | None = None,
     ) -> VerificationResult:
         """
         Verify a signed HTTP request synchronously.
@@ -143,6 +148,7 @@ class VerifierClient:
             url: Full request URL
             headers: Request headers
             body: Optional request body
+            jwks_url: Optional out-of-band JWKS URL when Signature-Agent is omitted
 
         Returns:
             VerificationResult with verified status and agent info
@@ -166,6 +172,8 @@ class VerifierClient:
         }
         if body is not None:
             payload["body"] = body
+        if jwks_url is not None:
+            payload["jwksUrl"] = jwks_url
 
         with httpx.Client(timeout=self.timeout_s) as client:
             response = client.post(

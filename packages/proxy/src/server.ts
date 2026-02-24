@@ -143,6 +143,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     method: req.method || 'GET',
     url: reconstructUrl(req),
     headers: forwardedHeaders,
+    jwksUrl: getHeaderString(req.headers, 'x-obauth-jwks-url'),
   };
 
   // Call verifier

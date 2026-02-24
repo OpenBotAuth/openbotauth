@@ -26,6 +26,15 @@ GITHUB_CLIENT_SECRET=your_github_client_secret
 GITHUB_CALLBACK_URL=http://localhost:8080/auth/github/callback
 FRONTEND_URL=http://localhost:5173
 NODE_ENV=development
+OBA_CA_MODE=local
+OBA_CA_DIR=./.local/ca
+OBA_CA_KEY_PATH=./.local/ca/ca.key.json
+OBA_CA_CERT_PATH=./.local/ca/ca.pem
+OBA_CA_SUBJECT="CN=OpenBotAuth Dev CA"
+OBA_CA_VALID_DAYS=3650
+OBA_LEAF_CERT_VALID_DAYS=90
+OBA_CERT_MAX_ISSUES_PER_AGENT_PER_DAY=10
+OBA_CERT_MAX_ACTIVE_PER_KID=1
 ```
 
 ## Development
@@ -69,6 +78,222 @@ Serve JWKS for a user's public keys.
   "purpose": "tdm"
 }
 ```
+
+#### GET `/.well-known/http-message-signatures-directory`
+
+Multi-tenant convenience discovery endpoint.
+
+Query parameters:
+- `username` (required)
+
+Behavior:
+- Redirects to `/jwks/{username}.json`.
+- Returns `400` if `username` is missing.
+
+### Signature Agent Card
+
+#### GET `/.well-known/signature-agent-card`
+
+Serves a Signature Agent Card with optional `oba_*` fields and embedded JWKS.
+
+Query parameters:
+- `agent_id` (optional)
+- `username` (optional)
+
+### Certificate Endpoints (MVP)
+
+Scope note:
+- In current middleware, `agents:write` satisfies `agents:read`.
+
+#### POST `/v1/certs/issue`
+
+Issue an X.509 certificate for an agent key.
+
+Auth:
+- Requires authenticated session or Bearer PAT.
+- Required scope: `agents:write`.
+
+**Proof-of-Possession Required:**
+
+To prevent certificate issuance for keys you don't control, you must provide a signed proof:
+
+1. Generate a message: `cert-issue:{agent_id}:{unix_timestamp}`
+2. Sign the message with your Ed25519 private key
+3. Include the proof in the request body
+
+The timestamp must be within 5 minutes in the past (up to 30 seconds future drift is tolerated for clock skew).
+
+**Replay Protection:** Each proof message can only be used once. The server tracks used proofs for 5 minutes to prevent replay attacks. Clients must generate a fresh timestamp for each issuance request.
+
+**Issuance Limits:**
+- Per-agent issuance rate limit (default: `10` certs / 24h, configurable via `OBA_CERT_MAX_ISSUES_PER_AGENT_PER_DAY`).
+- Active cert cap per key `kid` (default: `1`, configurable via `OBA_CERT_MAX_ACTIVE_PER_KID`).
+
+Note: if the agent has `oba_agent_id`, it is included as a SAN URI in the leaf
+certificate as an informational hint. This value is user-supplied unless you
+enforce registry-side issuance rules.
+
+**Request:**
+```json
+{
+  "agent_id": "uuid",
+  "proof": {
+    "message": "cert-issue:550e8400-e29b-41d4-a716-446655440000:1709251200",
+    "signature": "<base64-encoded-ed25519-signature>"
+  }
+}
+```
+
+**CLI Usage (recommended):**
+
+Certificate issuance is best done via CLI to keep private keys secure:
+
+```bash
+# Using the JWK JSON file downloaded when creating the agent in the portal
+oba-bot cert issue --agent-id <uuid> --private-key-path ./agent-<uuid>-private-key.json --token <pat>
+
+# Or using a PEM file (from Setup page or other tooling)
+oba-bot cert issue --agent-id <uuid> --private-key-path /path/to/private-key.pem --token <pat>
+
+# With OPENBOTAUTH_TOKEN env var
+OPENBOTAUTH_TOKEN=<pat> oba-bot cert issue --agent-id <uuid> --private-key-path ./agent-<uuid>-private-key.json
+```
+
+The CLI auto-detects the key format (JWK JSON or PEM) and generates the proof-of-possession signature.
+
+CA topology note: current MVP uses a single self-signed online CA for signing
+leaf certificates. Offline root + online intermediate separation is planned for
+later phases.
+
+#### POST `/v1/certs/revoke`
+
+Revoke an issued certificate.
+
+Auth:
+- Requires authenticated session or Bearer PAT.
+- Required scope: `agents:write`.
+
+**Request:**
+```json
+{
+  "serial": "hex-serial",
+  "reason": "key_compromise"
+}
+```
+
+`reason` is optional; when provided it must be one of the RFC 5280 reason
+identifiers (for example `key_compromise`, `cessation_of_operation`,
+`superseded`).
+
+#### GET `/v1/certs`
+
+List issued certificates owned by the authenticated user.
+
+Auth:
+- Requires authenticated session or Bearer PAT.
+- Required scope: `agents:read` (or `agents:write`).
+
+Query parameters:
+- `agent_id` (optional)
+- `kid` (optional)
+- `status` (optional: `active` | `revoked` | `all`, default `all`)
+- `limit` (optional, default `50`, max `200`)
+- `offset` (optional, default `0`)
+
+#### GET `/v1/certs/{serial}`
+
+Fetch one certificate by serial, including PEM and chain data.
+
+Auth:
+- Requires authenticated session or Bearer PAT.
+- Required scope: `agents:read` (or `agents:write`).
+
+Response includes metadata fields plus:
+- `cert_pem`
+- `chain_pem`
+- `x5c`
+
+#### GET `/v1/certs/status`
+
+Check certificate validity metadata by one identifier:
+- `serial` **or**
+- `fingerprint_sha256`
+
+Auth:
+- Requires authenticated session or Bearer PAT.
+- Required scope: `agents:read` (or `agents:write`).
+
+Response shape:
+```json
+{
+  "valid": true,
+  "revoked": false,
+  "not_before": "2026-02-01T00:00:00.000Z",
+  "not_after": "2026-05-01T00:00:00.000Z",
+  "revoked_at": null,
+  "revoked_reason": null
+}
+```
+
+Note: `valid` is true only when the certificate is not revoked AND the current time is within the `not_before`/`not_after` validity window.
+
+#### GET `/v1/certs/public-status`
+
+Public endpoint for relying parties (e.g., ClawAuth) to check certificate revocation status.
+
+**No authentication required.**
+
+Query parameters:
+- `fingerprint_sha256` (required) - SHA-256 fingerprint of the certificate (64 lowercase hex characters)
+
+**Computing the fingerprint:**
+
+For mTLS integration, compute the SHA-256 fingerprint over the **DER-encoded** client certificate (not PEM text). Example in Node.js:
+
+```javascript
+const { createHash, X509Certificate } = require("node:crypto");
+
+// From PEM string
+const pem = "-----BEGIN CERTIFICATE-----...";
+const cert = new X509Certificate(pem);
+const fingerprint = createHash("sha256").update(cert.raw).digest("hex");
+// fingerprint is 64 lowercase hex chars
+```
+
+Response shape:
+```json
+{
+  "valid": true,
+  "revoked": false,
+  "not_before": "2026-02-01T00:00:00.000Z",
+  "not_after": "2026-05-01T00:00:00.000Z",
+  "revoked_at": null,
+  "revoked_reason": null
+}
+```
+
+#### GET `/.well-known/ca.pem`
+
+Fetch the registry CA certificate (PEM).
+
+### mTLS Integration Notes (ClawAuth / relying parties)
+
+For OpenBotAuth-issued client certificates in mTLS:
+
+1. Fetch and trust OBA CA:
+   - `GET /.well-known/ca.pem`
+   - Configure your TLS server trust store with this CA (or intermediate, depending on deployment).
+2. Provision agent certificate:
+   - Call `POST /v1/certs/issue` for the target `agent_id`.
+   - Store `cert_pem` / `chain_pem` alongside the agent private key.
+3. Revoke when needed:
+   - Call `POST /v1/certs/revoke`.
+4. Optional status checks:
+   - Call `GET /v1/certs/status` to evaluate revoked + validity window metadata (`not_before`/`not_after`).
+
+Current limitation:
+- TLS stacks do not automatically consult OpenBotAuth revocation status in this MVP.
+- Use short-lived certs and/or explicit status checks if you need revocation awareness.
 
 ### Activity Endpoints
 
@@ -223,4 +448,3 @@ Key tables:
 ## License
 
 MIT
-

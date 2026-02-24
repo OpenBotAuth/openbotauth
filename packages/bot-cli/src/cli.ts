@@ -10,6 +10,7 @@ import { Command } from 'commander';
 import { keygenCommand } from './commands/keygen.js';
 import { fetchCommand } from './commands/fetch.js';
 import { configCommand } from './commands/config.js';
+import { certIssueCommand } from './commands/cert.js';
 
 const program = new Command();
 
@@ -43,11 +44,13 @@ program
   .option('-m, --method <method>', 'HTTP method (default: GET)', 'GET')
   .option('-d, --body <data>', 'Request body (JSON)')
   .option('-v, --verbose', 'Verbose output')
+  .option('--signature-agent-format <format>', 'Signature-Agent format: legacy|dict', 'dict')
   .action(async (url, options) => {
     await fetchCommand(url, {
       method: options.method,
       body: options.body,
       verbose: options.verbose,
+      signatureAgentFormat: options.signatureAgentFormat,
     });
   });
 
@@ -59,6 +62,27 @@ program
   .description('Display current bot configuration')
   .action(async () => {
     await configCommand();
+  });
+
+/**
+ * cert command - Certificate management
+ */
+const certCmd = program.command('cert').description('Certificate management');
+
+certCmd
+  .command('issue')
+  .description('Issue an X.509 certificate for an agent (requires proof-of-possession)')
+  .requiredOption('--agent-id <id>', 'Agent ID to issue certificate for')
+  .option('--private-key-path <path>', 'Path to private key PEM file (if not using KeyStorage)')
+  .option('--registry-url <url>', 'Registry URL (default: https://registry.openbotauth.com)')
+  .option('--token <token>', 'Auth token (or set OPENBOTAUTH_TOKEN env var)')
+  .action(async (options) => {
+    await certIssueCommand({
+      agentId: options.agentId,
+      privateKeyPath: options.privateKeyPath,
+      registryUrl: options.registryUrl,
+      token: options.token,
+    });
   });
 
 /**
@@ -80,6 +104,9 @@ Examples:
   # Show configuration
   $ oba-bot config
 
+  # Issue an X.509 certificate for an agent
+  $ oba-bot cert issue --agent-id <uuid> --token <pat>
+
   # Verbose mode
   $ oba-bot fetch https://example.com/api/data -v
 `
@@ -87,4 +114,3 @@ Examples:
 
 // Parse arguments
 program.parse();
-

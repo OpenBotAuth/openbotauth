@@ -2,9 +2,191 @@
  * RFC 9421 HTTP Message Signatures Parser
  *
  * Parses Signature-Input and Signature headers according to RFC 9421
+ * with extensions for the IETF Web Bot Auth draft specification.
+ *
+ * References:
+ * - RFC 9421: HTTP Message Signatures
+ *   https://www.rfc-editor.org/rfc/rfc9421.html
+ * - RFC 8941: Structured Field Values for HTTP
+ *   https://www.rfc-editor.org/rfc/rfc8941.html
+ * - IETF Web Bot Auth (draft-meunier-web-bot-auth)
+ *   https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth/
+ * - HTTP Message Signatures Directory (draft-meunier-http-message-signatures-directory)
+ *   https://datatracker.ietf.org/doc/draft-meunier-http-message-signatures-directory/
  */
 
 import type { SignatureComponents } from "./types.js";
+
+const LABEL_PATTERN = "[A-Za-z0-9*][A-Za-z0-9._*-]*";
+const LABEL_CAPTURE_RE = new RegExp(`^(${LABEL_PATTERN})`);
+const SIGNATURE_INPUT_LABEL_RE = new RegExp(`^(${LABEL_PATTERN})=(.+)$`);
+const SIGNATURE_INPUT_RE = new RegExp(`^(${LABEL_PATTERN})=\\(([^)]+)\\);(.+)$`);
+const SIGNATURE_RE = new RegExp(`^(${LABEL_PATTERN})=:([^:]+):$`);
+const DIRECTORY_ACCEPT_HEADER =
+  "application/http-message-signatures-directory+json, application/http-message-signatures-directory, application/jwk-set+json, application/json";
+
+/**
+ * Valid Content-Type values for JWKS/directory responses per IETF specs.
+ * We accept these media types (with optional parameters like charset).
+ */
+const VALID_JWKS_CONTENT_TYPES = [
+  "application/http-message-signatures-directory+json",
+  "application/http-message-signatures-directory",
+  "application/jwk-set+json",
+  "application/json",
+];
+
+/**
+ * Check if a Content-Type header value is valid for JWKS/directory responses.
+ * Handles media type parameters (e.g., "application/json; charset=utf-8").
+ */
+function isValidJwksContentType(contentType: string | null): boolean {
+  if (!contentType) {
+    // Allow missing Content-Type for compatibility with some servers
+    return true;
+  }
+  // Extract media type (before any semicolon for parameters)
+  const mediaType = contentType.split(";")[0].trim().toLowerCase();
+  return VALID_JWKS_CONTENT_TYPES.includes(mediaType);
+}
+
+function splitTopLevelMembers(input: string): string[] {
+  const members: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  let escape = false;
+  let parenDepth = 0;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+
+    if (escape) {
+      current += ch;
+      escape = false;
+      continue;
+    }
+
+    if (ch === "\\" && inQuotes) {
+      current += ch;
+      escape = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      current += ch;
+      continue;
+    }
+
+    if (!inQuotes) {
+      if (ch === "(") {
+        parenDepth++;
+      } else if (ch === ")" && parenDepth > 0) {
+        parenDepth--;
+      }
+    }
+
+    if (ch === "," && !inQuotes && parenDepth === 0) {
+      const trimmed = current.trim();
+      if (trimmed) members.push(trimmed);
+      current = "";
+      continue;
+    }
+
+    current += ch;
+  }
+
+  const finalMember = current.trim();
+  if (finalMember) {
+    members.push(finalMember);
+  }
+
+  return members;
+}
+
+function parseSingleSignatureInputMember(
+  signatureInputMember: string,
+): SignatureComponents | null {
+  const labelMatch = signatureInputMember.match(SIGNATURE_INPUT_LABEL_RE);
+  if (!labelMatch) {
+    return null;
+  }
+
+  const label = labelMatch[1];
+  const rawSignatureParams = labelMatch[2];
+  const match = signatureInputMember.match(SIGNATURE_INPUT_RE);
+  if (!match) {
+    return null;
+  }
+
+  const [, , headersList, paramsStr] = match;
+
+  // Parse covered headers (may include parameters like "signature-agent";key="sig1")
+  // RFC 9421: covered components can have parameters, e.g., "signature-agent";key="sig1"
+  const headers: string[] = [];
+  // Match quoted component name followed by optional parameters
+  const componentRegex = /"([^"]+)"(;[^"\s]+="[^"]*")*/g;
+  let componentMatch;
+  while ((componentMatch = componentRegex.exec(headersList)) !== null) {
+    // Capture the full component including parameters (e.g., signature-agent;key="sig1")
+    const componentName = componentMatch[1];
+    const params = componentMatch[2] || "";
+    headers.push(componentName + params);
+  }
+  // Fallback if regex didn't match (simple space-separated quoted strings)
+  if (headers.length === 0) {
+    const simpleHeaders = headersList
+      .split(/\s+/)
+      .map((h) => h.replace(/"/g, "").trim())
+      .filter(Boolean);
+    headers.push(...simpleHeaders);
+  }
+
+  // Parse parameters
+  const params: Record<string, string | number> = {};
+  const paramPairs = paramsStr.split(";");
+
+  for (const pair of paramPairs) {
+    const trimmed = pair.trim();
+    if (!trimmed) continue;
+
+    // Split only on the first '=' so quoted values like nonce="abc=="
+    // retain all trailing '=' characters.
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) continue;
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const rawValue = trimmed.slice(separatorIndex + 1).trim();
+    if (!key || !rawValue) continue;
+
+    if (rawValue.startsWith('"') && rawValue.endsWith('"') && rawValue.length >= 2) {
+      const inner = rawValue.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      params[key] = inner;
+      continue;
+    }
+
+    const numeric = Number(rawValue);
+    params[key] = Number.isNaN(numeric) ? rawValue : numeric;
+  }
+
+  const parsed: SignatureComponents = {
+    label,
+    keyId: params.keyid as string,
+    algorithm: (params.alg as string) || "ed25519",
+    created: params.created as number,
+    expires: params.expires as number,
+    nonce: params.nonce as string,
+    headers,
+    signature: "", // Will be filled from Signature header
+    rawSignatureParams,
+  };
+
+  if (typeof params.tag === "string" && params.tag.length > 0) {
+    parsed.tag = params.tag;
+  }
+
+  return parsed;
+}
 
 /**
  * SSRF protection: validate that a URL is safe to fetch
@@ -96,57 +278,20 @@ export function validateSafeUrl(urlString: string): void {
  */
 export function parseSignatureInput(
   signatureInput: string,
+  expectedLabel?: string,
 ): SignatureComponents | null {
   try {
-    // Extract the signature label and the raw params (everything after "label=")
-    const labelMatch = signatureInput.match(/^(\w+)=(.+)$/);
-    if (!labelMatch) {
-      return null;
-    }
-
-    // Store the raw signature params (everything after "sig1=")
-    // This is used verbatim in the signature base per RFC 9421
-    const rawSignatureParams = labelMatch[2];
-
-    // Now parse for validation and component extraction
-    const match = signatureInput.match(/^(\w+)=\(([^)]+)\);(.+)$/);
-    if (!match) {
-      return null;
-    }
-
-    const [, , headersList, paramsStr] = match;
-
-    // Parse covered headers
-    const headers = headersList
-      .split(/\s+/)
-      .map((h) => h.replace(/"/g, "").trim())
-      .filter(Boolean);
-
-    // Parse parameters
-    const params: Record<string, string | number> = {};
-    const paramPairs = paramsStr.split(";");
-
-    for (const pair of paramPairs) {
-      const [key, value] = pair.split("=").map((s) => s.trim());
-      if (key && value) {
-        // Remove quotes and parse numbers
-        const cleanValue = value.replace(/"/g, "");
-        params[key] = isNaN(Number(cleanValue))
-          ? cleanValue
-          : Number(cleanValue);
+    const members = splitTopLevelMembers(signatureInput);
+    for (const member of members) {
+      const parsed = parseSingleSignatureInputMember(member);
+      if (!parsed) {
+        continue;
+      }
+      if (!expectedLabel || parsed.label === expectedLabel) {
+        return parsed;
       }
     }
-
-    return {
-      keyId: params.keyid as string,
-      algorithm: (params.alg as string) || "ed25519",
-      created: params.created as number,
-      expires: params.expires as number,
-      nonce: params.nonce as string,
-      headers,
-      signature: "", // Will be filled from Signature header
-      rawSignatureParams,
-    };
+    return null;
   } catch (error) {
     console.error("Error parsing Signature-Input:", error);
     return null;
@@ -159,18 +304,83 @@ export function parseSignatureInput(
  * Example:
  *   Signature: sig1=:K2qGT5srn2OGbOIDzQ6kYT+ruaycnDAAUpKv+ePFfD0RAxn/1BUeZx/Kdrq32DrfakQ6bPsvB9aqZqognNT6be4olHROIkeV879RrsrObury8L9SCEibeoHyqU/yCjphSmEdd7WD+zrchK57quskKwRefy2iEC5S2uAH0EPyOZKWlvbKmKu5q4CaB8X/I5/+HLZLGvDiezqi6/7p2Gngf5hwZ0lSdy39vyNMaaAT0tKo6nuVw0S1MVg1Q7MpWYZs0soHjttq0uLIA3DIbQfLiIvK6/l0BdWTU7+2uQj7lBkQAsFZHoA96ZZgFquQrXRlmYOh+Hx5D4m8eNqsKzeDQg==:
  */
-export function parseSignature(signature: string): string | null {
+export function parseSignature(
+  signature: string,
+  expectedLabel?: string,
+): string | null {
   try {
-    // Extract base64 signature from sig1=:...:
-    const match = signature.match(/^\w+=:([^:]+):$/);
-    if (!match) {
-      return null;
+    const members = splitTopLevelMembers(signature);
+    let fallback: string | null = null;
+
+    for (const member of members) {
+      const match = member.match(SIGNATURE_RE);
+      if (!match) {
+        continue;
+      }
+      const label = match[1];
+      const value = match[2];
+      if (!fallback) {
+        fallback = value;
+      }
+      if (!expectedLabel || label === expectedLabel) {
+        return value;
+      }
     }
-    return match[1];
+
+    return expectedLabel ? null : fallback;
   } catch (error) {
     console.error("Error parsing Signature:", error);
     return null;
   }
+}
+
+/**
+ * Parse signature labels from Signature header members in-order.
+ *
+ * Example:
+ *   Signature: sig1=:abc:, sig2=:def:
+ * Returns: ["sig1", "sig2"]
+ */
+export function parseSignatureLabels(signature: string): string[] {
+  try {
+    const labels: string[] = [];
+    for (const member of splitTopLevelMembers(signature)) {
+      const match = member.match(SIGNATURE_RE);
+      if (match) {
+        labels.push(match[1]);
+      }
+    }
+    return labels;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Extract dictionary key from component with ;key= parameter
+ * e.g., "signature-agent;key=\"sig1\"" -> { headerName: "signature-agent", dictKey: "sig1" }
+ */
+function parseComponentWithKeyParam(component: string): {
+  headerName: string;
+  dictKey: string | null;
+} {
+  const keyMatch = component.match(/^([^;]+);key="([^"]+)"$/);
+  if (keyMatch) {
+    return { headerName: keyMatch[1], dictKey: keyMatch[2] };
+  }
+  return { headerName: component, dictKey: null };
+}
+
+export function extractSignatureAgentDictionaryKey(
+  coveredComponents: string[],
+): string | null {
+  for (const component of coveredComponents) {
+    const { headerName, dictKey } = parseComponentWithKeyParam(component);
+    if (headerName.toLowerCase() === "signature-agent" && dictKey) {
+      return dictKey;
+    }
+  }
+  return null;
 }
 
 /**
@@ -215,13 +425,34 @@ export function buildSignatureBase(
           console.warn(`Unknown derived component: ${component}`);
       }
     } else {
-      // Regular headers - use raw value as-is per RFC 9421
-      const headerValue = request.headers[component.toLowerCase()];
-      if (headerValue !== undefined) {
-        lines.push(`"${component}": ${headerValue}`);
+      // Check for dictionary key selection parameter (RFC 9421 Section 2.1.2)
+      const { headerName, dictKey } = parseComponentWithKeyParam(component);
+      const headerValue = request.headers[headerName.toLowerCase()];
+
+      if (headerValue === undefined) {
+        throw new Error(`Missing covered header: ${headerName}`);
+      }
+
+      if (dictKey) {
+        // Handle dictionary member selection (e.g., signature-agent;key="sig1")
+        // Extract the value for the specific dictionary key
+        const dict = parseStructuredDictionaryStringItems(headerValue);
+        const memberValue = dict[dictKey];
+
+        if (memberValue === undefined) {
+          throw new Error(
+            `Missing dictionary key "${dictKey}" in header "${headerName}"`,
+          );
+        }
+
+        // RFC 9421 + RFC 8941: serialize selected dictionary member as key=sf-string.
+        // Example: "signature-agent": sig2="https://signature-agent.test"
+        lines.push(
+          `"${headerName}": ${dictKey}=${serializeSfString(memberValue)}`,
+        );
       } else {
-        // Header is in Signature-Input but not provided in request
-        throw new Error(`Missing covered header: ${component}`);
+        // Regular headers - use raw value as-is per RFC 9421
+        lines.push(`"${headerName}": ${headerValue}`);
       }
     }
   }
@@ -234,21 +465,134 @@ export function buildSignatureBase(
 }
 
 /**
+ * Parse RFC 8941 Structured Field Dictionary (string items only)
+ *
+ * Returns a map of dictionary keys to string item values.
+ * Ignores non-string values and parameters.
+ */
+function parseStructuredDictionaryStringItems(
+  headerValue: string,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  const parts: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  let escape = false;
+
+  for (let i = 0; i < headerValue.length; i++) {
+    const ch = headerValue[i];
+    if (escape) {
+      current += ch;
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      if (inQuotes) {
+        escape = true;
+      }
+      current += ch;
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      current += ch;
+      continue;
+    }
+    if (ch === "," && !inQuotes) {
+      parts.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim().length > 0) {
+    parts.push(current);
+  }
+
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+
+    const keyMatch = trimmed.match(LABEL_CAPTURE_RE);
+    if (!keyMatch) continue;
+    const key = keyMatch[1];
+    let rest = trimmed.slice(key.length).trimStart();
+    if (!rest.startsWith("=")) {
+      // Bare key (boolean true) - ignore
+      continue;
+    }
+    rest = rest.slice(1).trimStart();
+    if (!rest.startsWith('"')) {
+      // Not a string item
+      continue;
+    }
+
+    // Parse quoted string item
+    let value = "";
+    let i = 1;
+    let escaped = false;
+    for (; i < rest.length; i++) {
+      const ch = rest[i];
+      if (escaped) {
+        value += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        break;
+      }
+      value += ch;
+    }
+
+    if (i >= rest.length || rest[i] !== '"') {
+      // Unterminated string
+      continue;
+    }
+
+    result[key] = value;
+  }
+
+  return result;
+}
+
+function serializeSfString(value: string): string {
+  // RFC 8941 sf-string serialization for signature-base construction.
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/**
  * Extract JWKS URL from Signature-Agent header
  *
  * Handles both direct JWKS URLs and agent identity URLs that need discovery.
+ * Also supports RFC 8941 Structured Field Dictionary format.
  *
  * Examples:
  *   - Direct JWKS: https://openbotregistry.example.com/jwks/hammadtq.json
  *   - Identity URL: https://chatgpt.com (needs discovery)
  *   - Quoted: "https://example.com/jwks.json"
  *   - Angle brackets: <https://example.com/jwks.json>
+ *   - Structured Dictionary: sig1="https://.../.well-known/http-message-signatures-directory"
  */
 export function parseSignatureAgent(
   signatureAgent: string,
+  signatureLabel?: string,
 ): { url: string; isJwks: boolean } | null {
   try {
-    // Trim whitespace
+    // First, try Structured Field Dictionary format
+    const dict = parseStructuredDictionaryStringItems(signatureAgent);
+    const dictKeys = Object.keys(dict);
+    if (dictKeys.length > 0) {
+      const selected =
+        (signatureLabel && dict[signatureLabel]) ||
+        dict[dictKeys[0]];
+      return parseSignatureAgent(selected);
+    }
+
+    // Trim whitespace (legacy URL format)
     let cleaned = signatureAgent.trim();
 
     // Strip wrapping quotes if present
@@ -267,9 +611,16 @@ export function parseSignatureAgent(
     // Validate URL structure
     const url = new URL(cleaned);
 
+    const normalizedPath = url.pathname.replace(/\/+$/, "");
+    const isDirectoryPath = normalizedPath.endsWith(
+      "/.well-known/http-message-signatures-directory",
+    );
+
     // Check if it's already a JWKS URL
     const isJwks =
-      url.pathname.endsWith(".json") || url.pathname.includes("/jwks/");
+      normalizedPath.endsWith(".json") ||
+      normalizedPath.includes("/jwks/") ||
+      isDirectoryPath;
 
     return {
       url: cleaned,
@@ -321,7 +672,7 @@ export async function resolveJwksUrl(
       const response = await fetch(candidateUrl, {
         method: "GET",
         headers: {
-          Accept: "application/json",
+          Accept: DIRECTORY_ACCEPT_HEADER,
           "User-Agent": "OpenBotAuth-Verifier/0.1.0",
         },
         signal: AbortSignal.timeout(3000), // 3s timeout
@@ -335,6 +686,15 @@ export async function resolveJwksUrl(
 
       if (!response.ok) {
         continue; // Try next path
+      }
+
+      // Validate Content-Type is appropriate for JWKS/directory response
+      const contentType = response.headers.get("content-type");
+      if (!isValidJwksContentType(contentType)) {
+        console.warn(
+          `JWKS discovery: ${candidateUrl} has invalid Content-Type: ${contentType}`,
+        );
+        continue;
       }
 
       // Limit response size to prevent huge payloads

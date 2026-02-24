@@ -5,12 +5,57 @@
  * Implements the behavior from supabase/functions/jwks/index.ts
  */
 
-import { createHash } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import type { Database } from '@openbotauth/github-connector';
-import { base64PublicKeyToJWK, createWebBotAuthJWKS, generateKidFromJWK } from '@openbotauth/registry-signer';
+import {
+  base64PublicKeyToJWK,
+  createWebBotAuthJWKS,
+  generateKidFromJWK,
+  generateLegacyKidFromJWK,
+} from '@openbotauth/registry-signer';
+import { jwkThumbprint } from '../utils/jwk.js';
 
 export const jwksRouter: Router = Router();
+
+function withLegacyKidAliases(
+  keys: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const result: Array<Record<string, unknown>> = [...keys];
+  const seenKids = new Set(
+    keys
+      .map((key) => (typeof key.kid === "string" ? key.kid : null))
+      .filter((kid): kid is string => !!kid),
+  );
+
+  for (const key of keys) {
+    if (
+      key.kty !== "OKP" ||
+      key.crv !== "Ed25519" ||
+      typeof key.x !== "string" ||
+      typeof key.kid !== "string"
+    ) {
+      continue;
+    }
+
+    const thumbprintInput = { kty: "OKP" as const, crv: "Ed25519" as const, x: key.x };
+    const fullKid = generateKidFromJWK(thumbprintInput);
+    const legacyKid = generateLegacyKidFromJWK(thumbprintInput);
+    const aliasKid =
+      key.kid === fullKid ? legacyKid : key.kid === legacyKid ? fullKid : null;
+
+    if (!aliasKid || seenKids.has(aliasKid)) {
+      continue;
+    }
+
+    seenKids.add(aliasKid);
+    result.push({
+      ...key,
+      kid: aliasKid,
+    });
+  }
+
+  return result;
+}
 
 /**
  * GET /jwks/{username}.json
@@ -78,6 +123,7 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
     const seenKids = new Set(
       jwks.map(k => k.kid).filter((k): k is string => typeof k === 'string' && k.length > 0)
     );
+    const agentJwkRefs: Array<{ agentId: string; kid: string; jwk: Record<string, unknown> }> = [];
 
     for (const agent of agentsResult.rows) {
       const pk = agent.public_key;
@@ -96,14 +142,10 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
         continue;
       }
 
-      // Derive kid from x if missing (fallback using same thumbprint logic)
+      // Derive kid from x if missing (RFC 7638 OKP thumbprint)
       let kid = pk.kid;
       if (typeof kid !== 'string' || kid.length === 0) {
-        // Generate kid from x using SHA-256 thumbprint of canonical JWK (RFC 7638 style)
-        const canonical = JSON.stringify({ crv: 'Ed25519', kty: 'OKP', x: pk.x });
-        const hashBase64 = createHash('sha256').update(canonical).digest('base64');
-        // Convert to base64url (full length, no truncation to avoid collisions)
-        kid = hashBase64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+        kid = jwkThumbprint({ kty: 'OKP', crv: 'Ed25519', x: pk.x });
         if (process.env.NODE_ENV !== 'production') {
           console.warn(`Agent ${agent.id}: derived kid ${kid} from x (was missing)`);
         }
@@ -138,6 +180,7 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       }
 
       jwks.push(agentJwk);
+      agentJwkRefs.push({ agentId: agent.id, kid, jwk: agentJwk as unknown as Record<string, unknown> });
     }
 
     if (jwks.length === 0) {
@@ -145,8 +188,40 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       return;
     }
 
+    // Attach x5c for keys that have issued certificates
+    const kidsForCerts = Array.from(new Set(agentJwkRefs.map(ref => ref.kid)));
+    const agentIdsForCerts = Array.from(new Set(agentJwkRefs.map(ref => ref.agentId)));
+
+    if (kidsForCerts.length > 0 && agentIdsForCerts.length > 0) {
+      const certResult = await db.getPool().query(
+        `SELECT DISTINCT ON (c.agent_id, c.kid) c.agent_id, c.kid, c.x5c
+         FROM agent_certificates c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE c.agent_id = ANY($1)
+           AND c.kid = ANY($2)
+           AND c.revoked_at IS NULL
+           AND c.not_before <= now()
+           AND c.not_after > now()
+           AND a.user_id = $3
+         ORDER BY c.agent_id, c.kid, c.created_at DESC`,
+        [agentIdsForCerts, kidsForCerts, profile.id]
+      );
+
+      const certByAgentKid = new Map<string, unknown>();
+      for (const row of certResult.rows) {
+        certByAgentKid.set(`${row.agent_id}:${row.kid}`, row.x5c);
+      }
+
+      for (const ref of agentJwkRefs) {
+        const certKey = `${ref.agentId}:${ref.kid}`;
+        if (certByAgentKid.has(certKey)) {
+          ref.jwk.x5c = certByAgentKid.get(certKey);
+        }
+      }
+    }
+
     // Build Web Bot Auth response
-    const response = createWebBotAuthJWKS(jwks, {
+    const response = createWebBotAuthJWKS(withLegacyKidAliases(jwks as unknown as Array<Record<string, unknown>>) as any, {
       client_name: profile.client_name || profile.username,
       client_uri: profile.client_uri || undefined,
       logo_uri: profile.logo_uri || undefined,
@@ -164,7 +239,7 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
       verified: false, // Placeholder
     });
 
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Type', 'application/http-message-signatures-directory+json');
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=300');
     res.json(response);
   } catch (error) {
@@ -172,4 +247,3 @@ jwksRouter.get('/:username.json', async (req: Request, res: Response): Promise<v
     res.status(500).json({ error: 'Failed to fetch JWKS' });
   }
 });
-

@@ -109,7 +109,8 @@ openbotauth/
 │  └─ neon/                     ✅ Neon migrations
 └─ docs/
    ├─ ARCHITECTURE.md           ✅ System architecture
-   └─ A2A_CARD.md               ✅ A2A discovery documentation
+   ├─ A2A_CARD.md               ✅ A2A discovery documentation
+   └─ BREAKING_CHANGES.md       ✅ Behavior changes by PR/release
 ```
 
 ---

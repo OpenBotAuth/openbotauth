@@ -6,6 +6,7 @@ export interface VerificationRequest {
   url: string;
   headers: Record<string, string>;
   body?: string;
+  jwksUrl?: string;
 }
 
 /**

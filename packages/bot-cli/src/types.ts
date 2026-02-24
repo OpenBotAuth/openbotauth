@@ -7,6 +7,7 @@ export interface BotConfig {
   kid: string;
   private_key: string; // PEM format
   public_key: string;  // Base64 format
+  signature_agent_format?: "legacy" | "dict";
 }
 
 export interface SignedRequest {
@@ -37,6 +38,6 @@ export interface SignatureParams {
   nonce: string;
   keyId: string;
   algorithm: string;
+  tag?: string;
   headers: string[];
 }
-
